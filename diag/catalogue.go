@@ -34,6 +34,7 @@ const (
 	CodeRigGround    = "GW-RIG-GROUND"
 	CodeRuntimePart  = "GW-RUNTIME-PARTIAL"
 	CodeRigTorn      = "GW-RIG-TORN"
+	CodePrint        = "GW-PRINT"
 )
 
 // Entry documents one code.
@@ -81,6 +82,7 @@ var catalogue = []Entry{
 	{CodeRigGround, Error, "The lowest skinned vertex of a non-airborne clip key lies outside the `ground` band of `check rig` (default -5 mm to 20 mm) at some runtime point. The message names the output, level, clip, key time, runtime point and the measured height.", "testdata/diag/GW-RIG-GROUND.gw", false},
 	{CodeRuntimePart, Warning, "The runtime points `check runtime` asks for are more than the `runtime_points` limit allows, so the audit ran the default, every named case and one axis at a time. The message lists the omitted combinations.", "testdata/diag/GW-RUNTIME-PARTIAL.gw", false},
 	{CodeRigTorn, Error, "More than the `torn` share of the geometric edges of the posed skin are longer than three times or shorter than a quarter of their bind length at some key. The message names the output, level, clip, key time, runtime point and the share.", "testdata/diag/GW-RIG-TORN.gw", false},
+	{CodePrint, Error, "An output cannot be written as a print file. A solid of the output is not a closed manifold shell (an open edge, an edge shared by three triangles or more, a degenerate triangle) or its triangles wind inward (non-positive volume), or the output cannot be printed at all (a rigged asset, a mount, no visible shape, a bad scale). The message names the shape, the fault and the first example in millimetres. Only `BuildPrint` reports this code; a GLB of the same source still builds. Touching or overlapping solids are not refused: they print as separate bodies and the product notes list them.", "testdata/diag/GW-PRINT.gw", false},
 }
 
 // Catalogue returns every code in a fixed order. The caller must not change

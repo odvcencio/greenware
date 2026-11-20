@@ -1,0 +1,14 @@
+greenware 1
+
+// A pipe with open ends. `caps = off` leaves both ends open, so the shape is
+// a surface and not a solid: it renders, and `greenware build` writes it to a
+// GLB, but a slicer cannot fill it. BuildPrint refuses the output with
+// GW-PRINT and names the shape.
+
+asset a { root = a }
+
+output demo { file = "a.glb" }
+
+part a {
+  cylinder pipe { radius = 0.02m height = 0.1m segments = 12 caps = off }
+}

@@ -36,7 +36,9 @@ func TestCatalogueFixtures(t *testing.T) {
 			}
 			// GW-ACCEPT comes from running an acceptance file on built
 			// files, not from the front end; accept/fixture_test.go checks it.
-			if e.Code == diag.CodeAccept || e.Code == diag.CodeLimit {
+			// GW-PRINT comes from the print backend on evaluated meshes;
+			// compiler/print_test.go checks its fixture.
+			if e.Code == diag.CodeAccept || e.Code == diag.CodeLimit || e.Code == diag.CodePrint {
 				return
 			}
 			// GW-RIG-LIMIT and GW-RIG-BAND measure poses, which only the

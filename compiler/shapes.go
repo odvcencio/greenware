@@ -90,6 +90,10 @@ func (e *elab) shape(n *resolve.Node, c wctx) {
 	if e.rigged() {
 		c.meta = e.shapeMeta(n, c, name)
 	}
+	c.shape = name
+	if name == "" {
+		c.shape = n.Kind
+	}
 	e.emit(c, mat, m)
 }
 

@@ -66,6 +66,9 @@ type wctx struct {
 	joint   string   // the joint shapes start rigid on, inherited from the parts
 	chain   []string // the names of the parts that hold the current item
 	meta    pieceMeta
+	// shape is the name of the shape or array being emitted, or its kind when
+	// it has no name. Only the print backend reads it.
+	shape string
 }
 
 // elab holds the state of building one output.
@@ -95,6 +98,10 @@ type elab struct {
 	// source asked for and the file does not carry.
 	imgs  imageSet
 	notes []string
+
+	// printHook, when set, sees every mesh that reaches a node: in the frame
+	// of the node, after the placement. Only BuildPrint sets it.
+	printHook func(c wctx, mat string, m *mesh.Mesh)
 }
 
 func (e *elab) report(code string, sp diag.Span, format string, args ...any) {
@@ -303,6 +310,9 @@ func (e *elab) emit(c wctx, mat string, m *mesh.Mesh) {
 			}
 			meta.line = line
 		}
+	}
+	if e.printHook != nil && c.collect == nil {
+		e.printHook(c, mat, m)
 	}
 	p := piece{mat: mat, m: m, meta: meta}
 	if c.collect != nil {
@@ -516,6 +526,9 @@ func (e *elab) array(n *resolve.Node, c wctx) {
 		// current frame, so it goes through the current placement once. Its
 		// shape has no centre line any more.
 		cc := c
+		if cc.shape = effName(n, c.refl); cc.shape == "" {
+			cc.shape = n.Kind
+		}
 		cc.meta = p.meta
 		cc.meta.line = nil
 		e.emit(cc, p.mat, out)
