@@ -360,3 +360,62 @@ func TestAthleteIsRefused(t *testing.T) {
 		t.Errorf("ok=%v %v err=%v", resp.OK, c, resp.Error)
 	}
 }
+
+// A data package is read from the sealed snapshot: the lock, the schema and
+// the data file are keys of `files`, and the answer is the native build's.
+func TestDataPackageComesFromTheSnapshot(t *testing.T) {
+	names := []string{"example/crate.gw", "example/world.lock", "example/world/schema-v1.json", "example/world/standard.json"}
+	req := func() Request {
+		files := map[string][]byte{}
+		for _, n := range names {
+			files[n] = read(t, "testdata/world/"+n)
+		}
+		return Request{Schema: RequestSchema, ID: "crate", Root: "example/crate.gw", Files: files}
+	}
+	resp := Handle(req())
+	if !resp.OK || len(resp.Files) != 1 {
+		t.Fatalf("ok=%v err=%v diag=%s", resp.OK, resp.Error, resp.Diagnostics)
+	}
+	// The same bytes as the native build of the same project.
+	f, ds := ast.LowerWith(lang.Parse(read(t, "testdata/world/example/crate.gw")), ast.Options{Project: &ast.Project{FS: snapshot(req().Files), Dir: "example"}})
+	if diag.HasErrors(ds) {
+		t.Fatal(ds)
+	}
+	p, ds := compiler.Build(f, "")
+	if p == nil {
+		t.Fatal(ds)
+	}
+	if !bytes.Equal(resp.Files[0].GLB, p.Outputs[0].Files[0].GLB) || !bytes.Equal(resp.Record.Bytes, p.Record()) {
+		t.Error("the worker's file or record differs from the compiler's")
+	}
+	if !bytes.Contains(resp.Record.Bytes, []byte(`6a972715adc467fefb3e4c892958ee75a1cdb752a407b817fbd2af606e9beab5`)) || !bytes.Contains(resp.Files[0].GLB, []byte(`"extras":{"greenware":{"inputs":[{"contract":"example/world@1"`)) {
+		t.Error("the record or the GLB does not name the data package")
+	}
+
+	// A file the page did not send: the lock is GW-LOCK, the schema and the
+	// data file are GW-IMPORT-DATA. Nothing is built.
+	for name, want := range map[string]string{
+		"example/world.lock":           diag.CodeLock,
+		"example/world/schema-v1.json": diag.CodeImportData,
+		"example/world/standard.json":  diag.CodeImportData,
+	} {
+		r := req()
+		delete(r.Files, name)
+		resp := Handle(r)
+		if c := diagCodes(t, resp); resp.OK || len(resp.Files) != 0 || len(c) != 1 || c[0] != want {
+			t.Errorf("without %s: ok=%v files=%d %v, want %s", name, resp.OK, len(resp.Files), c, want)
+		}
+	}
+	// A changed data file with the old lock is a stale pin.
+	r := req()
+	r.Files["example/world/standard.json"] = bytes.Replace(r.Files["example/world/standard.json"], []byte(`"24"`), []byte(`"25"`), 1)
+	if c := diagCodes(t, Handle(r)); len(c) != 1 || c[0] != diag.CodeLock {
+		t.Errorf("stale pin: %v", c)
+	}
+	// The snapshot caps apply to the package files: 2 MiB per file.
+	r = req()
+	r.Files["example/world/standard.json"] = bytes.Repeat([]byte(" "), MaxFileBytes+1)
+	if resp := Handle(r); resp.Error == nil || resp.Error.Code != ErrTooLarge {
+		t.Errorf("a data file over the cap: %+v", resp)
+	}
+}

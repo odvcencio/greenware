@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"m31labs.dev/greenware/ast"
+	"m31labs.dev/greenware/datapkg"
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/gltf"
 	"m31labs.dev/greenware/kernel/mesh"
@@ -76,6 +77,9 @@ type Product struct {
 	SourceSHA256 string // hex SHA-256 of the source bytes
 	InputSHA256  string // hex SHA-256 of the input record: source, selection, compiler
 	Outputs      []*OutputProduct
+	// Data lists the data packages the build read, sorted by contract. It is
+	// nil for an asset that imports none.
+	Data []datapkg.Input
 	// Unsupported lists what the source asked for and the compiler did not
 	// write, such as the GoSX manifest entry. None of it stops a build.
 	Unsupported []string
@@ -186,6 +190,24 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 	for _, path := range pinPaths {
 		fmt.Fprintf(inputHash, "project %s sha256 %s\n", path, pins[path])
 	}
+	// Each data package is pinned by its digest, which covers the schema, the
+	// profile and every value, so a changed value changes the input hash.
+	// A source with no data import adds no line and hashes as before.
+	seenData := map[datapkg.Input]bool{}
+	var dataInputs []datapkg.Input
+	for _, ro := range resolved {
+		for _, in := range ro.r.DataInputs() {
+			if !seenData[in] {
+				seenData[in] = true
+				dataInputs = append(dataInputs, in)
+			}
+		}
+	}
+	sortInputs(dataInputs)
+	for _, in := range dataInputs {
+		fmt.Fprintf(inputHash, "data %s profile %s sha256 %s\n", in.Contract, strconv.Quote(in.Profile), in.SHA256)
+	}
+	p.Data = dataInputs
 	p.InputSHA256 = hex.EncodeToString(inputHash.Sum(nil))
 
 	// The ledger: reserve the whole planned run before running any of it.
@@ -602,6 +624,8 @@ func firHash(r *resolve.Resolved, images []string, mounts []mountIdent) string {
 		Images []string        `json:"images,omitempty"`
 		// Mounts, with the gear each selects, when there are any.
 		Mounts []mountIdent `json:"mounts,omitempty"`
+		// The data packages the output read, when it read any.
+		Data []datapkg.Input `json:"data,omitempty"`
 		// The audit's pass marks do not change the product.
 	}{
 		Format:      "greenware.fir.product/1",
@@ -613,6 +637,7 @@ func firHash(r *resolve.Resolved, images []string, mounts []mountIdent) string {
 		Plugs:       canonAll(r.Plugs, nil),
 		Images:      images,
 		Mounts:      mounts,
+		Data:        r.DataInputs(),
 		Rig:         r.Rig,
 		Lods:        canonAll(r.Lods, map[string]bool{"max_error": true, "drop": true, "keep": true, "segments": true}),
 	}
@@ -660,4 +685,18 @@ func canon(n *resolve.Node, only map[string]bool) *resolve.Node {
 		c.Else = append(c.Else, canon(ch, only))
 	}
 	return c
+}
+
+// sortInputs orders data inputs by contract, then profile, then digest.
+func sortInputs(in []datapkg.Input) {
+	sort.Slice(in, func(i, j int) bool {
+		a, b := in[i], in[j]
+		if a.Contract != b.Contract {
+			return a.Contract < b.Contract
+		}
+		if a.Profile != b.Profile {
+			return a.Profile < b.Profile
+		}
+		return a.SHA256 < b.SHA256
+	})
 }

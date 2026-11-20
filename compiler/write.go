@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"m31labs.dev/greenware/datapkg"
 )
 
 // RecordSchema names the layout of the build record.
@@ -78,12 +80,19 @@ type recordOutput struct {
 	Levels []LevelInfo `json:"levels"`
 }
 
+type recordInputs struct {
+	Data []datapkg.Input `json:"data"`
+}
+
 type record struct {
-	Schema       string         `json:"schema"`
-	Generator    string         `json:"generator"`
-	SourceSHA256 string         `json:"source_sha256"`
-	InputSHA256  string         `json:"input_sha256"`
-	Outputs      []recordOutput `json:"outputs"`
+	Schema       string `json:"schema"`
+	Generator    string `json:"generator"`
+	SourceSHA256 string `json:"source_sha256"`
+	InputSHA256  string `json:"input_sha256"`
+	// Inputs lists what the build read besides the source: the data packages.
+	// It is left out when there are none.
+	Inputs  *recordInputs  `json:"inputs,omitempty"`
+	Outputs []recordOutput `json:"outputs"`
 	// Census holds one row of measured figures for every output and level.
 	Census []Census `json:"census"`
 	// Audit holds the measurements of the rig audit, one entry per level.
@@ -113,6 +122,9 @@ func (p *Product) Record() []byte {
 		SourceSHA256: p.SourceSHA256, InputSHA256: p.InputSHA256,
 		Outputs: []recordOutput{}, Census: p.Census(), Audit: p.Audits(), Unsupported: append([]string{}, p.Unsupported...),
 		Cost: p.Receipt,
+	}
+	if len(p.Data) > 0 {
+		rec.Inputs = &recordInputs{Data: p.Data}
 	}
 	for _, o := range p.Outputs {
 		ro := recordOutput{Name: o.Name, FirSHA256: o.FirSHA256, Files: []recordFile{}, Levels: o.Levels()}

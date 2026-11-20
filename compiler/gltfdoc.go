@@ -183,6 +183,10 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 	collectMats(root)
 	sort.Strings(names) // materials are keyed by name: their order is not meaning
 	doc := &gltf.Document{Asset: gltf.Asset{Generator: Generator}}
+	if in := e.r.DataInputs(); len(in) > 0 {
+		// The data packages the file was built from, by contract.
+		doc.Asset.Extras = mustJSON(map[string]any{"greenware": map[string]any{"inputs": in}})
+	}
 	if v := metaString(e.r, "author"); v != "" {
 		doc.Asset.Copyright = v
 	}
