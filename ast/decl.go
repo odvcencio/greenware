@@ -11,6 +11,7 @@ type File struct {
 
 	Asset     *Asset
 	Meta      *Meta
+	Imports   []*Import
 	Params    []*Param
 	Lets      []*Let
 	Checks    []*Check
@@ -25,6 +26,12 @@ type File struct {
 	Accepts   []*Accept
 	// Templates are the row templates, in source order.
 	Templates []*Template
+	// Painters are the painters the file declares, in source order.
+	Painters []*Painter
+	// Textures are the texture declarations, in source order.
+	Textures []*Texture
+	// Plugs are the asset's plugs, in source order.
+	Plugs []*Plug
 	// Skipped lists the look declarations a geometry-only lowering left out,
 	// each as a sentence for a person. It is empty otherwise.
 	Skipped []string
@@ -321,4 +328,54 @@ type Accept struct {
 	Span     diag.Span
 	Settings []*Setting
 	Items    []AcceptItem
+}
+
+// Import is `import "path" [as name]`. Qualifier is the name the file's
+// qualified references use: the last component of the path unless `as` gives
+// another.
+type Import struct {
+	Path      string
+	PathSpan  diag.Span
+	Qualifier string
+	QualSpan  diag.Span
+	Span      diag.Span
+	Explicit  bool // the qualifier came from `as`
+}
+
+// Painter is `painter name(formals) { let ... color = ... }`: a pure typed
+// function sampled at a texel (language reference 4.9).
+type Painter struct {
+	Name   Ident
+	Span   diag.Span
+	Params []TemplateParam
+	Lets   []*Let
+	// Color is the expression of the `color` setting; ColorSpan is its span.
+	// Color is nil when the body sets none.
+	Color     Expr
+	ColorSpan diag.Span
+}
+
+// Texture is `texture name = kind { ... }`. Only the atlas kind is read.
+type Texture struct {
+	Name     Ident
+	Span     diag.Span
+	Kind     string
+	KindSpan diag.Span
+	Settings []*Setting
+	Cells    []*Cell
+}
+
+// Cell is `cell name { index = ... slot = ... paint = ... }` in an atlas.
+type Cell struct {
+	Name     Ident
+	Span     diag.Span
+	Settings []*Setting
+}
+
+// Plug is `plug name { kind = ... at = ... }`: the frame on this asset that
+// meets a host's socket.
+type Plug struct {
+	Name     Ident
+	Span     diag.Span
+	Settings []*Setting
 }

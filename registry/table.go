@@ -50,9 +50,15 @@ func shapeFields(extra ...Field) []Field {
 		{Name: "uv", Type: enum("auto", "planar", "box", "cylindrical", "spherical"), Default: dv(units.Label("auto")), Doc: "UV projection."},
 		unsupported("normals", tLabel, "normal rules"),
 		unsupported("joint", tLabel, "skeletons"),
-		unsupported("cell", tLabel, "atlas cells"),
+		cellField(),
 	}
 	return append(append([]Field(nil), extra...), common...)
+}
+
+// cellField is the atlas cell a part or shape draws from. The name resolves in
+// the atlas of the effective material, not in the value namespace.
+func cellField() Field {
+	return Field{Name: "cell", Type: tLabel, Doc: "Atlas cell name; inherited from the part, resolved in the atlas the effective material uses."}
 }
 
 func segments(def float64, least float64) Field {
@@ -97,7 +103,7 @@ var kinds = []*Kind{
 		Name: "pbr", Context: CtxDocument, Doc: "A core metallic-roughness material.",
 		Fields: []Field{
 			{Name: "base", Type: tColor, Default: dv(units.Col(units.Color{R: 255, G: 255, B: 255, A: 255})), Runtime: true, Doc: "Base colour factor."},
-			unsupported("base_texture", tLabel, "textures"),
+			{Name: "base_texture", Type: Type{Kind: TTexture}, Doc: "Colour texture: a colour atlas, or paint(atlas) for a palette atlas inside a Selena material. Absent means white."},
 			{Name: "roughness", Type: tNumber, Default: dv(units.Num(1)), Min: fp(0), Max: fp(1), Runtime: true, Doc: "0 is smoothest."},
 			{Name: "metallic", Type: tNumber, Default: dv(units.Num(0)), Min: fp(0), Max: fp(1), Runtime: true, Doc: "Write the factor even when zero."},
 			unsupported("normal_texture", tLabel, "textures"),
@@ -133,7 +139,7 @@ var kinds = []*Kind{
 			{Name: "export", Type: tSwitch, Default: dv(units.Switch(false)), Doc: "Keep this part as its own node."},
 			{Name: "material", Type: ref(NsMaterial), Doc: "Material the shapes inherit."},
 			unsupported("normals", tLabel, "normal rules"),
-			unsupported("cell", tLabel, "atlas cells"),
+			cellField(),
 			unsupported("joint", tLabel, "skeletons"),
 			unsupported("uv_shared", tSwitch, "UV overlap control"),
 			unsupported("watertight", tSwitch, "watertight checks"),
@@ -285,6 +291,38 @@ var kinds = []*Kind{
 			{Name: "kind", Type: tLabel, Required: true, Doc: "What the socket is for, such as anchor or ribbon."},
 			{Name: "at", Type: tPoint, Default: origin(), Doc: "Position."},
 			{Name: "rot", Type: tRotation, Default: dv(units.Tuple(units.Ang(0), units.Ang(0), units.Ang(0))), Doc: "Frame."},
+		},
+		Names: NameRequired, Ns: NsSocket,
+	},
+	// Textures, atlas cells and plugs.
+	{
+		Name: "atlas", Context: CtxDocument, Doc: "A generated image of painted cells in a regular grid (`texture name = atlas { ... }`).",
+		Fields: []Field{
+			{Name: "grid", Type: Type{Kind: TGrid}, Required: true, Doc: "(columns, rows) of cells, numbered left to right then top to bottom from zero."},
+			{Name: "cell_size", Type: Type{Kind: TPixels}, Required: true, Positive: true, Doc: "Side of a square cell in whole pixels; the image is columns x cell_size by rows x cell_size."},
+			{Name: "inset", Type: tNumber, Default: dv(units.Num(0)), Min: fp(0), Doc: "Fraction of a cell reserved on each side, from 0 up to but not including 0.5."},
+			{Name: "seed", Type: tInteger, Default: dv(units.Num(0)), Doc: "Input to the stateless per-cell noise and grain."},
+			{Name: "mode", Type: enum("color", "palette"), Default: dv(units.Label("color")), Doc: "color stores sRGB; palette stores shading in red and the slot byte in green."},
+			{Name: "encode", Type: enum("png"), Default: dv(units.Label("png")), Doc: "The image encoding. jpeg(q) is outside the first compiler's subset."},
+			{Name: "fill", Type: Type{Kind: TPaint}, Doc: "Painter or colour for the cells no `cell` names; absent leaves them transparent black (colour) or shade 0, slot 0 (palette)."},
+		},
+		Blocks: []string{"cell"},
+	},
+	{
+		Name: "cell", Context: CtxAtlas, Doc: "A painted cell of an atlas. Cell names belong to their atlas.",
+		Fields: []Field{
+			{Name: "index", Type: tInteger, Min: fp(0), Doc: "Physical cell number; unindexed cells take the lowest free numbers in name order."},
+			{Name: "paint", Type: Type{Kind: TPaint}, Doc: "Painter call or colour. In a palette atlas it gives shading, not the slot colour. Required unless the atlas has a `fill`."},
+			{Name: "slot", Type: tInteger, Min: fp(0), Max: fp(255), Doc: "Palette atlas only: the slot byte written in green. Several cells may share one slot."},
+		},
+		Names: NameRequired,
+	},
+	{
+		Name: "plug", Context: CtxDocument, Doc: "The frame on this asset that meets a host socket of the same kind.",
+		Fields: []Field{
+			{Name: "kind", Type: tLabel, Required: true, Doc: "What the plug is for, such as helmet."},
+			{Name: "at", Type: tPoint, Default: origin(), Doc: "Position in the asset's frame."},
+			unsupported("rot", tRotation, "plug frames with a rotation"),
 		},
 		Names: NameRequired, Ns: NsSocket,
 	},

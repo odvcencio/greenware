@@ -73,6 +73,12 @@ func (r *run) declare() *symbols {
 	for _, m := range f.Materials {
 		add(registry.NsMaterial, m.Name.Name, m.Name.Span, &decl{})
 	}
+	for _, t := range f.Textures {
+		add(registry.NsTexture, t.Name.Name, t.Name.Span, &decl{})
+	}
+	for _, pl := range f.Plugs {
+		add(registry.NsSocket, pl.Name.Name, pl.Name.Span, &decl{})
+	}
 	for _, t := range f.Templates {
 		if prev, dup := s.templates[t.Name.Name]; dup {
 			r.report(diag.New(diag.CodeDuplicate, t.Name.Span, "the template name `%s` is declared twice", t.Name.Name).WithRelated(prev.Name.Span, "first declaration"))

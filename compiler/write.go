@@ -27,6 +27,10 @@ type recordFile struct {
 	TrianglesStored int `json:"triangles_stored,omitempty"`
 	DrawsWorst      int `json:"draws_worst,omitempty"`
 	Alternates      int `json:"alternates,omitempty"`
+	// TextureBytes is the decoded RGBA size of the distinct images; Images
+	// describes each. Both are absent for a file without images.
+	TextureBytes int         `json:"texture_bytes,omitempty"`
+	Images       []ImageInfo `json:"images,omitempty"`
 }
 
 type recordOutput struct {
@@ -77,6 +81,7 @@ func (p *Product) Record() []byte {
 			if f.TrianglesWorst != f.Triangles || f.DrawsWorst != f.Draws || f.TrianglesStored != f.Triangles || f.Alternates > 0 {
 				rf.TrianglesWorst, rf.TrianglesStored, rf.DrawsWorst, rf.Alternates = f.TrianglesWorst, f.TrianglesStored, f.DrawsWorst, f.Alternates
 			}
+			rf.TextureBytes, rf.Images = f.TextureBytes, f.Images
 			ro.Files = append(ro.Files, rf)
 		}
 		rec.Outputs = append(rec.Outputs, ro)

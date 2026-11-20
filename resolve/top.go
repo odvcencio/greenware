@@ -287,11 +287,11 @@ func (r *run) assetFields() {
 
 func (r *run) materials() {
 	for _, m := range r.f.Materials {
-		r.resolved.Materials = append(r.resolved.Materials, r.material(m))
+		r.resolved.Materials = append(r.resolved.Materials, r.material(m, nil))
 	}
 }
 
-func (r *run) material(m *ast.Material) *Node {
+func (r *run) material(m *ast.Material, parent *Node) *Node {
 	n := &Node{Kind: m.Kind, Name: m.Name.Name}
 	k := docKind(m.Kind)
 	if k == nil {
@@ -302,11 +302,12 @@ func (r *run) material(m *ast.Material) *Node {
 		if m.Fallback == nil {
 			r.report(diag.New(diag.CodeMissing, m.KindSpan, "a selena material needs `fallback = pbr { ... }`, the material every glTF viewer draws"))
 		} else {
-			fb := r.material(m.Fallback)
+			fb := r.material(m.Fallback, n)
 			fb.Name = "fallback"
 			n.Children = append(n.Children, fb)
 		}
 	}
+	r.checkMaterialTextures(m, n, parent)
 	return n
 }
 

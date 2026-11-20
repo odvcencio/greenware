@@ -1,0 +1,18 @@
+greenware 1
+
+asset a { root = a }
+
+texture mask = atlas {
+  grid = (1, 1)
+  cell_size = 8px
+  mode = palette
+  cell body { slot = 0 paint = #808080 }
+}
+
+// A palette mask holds data, not colour: paint(mask) is the colour texture.
+material m = pbr { base_texture = mask }
+
+part a {
+  material = m
+  sphere { radius = 1m }
+}

@@ -50,6 +50,7 @@ func (e *elab) shape(n *resolve.Node, c wctx) {
 		return
 	}
 	var m *mesh.Mesh
+	var ok bool
 	var err error
 	switch n.Kind {
 	case "cylinder":
@@ -74,20 +75,99 @@ func (e *elab) shape(n *resolve.Node, c wctx) {
 		e.fail(n.Name, err)
 		return
 	}
+	cell := c.cell
+	if f, ok := n.Get("cell"); ok && f.Valid() {
+		cell = f.Str
+	}
+	if m, ok = e.finishUV(n, m, mat, cell); !ok {
+		return
+	}
 	e.emit(c, mat, m)
 }
 
 func (e *elab) spanOfShape(n *resolve.Node) diag.Span { return e.spanOf(n.Name) }
 
-// uvOK accepts the projections the kernel builds: its own parametrisation
-// ("auto"), and "cylindrical" on a lathe, which is what the lathe writes.
+// uvOK accepts the projections the kernel builds: its own chart ("auto"),
+// and the explicit planar, box, cylindrical and spherical projections of
+// language reference 4.5. A cylindrical projection on a lathe is the chart the
+// lathe writes.
 func (e *elab) uvOK(n *resolve.Node) bool {
 	v := label(n, "uv")
-	if v == "" || v == "auto" || (n.Kind == "lathe" && v == "cylindrical") {
+	if v == "" || v == "auto" {
+		return true
+	}
+	if _, ok := mesh.ProjectionOf(v); ok {
 		return true
 	}
 	e.unsupported(n.Name, "`uv = %s` on a %s is not supported yet", v, n.Kind)
 	return false
+}
+
+// uvEps is the slack in the test that a chart lies inside the unit square.
+const uvEps = 1e-9
+
+// finishUV applies the shape's explicit projection and then its atlas cell.
+// A projection replaces the builder's chart; a cell maps the unit square of
+// the chart into the cell's inset rectangle (language reference 4.5, 4.8) and
+// refuses a chart that leaves the unit square rather than add triangles.
+func (e *elab) finishUV(n *resolve.Node, m *mesh.Mesh, mat, cell string) (*mesh.Mesh, bool) {
+	if v := label(n, "uv"); v != "" && v != "auto" && !(n.Kind == "lathe" && v == "cylindrical") {
+		proj, _ := mesh.ProjectionOf(v)
+		opt := mesh.ProjectOptions{Axis: 1}
+		if ax, has := n.Get("axis"); has && ax.Valid() {
+			a, ok := axisOf(ax)
+			if !ok {
+				e.unsupported(n.Name, "`uv = %s` about a negative axis is not supported yet", v)
+				return nil, false
+			}
+			opt.Axis = map[rune]int{'x': 0, 'y': 1, 'z': 2}[a]
+		}
+		switch n.Kind {
+		case "sphere":
+			opt.Centre, opt.HasCentre = vec3(n, "at"), true
+		case "ellipsoid":
+			opt.Centre, opt.HasCentre = mesh.Add(vec3(n, "centre"), vec3(n, "at")), true
+		}
+		out, err := m.ProjectUV(proj, opt)
+		if err != nil {
+			e.fail(n.Name, err)
+			return nil, false
+		}
+		m = out
+	}
+	if cell == "" {
+		return m, true
+	}
+	a := e.primaryAtlas(mat)
+	if a == nil {
+		e.unsupported(n.Name, "`cell = %s` needs an atlas in the material `%s`", cell, mat)
+		return nil, false
+	}
+	idx, ok := a.CellIndex(cell)
+	if !ok {
+		e.unsupported(n.Name, "the atlas `%s` has no cell `%s`", a.Name, cell)
+		return nil, false
+	}
+	out := m.Clone()
+	for i, c := range out.Corners {
+		u, v := c.UV[0], c.UV[1]
+		if !(u >= -uvEps && u <= 1+uvEps && v >= -uvEps && v <= 1+uvEps) {
+			u0, v0, u1, v1 := a.Layout.Rect(idx)
+			e.report(diag.CodeUVCell, e.spanOf(n.Name), "the chart of `%s` has the coordinate (%.6g, %.6g), outside the unit square, so it cannot lie in the inset rectangle [%.6g, %.6g] x [%.6g, %.6g] of cell `%s`: use an aligned chart or another projection", nameOr(n), u, v, u0, u1, v0, v1, cell)
+			return nil, false
+		}
+		u, v = min(max(u, 0), 1), min(max(v, 0), 1)
+		U, V := a.Layout.MapUV(idx, u, v)
+		out.Corners[i].UV = mesh.Vec2{U, V}
+	}
+	return out, true
+}
+
+func nameOr(n *resolve.Node) string {
+	if n.Name != "" {
+		return n.Name
+	}
+	return n.Kind
 }
 
 func child(n *resolve.Node, kind string) *resolve.Node {

@@ -302,6 +302,9 @@ type buildFile struct {
 	TrianglesWorst  int `json:"triangles_worst,omitempty"`
 	TrianglesStored int `json:"triangles_stored,omitempty"`
 	DrawsWorst      int `json:"draws_worst,omitempty"`
+	// TextureBytes and Images describe the embedded images, when there are any.
+	TextureBytes int                  `json:"texture_bytes,omitempty"`
+	Images       []compiler.ImageInfo `json:"images,omitempty"`
 }
 
 type buildOutput struct {
@@ -368,6 +371,7 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 				if fl.TrianglesWorst != fl.Triangles || fl.DrawsWorst != fl.Draws || fl.TrianglesStored != fl.Triangles {
 					bf.TrianglesWorst, bf.TrianglesStored, bf.DrawsWorst = fl.TrianglesWorst, fl.TrianglesStored, fl.DrawsWorst
 				}
+				bf.TextureBytes, bf.Images = fl.TextureBytes, fl.Images
 				bo.Files = append(bo.Files, bf)
 			}
 			rep.Outputs = append(rep.Outputs, bo)
@@ -400,6 +404,9 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 				extra := ""
 				if fl.TrianglesWorst != 0 {
 					extra = fmt.Sprintf(" (worst look %d triangles, %d draws; stored %d triangles)", fl.TrianglesWorst, fl.DrawsWorst, fl.TrianglesStored)
+				}
+				if fl.TextureBytes != 0 {
+					extra += fmt.Sprintf(" (%d images, %d bytes decoded)", len(fl.Images), fl.TextureBytes)
 				}
 				fmt.Fprintf(stdout, "%s/%s  %d triangles, %d draws, %d bytes%s\n", o.outDir, fl.Name, fl.Triangles, fl.Draws, fl.Bytes, extra)
 			}

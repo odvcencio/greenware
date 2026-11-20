@@ -1,0 +1,42 @@
+greenware 1
+
+// std/finish: the standard finishes (language reference 3.14, 4.9).
+//
+// Each painter is a pure function of one texel. It returns grey shading in
+// stored space for the cell it is painting: u and v run from 0 to 1 across the
+// cell's inset area, px and py count its texels from zero, and cell is the
+// physical cell index. A palette atlas keeps the red channel as linear shading
+// data; a colour atlas keeps all three. Nothing here chooses a colour.
+//
+// The painters use no grain, so equal inputs give images that compress well
+// and that differ only where the finish differs. They read no file, clock or
+// outside value, and they are ordinary source: a project can read, pin and
+// copy them like its own painters.
+
+// Gloss paint: a soft sky gradient, a bright vertical streak left of centre
+// and a darker band along the lower edge, where the coat pools.
+painter gloss() {
+  let sky = 0.88 + 0.12 * (1 - v)
+  let streak = smoothstep(0.16, 0.30, u) * (1 - smoothstep(0.30, 0.46, u))
+  let pool = smoothstep(0.82, 1.0, v)
+  let shade = sky + 0.11 * streak - 0.10 * pool
+  color = #ffffff * clamp(shade, 0, 1)
+}
+
+// Satin metal: a gentle horizontal sheen and fine brushed lines every third
+// texel row.
+painter satin() {
+  let sheen = 0.5 + 0.5 * cos(360deg * u + 0.6rad)
+  let brush = if mod(py, 3) == 0 then 0.035 else 0
+  let shade = 0.72 + 0.2 * sheen - brush
+  color = #ffffff * clamp(shade, 0, 1)
+}
+
+// Foam: soft mottling from two scales of lattice noise. The seed and the cell
+// index move the pattern, so two foam cells of one atlas differ.
+painter foam() {
+  let coarse = noise(4)
+  let fine = noise(11)
+  let shade = 0.42 + 0.30 * coarse + 0.12 * fine
+  color = #ffffff * clamp(shade, 0, 1)
+}

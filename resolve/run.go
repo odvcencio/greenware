@@ -78,6 +78,10 @@ type run struct {
 	resolved *Resolved
 	// tstack is the chain of template calls being expanded.
 	tstack []*ast.Template
+	// libs are the imported libraries by qualifier; painters are the compiled
+	// painters by key.
+	libs     map[string]*library
+	painters map[string]*pentry
 }
 
 func (r *run) report(d diag.Diagnostic) {
@@ -91,7 +95,7 @@ func evaluate(f *ast.File, output string, overrides []Override, shallowOutputs b
 	if f.Broken {
 		return nil, nil
 	}
-	r := &run{f: f, d: units.DefaultUnits(), output: output, overs: map[string]*Override{}}
+	r := &run{f: f, d: units.DefaultUnits(), output: output, overs: map[string]*Override{}, libs: map[string]*library{}, painters: map[string]*pentry{}}
 	r.resolved = &Resolved{Output: output}
 	for i := range overrides {
 		o := &overrides[i]
@@ -107,8 +111,13 @@ func evaluate(f *ast.File, output string, overrides []Override, shallowOutputs b
 	r.params()
 	r.lets()
 	r.assetFields()
+	r.imports()
+	r.checkPainters()
+	r.textures()
 	r.materials()
+	r.plugs()
 	r.parts()
+	r.checkCells()
 	r.lods()
 	r.collision()
 	r.checks()

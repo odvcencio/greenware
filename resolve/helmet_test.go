@@ -496,11 +496,8 @@ part a { material = m
 	if _, ds := resolve.Evaluate(f, nil); diag.HasErrors(ds) {
 		t.Fatalf("resolve: %v", ds)
 	}
-	// The full lowering still refuses each of them.
-	_, ds = ast.Lower(lang.Parse([]byte(src)))
-	for _, want := range []string{"`import`", "`plug`", "`texture`", "`cell`"} {
-		if !hasMsg(ds, diag.CodeUnsupported, want) {
-			t.Errorf("full lowering does not refuse %s: %v", want, ds)
-		}
+	// The full lowering reads each of them.
+	if _, ds = ast.Lower(lang.Parse([]byte(src))); diag.HasErrors(ds) {
+		t.Errorf("full lowering: %v", ds)
 	}
 }

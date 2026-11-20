@@ -355,13 +355,28 @@ func TestBuildHelmetGeometryOnly(t *testing.T) {
 	if code := run([]string{"accept", helmet, helmetAccept, "--glb-dir", dir, "--geometry-only"}, &o, &e); code != 0 || !strings.Contains(o.String(), "pass 42, fail 0") {
 		t.Errorf("accept: exit %d\n%s\n%s", code, o.String(), e.String())
 	}
-	// Without the flag the look declarations are refused, and nothing is built.
+	// Without the flag the look is compiled too: two images, the plug and the
+	// palette material, and the notes say what is still pending.
 	dir3 := filepath.Join(t.TempDir(), "out")
-	code, _, errOut = exec(t, "build", helmet, "--out-dir", dir3)
-	if code != 1 || !strings.Contains(errOut, "GW-UNSUPPORTED") {
-		t.Errorf("full build: exit %d\n%s", code, errOut)
+	code, out, errOut = exec(t, "build", helmet, "--out-dir", dir3, "--json")
+	if code != 0 {
+		t.Fatalf("full build: exit %d\n%s\n%s", code, out, errOut)
 	}
-	if _, err := os.Stat(dir3); err == nil {
-		t.Error("a refused build wrote a folder")
+	full := oneJSON(t, out)
+	g0 := full["outputs"].([]any)[0].(map[string]any)["files"].([]any)[0].(map[string]any)
+	if g0["texture_bytes"] != float64(262144) || len(g0["images"].([]any)) != 2 || g0["draws"] != float64(3) || g0["draws_worst"] != float64(4) {
+		t.Errorf("full classic level 0: %v", g0)
+	}
+	notes = ""
+	for _, n := range full["unsupported"].([]any) {
+		notes += n.(string) + "\n"
+	}
+	if !strings.Contains(notes, "materials/palette.sel.json is pending") {
+		t.Errorf("the pending Selena artifact is not in the notes:\n%s", notes)
+	}
+	o.Reset()
+	e.Reset()
+	if code := run([]string{"accept", helmet, helmetAccept, "--glb-dir", dir3}, &o, &e); code != 0 || !strings.Contains(o.String(), "pass 42, fail 0") {
+		t.Errorf("accept on the full look: exit %d\n%s\n%s", code, o.String(), e.String())
 	}
 }

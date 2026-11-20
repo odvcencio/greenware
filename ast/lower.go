@@ -14,6 +14,7 @@ type lowerer struct {
 	diags []diag.Diagnostic
 	// geom is true for a geometry-only lowering; skipped holds what it left out.
 	geom    bool
+	lib     bool
 	skipped []string
 }
 
@@ -25,6 +26,8 @@ type Options struct {
 	// the same name. File.Skipped says what was left out. The shapes, the
 	// parameters and the outputs are read in full.
 	GeometryOnly bool
+	// Library lowers a library file: it needs no asset declaration.
+	Library bool
 }
 
 // Lower turns a parsed tree into a File and the diagnostics found on the way:
@@ -37,7 +40,7 @@ func Lower(tree *lang.Tree) (*File, []diag.Diagnostic) {
 
 // LowerWith is Lower with options.
 func LowerWith(tree *lang.Tree, opts Options) (*File, []diag.Diagnostic) {
-	l := &lowerer{tree: tree, geom: opts.GeometryOnly}
+	l := &lowerer{tree: tree, geom: opts.GeometryOnly, lib: opts.Library}
 	f := &File{Source: tree.Source(), Broken: tree.HasErrors()}
 	for _, d := range tree.Diagnostics() {
 		l.report(diag.New(diag.CodeSyntax, diag.Span{Start: d.Span.Start, End: d.Span.End}, "%s", d.Message))
@@ -51,7 +54,7 @@ func LowerWith(tree *lang.Tree, opts Options) (*File, []diag.Diagnostic) {
 		l.declaration(f, n)
 	}
 	f.Skipped = l.skipped
-	if f.Asset == nil && len(f.Accepts) == 0 && !f.Broken {
+	if f.Asset == nil && len(f.Accepts) == 0 && !f.Broken && !l.lib {
 		sp := diag.Span{}
 		if len(f.Source) > 0 {
 			sp.End = 1
@@ -134,8 +137,8 @@ func (l *lowerer) skip(what string) {
 }
 
 // lookField reports whether an unsupported field belongs to the look of a
-// shape or material (cells and textures), which a geometry-only lowering drops.
-func lookField(why string) bool { return why == "atlas cells" || why == "textures" }
+// shape or material (textures), which a geometry-only lowering drops.
+func lookField(why string) bool { return why == "textures" }
 
 func (l *lowerer) unsupported(n *lang.Node, what string) {
 	l.report(diag.New(diag.CodeUnsupported, span(n), "%s is valid in the language but outside this compiler's subset", what))
@@ -215,9 +218,9 @@ func (l *lowerer) declaration(f *File, n *lang.Node) {
 		f.Outputs = append(f.Outputs, l.output(n))
 	case "accept_decl":
 		f.Accepts = append(f.Accepts, l.accept(n))
-	case "import_decl", "texture_decl", "plug_decl":
-		kw := n.Children()[0]
+	case "import_decl", "texture_decl", "plug_decl", "painter_decl":
 		if l.geom {
+			kw := n.Children()[0]
 			what := kw.Text()
 			if nm := n.Field("name"); nm != nil {
 				what += " " + nm.Text()
@@ -225,8 +228,22 @@ func (l *lowerer) declaration(f *File, n *lang.Node) {
 			l.skip(what)
 			return
 		}
-		l.unsupported(kw, "`"+kw.Text()+"`")
-	case "table_decl", "mesh_decl", "view_decl", "painter_decl",
+		switch n.Kind() {
+		case "import_decl":
+			f.Imports = append(f.Imports, l.importDecl(n))
+		case "texture_decl":
+			if t := l.texture(n); t != nil {
+				f.Textures = append(f.Textures, t)
+			}
+		case "plug_decl":
+			k, _ := registry.Lookup(registry.CtxDocument, "plug")
+			p := &Plug{Name: ident(n.Field("name")), Span: span(n)}
+			p.Settings = l.settingsOnly(n.Field("body"), k)
+			f.Plugs = append(f.Plugs, p)
+		default:
+			f.Painters = append(f.Painters, l.painter(n))
+		}
+	case "table_decl", "mesh_decl", "view_decl",
 		"mount_decl", "skeleton_decl", "skin_decl", "morph_decl",
 		"clip_decl", "variant_decl":
 		kw := n.Children()[0]
@@ -353,6 +370,10 @@ func (l *lowerer) settings(items []*lang.Node, k *registry.Kind) ([]*Setting, []
 			continue
 		}
 		seen[s.Name] = s
+		if l.geom && s.Name == "cell" && k != nil && (k.Name == "part" || k.IsShape) {
+			l.skip("`cell` settings (atlas cells)")
+			continue
+		}
 		if k != nil && !k.Open {
 			f, ok := k.Field(s.Name)
 			if !ok {

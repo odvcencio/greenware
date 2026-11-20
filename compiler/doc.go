@@ -31,6 +31,22 @@
 //   - Materials: pbr, and selena through its pbr fallback. A runtime colour
 //     or number parameter is written as its default value and recorded as a
 //     binding in the runtime table.
+//   - The look (milestone M3): `import "std/finish"` (ordinary Greenware source
+//     embedded in package std, pinned by SHA-256 in the input hash), painters,
+//     and `texture name = atlas { ... }` with named cells. The atlas is painted
+//     on the CPU and written as PNG by package kernel/image, in colour or
+//     palette mode. A `cell` on a part or shape maps the shape's chart into the
+//     cell's inset rectangle (an explicit `uv` projection is applied first). A
+//     Selena material with a palette mask writes its pbr fallback, whose
+//     `base_texture = paint(mask)` is the mask painted with the material's
+//     default slot colours, and also the raw mask as a second image: two
+//     distinct images, so `texture_bytes` counts both. The Selena descriptor,
+//     its default values and the mask texture index are recorded in the
+//     material's extras as pending. A runtime slot colour is a binding on the
+//     palette field; a runtime `alpha` is a binding on baseColorFactor.alpha.
+//   - `plug name { kind = ... at = ... }` is a meshless node named plug.<name>
+//     under the root, with its position in metres, and an entry in the asset's
+//     `plugs`.
 //   - Levels: level 0 is the source. Levels 1 and up re-tessellate each shape
 //     to the level's max_error and remove the geometry its `drop` list names
 //     (and the lists of earlier levels) before merging.
@@ -51,5 +67,9 @@
 //   - `manifest = on` writes no GoSX manifest entry: the specification does
 //     not define its layout. Product.Unsupported says so.
 //   - The Selena artifact is neither read nor pinned; only the fallback
-//     material is written.
+//     material is written, and the build notes record the artifact as pending.
+//   - `blend = on` is not written: package gltf has no alphaMode field. The
+//     build notes say so.
+//   - The look's tickets (`paint`, `encode_images`) are this compiler's
+//     assumption, as are `select` and `surface_branches`; see cost.go.
 package compiler

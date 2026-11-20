@@ -91,6 +91,32 @@ func (r *run) coerce(v units.Value, t registry.Type, sp diag.Span) units.Value {
 			r.report(diag.New(diag.CodeType, sp, "expected a list of strings, found a %s", v.Describe()))
 			return units.Bad()
 		}
+	case registry.TPixels:
+		out := r.scalar(v, units.Pixels, sp)
+		if out.Valid() && (!units.IsIntegral(out.Num) || out.Num < 1) {
+			r.report(diag.New(diag.CodeFieldRange, sp, "expected a whole, positive number of pixels, found %s", out.Format()))
+			return units.Bad()
+		}
+		return out
+	case registry.TGrid:
+		if v.Kind != units.KTuple || len(v.Elems) != 2 {
+			r.report(diag.New(diag.CodeType, sp, "expected (columns, rows), found a %s", v.Describe()))
+			return units.Bad()
+		}
+		out := make([]units.Value, 2)
+		for i, e := range v.Elems {
+			out[i] = r.scalar(e, units.Number, sp)
+			if !out[i].Valid() {
+				return units.Bad()
+			}
+			if !units.IsIntegral(out[i].Num) || out[i].Num < 1 {
+				r.report(diag.New(diag.CodeFieldRange, sp, "a grid is two whole numbers of at least 1, found %s", v.Format()))
+				return units.Bad()
+			}
+		}
+		t := units.Tuple(out...)
+		t.Runtime = v.Runtime
+		return t
 	case registry.TPoint, registry.TExtent:
 		return r.triple(v, units.Length, sp, "three lengths")
 	case registry.TRotation:
@@ -283,6 +309,8 @@ func (r *run) slot(sc *scope, f *registry.Field, s *ast.Setting) units.Value {
 			}
 		}
 		return units.List(out...)
+	case registry.TTexture:
+		return r.textureValue(e)
 	case registry.TProfile:
 		v = r.profile(e, sc)
 	case registry.TNames:
@@ -342,7 +370,7 @@ func (r *run) fields(k *registry.Kind, settings []*ast.Setting, sc *scope, owner
 	var out []Field
 	for i := range k.Fields {
 		f := &k.Fields[i]
-		if f.Unsupported != "" || (k.Name == "selena" && f.Name == "fallback") {
+		if f.Unsupported != "" || (k.Name == "selena" && f.Name == "fallback") || f.Type.Kind == registry.TPaint {
 			continue
 		}
 		s := ast.FindSetting(settings, f.Name)
@@ -358,6 +386,12 @@ func (r *run) fields(k *registry.Kind, settings []*ast.Setting, sc *scope, owner
 	if k.Open {
 		for _, s := range settings {
 			if _, known := k.Field(s.Name); known || s.Value == nil {
+				continue
+			}
+			// A bare name that is no value but a texture is a texture argument
+			// of the descriptor.
+			if nm, ok := s.Value.(*ast.Name); ok && sc.lookup(nm.Name) == nil && r.syms.lookup(registry.NsTexture, nm.Name) != nil {
+				out = append(out, Field{Name: s.Name, Value: units.Ref(nm.Name)})
 				continue
 			}
 			out = append(out, Field{Name: s.Name, Value: units.Finish(r.eval(s.Value, sc))})

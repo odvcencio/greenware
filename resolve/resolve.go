@@ -113,12 +113,20 @@ type Look struct {
 // Resolved is the result of evaluating a file at one choice of parameters.
 type Resolved struct {
 	// Output is the output the values were chosen for; empty for the defaults.
-	Output      string  `json:"output,omitempty"`
-	Asset       []Field `json:"asset"`
-	Meta        []Field `json:"meta,omitempty"`
-	Params      []Param `json:"params"`
-	Lets        []Let   `json:"lets"`
-	Materials   []*Node `json:"materials"`
+	Output    string  `json:"output,omitempty"`
+	Asset     []Field `json:"asset"`
+	Meta      []Field `json:"meta,omitempty"`
+	Params    []Param `json:"params"`
+	Lets      []Let   `json:"lets"`
+	Materials []*Node `json:"materials"`
+	// Imports are the libraries the file imports, with their pins.
+	Imports []Import `json:"imports,omitempty"`
+	// Textures are the atlas declarations, each with its cells as children.
+	Textures []*Node `json:"textures,omitempty"`
+	// Atlases are the atlases in a form that can be baked.
+	Atlases []*Atlas `json:"-"`
+	// Plugs are the asset's plugs.
+	Plugs       []*Node `json:"plugs,omitempty"`
 	Root        *Node   `json:"root"`
 	Definitions []*Node `json:"definitions,omitempty"`
 	Lods        []*Node `json:"lods,omitempty"`

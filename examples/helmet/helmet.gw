@@ -265,7 +265,7 @@ budget {
   materials = 2
   draw_calls = 3
   draw_calls_worst = 4
-  texture_bytes = 128KiB    // the 256 x 128 atlas, decoded RGBA
+  texture_bytes = 256KiB    // two distinct 256 x 128 images, decoded RGBA: the palette mask and its default-colour fallback
 }
 
 // Every shape here is parametric, so the level re-tessellates (fewer segments

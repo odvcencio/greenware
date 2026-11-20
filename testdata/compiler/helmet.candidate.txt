@@ -1,0 +1,8 @@
+# CANDIDATE, not approved: counts, image sizes and digests of the helmet with its look, built from examples/helmet/helmet.gw
+# (the full lowering: std/finish, the atlas, the palette material with its pbr fallback, the plug). A reviewer approves it; no test flag does.
+# input 1b0f63081ad45868d2f7eace8ba9b5560390644e9a81d00635d0e7f8fce2ece7
+# columns: output file level triangles draws triangles_worst draws_worst triangles_stored vertices bytes texture_bytes images(name:png_bytes,...) sha256
+classic helmet-classic.glb 0 1766 3 1830 4 2110 1439 76600 262144 paint(helmet_mask):5201,helmet_mask:4795 a439699f4a1f90572e41b5eda45079c10d17077d5df93c00c0e9f9ffc3cd3281
+classic helmet-classic-lod1.glb 1 528 3 556 4 676 491 37644 262144 paint(helmet_mask):5201,helmet_mask:4795 0cd8dc84f83937ed530cce18043330b2093a4cc293f3a41b9206fcc135bb7fc1
+aero helmet-aero.glb 0 1766 3 1830 4 2110 1439 76600 262144 paint(helmet_mask):5201,helmet_mask:4795 3e66feca785e2c1320811143643bd5a028ee8696665e17c2cb7e5aa9082ec92f
+aero helmet-aero-lod1.glb 1 540 3 568 4 688 498 37940 262144 paint(helmet_mask):5201,helmet_mask:4795 318baf680c9c28ddbfc0e6ab0a11850873488d216fec53bc8bacde1bf753c6b7

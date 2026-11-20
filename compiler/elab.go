@@ -45,6 +45,7 @@ type wctx struct {
 	collect *[]piece    // array contents are gathered here, in the array's frame
 	a       mesh.Affine // the current frame, relative to node's frame (or the array's)
 	mat     string      // inherited material
+	cell    string      // inherited atlas cell
 	dropped bool        // inside geometry this level drops
 	refl    bool        // in the reflected copy of a mirror
 	mirror  bool        // inside a mirror
@@ -64,6 +65,11 @@ type elab struct {
 	// metres: the kernel's ChordError of each shape's retessellated counts.
 	lodErr float64
 	drop   map[string]bool // lookup only
+
+	// imgs holds the images painted for this output; notes are the facts the
+	// source asked for and the file does not carry.
+	imgs  imageSet
+	notes []string
 }
 
 func (e *elab) report(code string, sp diag.Span, format string, args ...any) {
@@ -306,6 +312,9 @@ func (e *elab) part(n *resolve.Node, c wctx, isRoot bool) {
 	at := vec3(n, "at")
 	if f, ok := n.Get("material"); ok && f.Valid() {
 		c.mat = f.Str
+	}
+	if f, ok := n.Get("cell"); ok && f.Valid() {
+		c.cell = f.Str
 	}
 	if e.drop[name] || (n.Name != name && e.drop[n.Name]) {
 		c.dropped = true

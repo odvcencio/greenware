@@ -22,6 +22,8 @@ const (
 	CodeMirrorName   = "GW-MIRROR-NAME"
 	CodeAccept       = "GW-ACCEPT"
 	CodeLimit        = "GW-LIMIT"
+	CodeUVCell       = "GW-UV-CELL"
+	CodeMatParam     = "GW-MAT-PARAM"
 )
 
 // Entry documents one code.
@@ -57,6 +59,8 @@ var catalogue = []Entry{
 	{CodeMirrorName, Error, "A named declaration inside a mirror is not a pair `(left, right)`, or a pair is written outside a mirror.", "testdata/diag/GW-MIRROR-NAME.gw", false},
 	{CodeAccept, Error, "An `expect` of an acceptance file failed or was refused on a decoded GLB at one output and level. The message names the expect, the output, the level and the measured values. An expect that cannot be measured (for example `outline`, which needs a rendered image) is reported with the same code as a warning and does not fail the run. Only `greenware accept` reports this code; the front end never does.", "testdata/diag/GW-ACCEPT.gw", false},
 	{CodeLimit, Error, "A build needs more logical work than the `total_work` ceiling leaves, or an operand is larger than the class its cost ticket admits (an array of more than 4096 copies, more than 4096 expanded items in an output, a level of more than 2048 triangles, a file over 96 KiB). The message names the ticket and, for a ceiling, the work it requested and the work that remained. The build stops before the ticket's operation and writes nothing; an earlier build record stays as it was. Raise `--max-work` only for a class the schedule prices; a larger operand needs a new schedule version, not a larger ceiling.", "testdata/diag/GW-LIMIT.gw", false},
+	{CodeUVCell, Error, "A shape's UVs cannot address the atlas cell it names: two atlases sampled by one material give the cell different rectangles, or the shape's own UVs leave the unit square so that the cell's inset rectangle cannot hold them. Use an aligned chart or another projection; no triangle is added to make the check pass.", "testdata/diag/GW-UV-CELL.gw", false},
+	{CodeMatParam, Error, "A material parameter does not fit its use: a palette mask used directly as a base texture (use paint(mask)), `paint(atlas)` of a palette atlas where the containing Selena material has no colour for a slot the atlas uses, or a texture argument that is not a texture.", "testdata/diag/GW-MAT-PARAM.gw", false},
 }
 
 // Catalogue returns every code in a fixed order. The caller must not change

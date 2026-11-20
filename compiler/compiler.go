@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 	"m31labs.dev/greenware/gltf"
 	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/resolve"
+	"m31labs.dev/greenware/std"
 	"m31labs.dev/greenware/units"
 )
 
@@ -42,6 +44,10 @@ type File struct {
 	DrawsWorst      int
 	// Alternates is the number of roots of the alternates scene.
 	Alternates int
+	// TextureBytes is the decoded RGBA size of the distinct images the file
+	// carries: four bytes per texel of each. Images lists them.
+	TextureBytes int
+	Images       []ImageInfo
 }
 
 // OutputProduct is the files of one output, level 0 first.
@@ -107,6 +113,18 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 	p := &Product{SourceSHA256: hex.EncodeToString(srcSum[:])}
 	in := sha256.New()
 	fmt.Fprintf(in, "greenware.input/1\n%s\nsource %s\noutput %s\n", Generator, p.SourceSHA256, outputName)
+	// Each imported library is pinned by the SHA-256 of its bytes, so a change
+	// to the standard library changes the input of every build that imports it.
+	var imports []string
+	for _, im := range file.Imports {
+		if d, ok := std.Digest(im.Path); ok {
+			imports = append(imports, fmt.Sprintf("import %s sha256 %s\n", im.Path, d))
+		}
+	}
+	sort.Strings(imports)
+	for _, line := range imports {
+		in.Write([]byte(line))
+	}
 	p.InputSHA256 = hex.EncodeToString(in.Sum(nil))
 	if file.Asset != nil {
 		p.Asset = file.Asset.Name.Name
@@ -184,7 +202,7 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 		if op == nil || diag.HasErrors(ds) {
 			continue
 		}
-		if ref := classBoundFiles(op, usesBranchClass(ro.r)); ref != nil && rc != nil {
+		if ref := classBoundFiles(op, usesBranchClass(ro.r), len(atlasesUsed(ro.r)) > 0); ref != nil && rc != nil {
 			rc.Refused = ref
 			all = append(all, limitDiag(outputSpan(file, name), ref, rc.Limit))
 			continue
@@ -208,7 +226,7 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 // classBoundFiles checks the class bounds that only the built files show: the
 // triangles of a level (the `surface` ticket) and the size of a file (the
 // `encode` ticket). It returns the first breach in level order.
-func classBoundFiles(op *OutputProduct, branches bool) *Refusal {
+func classBoundFiles(op *OutputProduct, branches, images bool) *Refusal {
 	for _, f := range op.Files {
 		lv := f.Level
 		limit, ticket := maxSurfaceTris, TicketSurface
@@ -219,9 +237,17 @@ func classBoundFiles(op *OutputProduct, branches bool) *Refusal {
 			return &Refusal{Charge: Charge{Ticket: ticket, Output: op.Name, Level: &lv},
 				Bound: fmt.Sprintf("output %s level %d holds %d triangles; the class allows %d", op.Name, lv, f.TrianglesStored, limit)}
 		}
-		if f.Size > maxEncodeBytes {
-			return &Refusal{Charge: Charge{Ticket: TicketEncode, Output: op.Name, Level: &lv},
-				Bound: fmt.Sprintf("%s is %d bytes; the class allows %d", f.Name, f.Size, maxEncodeBytes)}
+		enc, encLimit := TicketEncode, maxEncodeBytes
+		if images {
+			enc, encLimit = TicketEncodeImages, maxEncodeImageBytes
+			if len(f.Images) > maxEncodeImageCount {
+				return &Refusal{Charge: Charge{Ticket: enc, Output: op.Name, Level: &lv},
+					Bound: fmt.Sprintf("%s embeds %d images; the class allows %d", f.Name, len(f.Images), maxEncodeImageCount)}
+			}
+		}
+		if f.Size > encLimit {
+			return &Refusal{Charge: Charge{Ticket: enc, Output: op.Name, Level: &lv},
+				Bound: fmt.Sprintf("%s is %d bytes; the class allows %d", f.Name, f.Size, encLimit)}
 		}
 	}
 	return nil
@@ -338,12 +364,19 @@ func buildOutput(file *ast.File, r *resolve.Resolved, oname string) (*OutputProd
 	for _, m := range r.Materials {
 		if m.Kind == "selena" {
 			notes = appendUnique(notes, "selena materials: the artifact is not read or pinned; the pbr fallback is written")
+			if src, ok := m.Get("source"); ok && src.Valid() {
+				notes = appendUnique(notes, fmt.Sprintf("selena material %s: the artifact %s.json is pending: it is not read, pinned or validated; the pbr fallback and the palette mask are written, and the slot colours are recorded as runtime bindings for a palette-aware renderer", m.Name, src.Str))
+			}
 		}
 	}
 	if e.failed() {
 		return nil, e.diags, nil
 	}
-	fir := firHash(r)
+	imgKeys, ok := e.bakeLook()
+	if !ok || e.failed() {
+		return nil, diag.Dedup(e.diags), nil
+	}
+	fir := firHash(r, imgKeys)
 	cols := e.colliders()
 	op := &OutputProduct{Name: oname, FirSHA256: fir}
 
@@ -382,12 +415,14 @@ func buildOutput(file *ast.File, r *resolve.Resolved, oname string) (*OutputProd
 			Name: name, Level: lv, Doc: l.doc, GLB: glb, SHA256: hex.EncodeToString(sum[:]),
 			Triangles: l.tris, Draws: l.draws, Materials: l.mats, Vertices: l.verts, Size: len(glb),
 			TrianglesWorst: l.trisWorst, TrianglesStored: l.trisStored, DrawsWorst: l.drawsWorst, Alternates: l.alternates,
+			TextureBytes: l.texBytes, Images: l.images,
 		})
 	}
 	e.checkBudget(op, oname)
 	if e.failed() {
 		return nil, diag.Dedup(e.diags), nil
 	}
+	notes = appendUnique(notes, e.notes...)
 	return op, diag.Dedup(e.diags), notes
 }
 
@@ -413,7 +448,9 @@ func (e *elab) checkBudget(op *OutputProduct, oname string) {
 				got = f.Materials
 			case "file_size":
 				got = f.Size
-			case "bones", "influences", "morphs", "texture_bytes":
+			case "texture_bytes":
+				got = f.TextureBytes
+			case "bones", "influences", "morphs":
 				got = 0
 			default:
 				continue
@@ -456,7 +493,7 @@ func (e *elab) budgetSpan(oname, field string) diag.Span {
 // settings that change geometry, the collision shapes and the rights holder.
 // It leaves out record fields (budgets, meta text, level distances, doc
 // strings) and the Default flags, so spelling a default does not change it.
-func firHash(r *resolve.Resolved) string {
+func firHash(r *resolve.Resolved, images []string) string {
 	type param struct {
 		Name  string       `json:"name"`
 		Type  string       `json:"type"`
@@ -475,6 +512,10 @@ func firHash(r *resolve.Resolved) string {
 		Definitions []*resolve.Node `json:"definitions"`
 		Lods        []*resolve.Node `json:"lods"`
 		Collision   []*resolve.Node `json:"collision"`
+		// Plugs and the pixel digests of the images the look uses are part of
+		// the meaning when there are any; an asset without them hashes as before.
+		Plugs  []*resolve.Node `json:"plugs,omitempty"`
+		Images []string        `json:"images,omitempty"`
 	}{
 		Format:      "greenware.fir.product/1",
 		Copyright:   metaString(r, "author"),
@@ -482,6 +523,8 @@ func firHash(r *resolve.Resolved) string {
 		Definitions: canonAll(r.Definitions, nil),
 		Materials:   canonAll(r.Materials, nil),
 		Collision:   canonAll(r.Collision, nil),
+		Plugs:       canonAll(r.Plugs, nil),
+		Images:      images,
 		Lods:        canonAll(r.Lods, map[string]bool{"max_error": true, "drop": true, "keep": true, "segments": true}),
 	}
 	for _, p := range r.Params {

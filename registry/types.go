@@ -43,6 +43,14 @@ const (
 	// TExpr is an expression kept as written and evaluated later, once for
 	// each place it applies (a loft's vertex rule).
 	TExpr
+	// TPixels is a whole, positive number of pixels, such as 64px.
+	TPixels
+	// TGrid is a pair of positive whole numbers, (columns, rows).
+	TGrid
+	// TPaint is a painter call such as finish.gloss(), or a colour.
+	TPaint
+	// TTexture is a texture reference, or paint(atlas).
+	TTexture
 )
 
 // Namespace names a set of declarations that a reference slot searches.
@@ -55,6 +63,7 @@ const (
 	NsSocket
 	NsCollider
 	NsOutput
+	NsTexture
 )
 
 func (n Namespace) String() string {
@@ -69,6 +78,8 @@ func (n Namespace) String() string {
 		return "collider"
 	case NsOutput:
 		return "output"
+	case NsTexture:
+		return "texture"
 	}
 	return "none"
 }
@@ -87,8 +98,10 @@ func (t Type) Dim() (units.Dim, bool) {
 		return units.Length, true
 	case TAngle, TRotation, TAngleRange:
 		return units.Angle, true
-	case TNumber, TInteger, TScale, TCount:
+	case TNumber, TInteger, TScale, TCount, TGrid:
 		return units.Number, true
+	case TPixels:
+		return units.Pixels, true
 	case TDuration:
 		return units.Duration, true
 	case TBytes:
@@ -155,6 +168,14 @@ func (t Type) Name() string {
 		return "tuple of names"
 	case TExpr:
 		return "expression"
+	case TPixels:
+		return "pixels (a whole number, such as 64px)"
+	case TGrid:
+		return "grid (columns, rows)"
+	case TPaint:
+		return "painter call or colour"
+	case TTexture:
+		return "texture reference or paint(atlas)"
 	}
 	return "?"
 }
@@ -223,6 +244,8 @@ const (
 	CtxShape
 	// CtxCollision: a block inside collision or a mirror in it.
 	CtxCollision
+	// CtxAtlas: a block inside an atlas texture.
+	CtxAtlas
 )
 
 // Kind is a declaration kind: what its body accepts.

@@ -1,0 +1,31 @@
+greenware 1
+
+asset a { root = a }
+
+// The mask and the base texture lay their cells out differently, so the cell
+// `body` is two different rectangles and one UV pair cannot address both.
+texture one = atlas {
+  grid = (2, 2)
+  cell_size = 16px
+  mode = palette
+  cell body { slot = 0 paint = #808080 }
+}
+
+texture two = atlas {
+  grid = (4, 4)
+  cell_size = 16px
+  cell body { paint = #808080 }
+}
+
+material m = selena {
+  source = "m.sel"
+  name = "M"
+  mask = one
+  slot0 = #ff0000
+  fallback = pbr { base_texture = two }
+}
+
+part a {
+  material = m
+  sphere { radius = 1m cell = body }
+}

@@ -51,6 +51,10 @@ type level struct {
 	drawsWorst int
 	trisStored int
 	alternates int // roots of the alternates scene
+	// texBytes is the decoded RGBA size of the distinct images the file
+	// carries; images describes them.
+	texBytes int
+	images   []ImageInfo
 }
 
 // vertexKey identifies a written vertex.
@@ -170,12 +174,29 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 	}
 	matIndex := map[string]int{} // lookup only
 	var bindings []binding
+	tt := newTexTables(doc)
 	for i, nm := range names {
 		m, ok := e.material(nm)
 		if !ok {
 			return nil, false
 		}
 		matIndex[nm] = i
+		// The base texture first, then the palette mask, so the tables fill
+		// in the order of the sorted materials.
+		baseTex, maskTex := -1, -1
+		if m.look != nil && m.look.base != nil {
+			baseTex = tt.use(m.look.base, samplerOf(m.filter, m.wrap))
+			m.m.BaseColorTexture = gltf.Int(baseTex)
+		}
+		if m.look != nil && m.look.mask != nil {
+			maskTex = tt.use(m.look.mask, maskSampler(m.wrap))
+		}
+		// A Selena material with a palette mask records its descriptor for a
+		// palette-aware renderer. One without a palette (the goal post's) is
+		// written as its fallback alone, as before.
+		if m.selena != nil && m.look != nil && m.look.maskAt != nil {
+			m.m.Extras = e.selenaExtras(m, baseTex, maskTex)
+		}
 		doc.Materials = append(doc.Materials, m.m)
 		bindings = append(bindings, m.bindings...)
 	}
@@ -297,7 +318,27 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 		}
 	}
 
+	for _, p := range e.r.Plugs {
+		at := vec3(p, "at")
+		pn := gltf.Node{Name: "plug." + p.Name}
+		if rel := mesh.Sub(at, root.t); rel != (mesh.Vec3{}) {
+			t := rel.F32()
+			pn.Translation = &t
+		}
+		pn.Extras = mustJSON(map[string]any{"greenware": map[string]any{
+			"format": "greenware.plug/1", "name": p.Name, "kind": label(p, "kind"),
+		}})
+		doc.Nodes = append(doc.Nodes, pn)
+		doc.Nodes[rootIdx].Children = append(doc.Nodes[rootIdx].Children, len(doc.Nodes)-1)
+	}
 	asset := map[string]any{"format": "greenware.asset/1", "fir_sha256": fir, "lod": lvl, "lod_error": e.lodErr}
+	if len(e.r.Plugs) > 0 {
+		var plugs []any
+		for _, p := range e.r.Plugs {
+			plugs = append(plugs, map[string]any{"name": p.Name, "kind": label(p, "kind"), "at": vecJSON(vec3(p, "at"))})
+		}
+		asset["plugs"] = plugs
+	}
 	if rt := e.runtimeTable(bindings); rt != nil {
 		asset["runtime"] = rt
 	}
@@ -305,6 +346,7 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 	lv.doc = doc
 	lv.mats = len(names)
 	lv.nodes = len(doc.Nodes)
+	lv.texBytes, lv.images = tt.decoded, tt.infos
 	return lv, true
 }
 
@@ -377,7 +419,11 @@ func (e *elab) runtimeTable(bs []binding) map[string]any {
 				})
 				continue
 			}
-			bj = append(bj, map[string]any{"kind": "material", "material": b.material, "field": b.field, "map": b.mapping})
+			ent := map[string]any{"kind": "material", "material": b.material, "field": b.field, "map": b.mapping}
+			if b.target != "" {
+				ent["target"] = b.target
+			}
+			bj = append(bj, ent)
 		}
 		ent["bindings"] = bj
 		params = append(params, ent)

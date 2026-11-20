@@ -826,45 +826,6 @@ func TestHelmetDigestsAreNotTheGoalPostsNorEachOthers(t *testing.T) {
 
 // ---- the front end on the real file ---------------------------------------------------------
 
-func TestHelmetFullLoweringStillRefusesTheLookDeclarations(t *testing.T) {
-	// Without --geometry-only the look is M3b's: each construct that is still
-	// outside the compiler is refused, and nothing is substituted.
-	src, err := os.ReadFile(filepath.FromSlash(helmetPath))
-	if err != nil {
-		t.Fatal(err)
-	}
-	f, ds := ast.Lower(lang.Parse(src))
-	if p, more := Build(f, ""); p != nil {
-		t.Fatal("the full helmet built")
-	} else {
-		ds = append(ds, more...)
-	}
-	got := map[string]bool{}
-	for _, d := range ds {
-		if d.Code == diag.CodeUnsupported {
-			// the first word in backticks names the construct
-			if i := strings.Index(d.Message, "`"); i >= 0 {
-				if j := strings.Index(d.Message[i+1:], "`"); j >= 0 {
-					got[d.Message[i+1:i+1+j]] = true
-				}
-			}
-		}
-	}
-	for _, want := range []string{"import", "plug", "texture", "cell", "base_texture"} {
-		if !got[want] {
-			t.Errorf("no GW-UNSUPPORTED for `%s`: %v", want, got)
-		}
-	}
-	for _, d := range ds {
-		if d.Code == diag.CodeUnsupported && strings.Contains(d.Message, "enum") {
-			t.Errorf("enum values are still refused: %v", d)
-		}
-		if d.Code == diag.CodeUnknownName && !strings.Contains(d.Message, "helmet_mask") {
-			t.Errorf("unexpected unknown name: %v", d)
-		}
-	}
-}
-
 func TestHelmetBudgetCatchesAnOverStatedWorstLook(t *testing.T) {
 	src, err := os.ReadFile(filepath.FromSlash(helmetPath))
 	if err != nil {

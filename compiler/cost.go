@@ -10,7 +10,10 @@ import (
 	"m31labs.dev/greenware/ast"
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/resolve"
+	"m31labs.dev/greenware/units"
 )
+
+const unitsRef = units.KRef
 
 // The cost ledger: schedule `greenware.cost/1`, compiler.md section 3.1 of the
 // design documents.
@@ -61,9 +64,28 @@ const (
 //   - surface_branches, per level of an output that uses loft, ellipsoid or
 //     tube or has a runtime `when`. It replaces `surface` for that output. It
 //     admits twice the triangles, because the file stores every branch.
+//
+// The look adds two more (milestone M3: atlas and painter, default-colour
+// fallback and encoded images). They are also an assumption of this
+// compiler:
+//
+//   - paint, once per atlas of a selected output that a drawn material
+//     samples. It buys painting the atlas on the CPU, the default-colour
+//     fallback image of a palette atlas, and encoding the PNG bytes of both.
+//     The class is an image of at most 65,536 texels (256 KiB decoded), at
+//     most 64 cells and at most 20,000,000 scalar painter operations (the
+//     limit P of the language reference); the price is 250,000 units.
+//   - encode_images, per level file of an output with images. It replaces
+//     `encode` for that output: packing, hashing and length verification of a
+//     self-contained GLB with at most 4 embedded PNG images and at most
+//     192 KiB in all; the price is 200,000 units (the `encode` price plus
+//     50,000 for each of two images). The image bytes are produced by `paint`;
+//     the ticket covers embedding them.
 const (
 	TicketSelect          = "select"
 	TicketSurfaceBranches = "surface_branches"
+	TicketPaint           = "paint"
+	TicketEncodeImages    = "encode_images"
 )
 
 // Class bounds of the M2 tickets (compiler.md 3.1).
@@ -85,6 +107,13 @@ const (
 	maxSurfaceBranchTris = 4096
 	maxSelectBranches    = 16
 	maxSelectParams      = 8
+
+	// The look's classes (see TicketPaint, TicketEncodeImages).
+	maxPaintTexels      = 65536
+	maxPaintCells       = 64
+	maxPaintOps         = 20_000_000
+	maxEncodeImageBytes = 192 << 10
+	maxEncodeImageCount = 4
 )
 
 // TicketClass is one row of the registered schedule.
@@ -113,11 +142,21 @@ var ticketTableBranches = []TicketClass{
 	{TicketSurfaceBranches, 400_000, "level of an output with loft, ellipsoid, tube or runtime branches", "at most 4096 stored triangles in the level, every branch counted"},
 }
 
+// ticketTableLook is the look's additional rows: paint follows select, and
+// encode_images stands where encode does.
+var ticketTableLook = []TicketClass{
+	{TicketPaint, 250_000, "atlas of a selected output that a drawn material samples", "at most 65,536 texels, 64 cells and 20,000,000 scalar painter operations"},
+	{TicketEncodeImages, 200_000, "level file of an output with images", "at most 4 embedded images and 192 KiB per file"},
+}
+
 // Tickets returns the registered M2 schedule in reservation order.
 func Tickets() []TicketClass { return append([]TicketClass(nil), ticketTable...) }
 
 // BranchTickets returns the helmet profile's additional tickets.
 func BranchTickets() []TicketClass { return append([]TicketClass(nil), ticketTableBranches...) }
+
+// LookTickets returns the tickets of the atlas, painter and image classes.
+func LookTickets() []TicketClass { return append([]TicketClass(nil), ticketTableLook...) }
 
 func ticketUnits(name string) uint64 {
 	for _, t := range ticketTable {
@@ -126,6 +165,11 @@ func ticketUnits(name string) uint64 {
 		}
 	}
 	for _, t := range ticketTableBranches {
+		if t.Name == name {
+			return t.Units
+		}
+	}
+	for _, t := range ticketTableLook {
 		if t.Name == name {
 			return t.Units
 		}
@@ -230,7 +274,10 @@ type Options struct {
 type Charge struct {
 	Ticket string `json:"ticket"`
 	Output string `json:"output,omitempty"`
-	Level  *int   `json:"level,omitempty"`
+	// Row names the item a ticket of a kind with several per output buys: the
+	// atlas of a `paint` ticket.
+	Row   string `json:"row,omitempty"`
+	Level *int   `json:"level,omitempty"`
 	// Expect is the source ordinal, from 0, of the acceptance expect that asked
 	// for an outline comparison.
 	Expect *int   `json:"expect,omitempty"`
@@ -242,6 +289,9 @@ func (c Charge) String() string {
 	b.WriteString(c.Ticket)
 	if c.Output != "" {
 		b.WriteString(" " + c.Output)
+	}
+	if c.Row != "" {
+		b.WriteString(" " + c.Row)
 	}
 	if c.Level != nil {
 		b.WriteString(" level " + strconv.Itoa(*c.Level))
@@ -622,6 +672,9 @@ func schedule(outs []resolvedOutput, acc []acceptLevel) []Charge {
 	add := func(ticket, output string, level, expect *int) {
 		cs = append(cs, Charge{Ticket: ticket, Output: output, Level: level, Expect: expect, Units: ticketUnits(ticket)})
 	}
+	addRow := func(ticket, output, row string) {
+		cs = append(cs, Charge{Ticket: ticket, Output: output, Row: row, Units: ticketUnits(ticket)})
+	}
 	add(TicketSnapshot, "", nil, nil)
 	for _, o := range sorted {
 		add(TicketPlan, o.name, nil, nil)
@@ -631,11 +684,19 @@ func schedule(outs []resolvedOutput, acc []acceptLevel) []Charge {
 			add(TicketSelect, o.name, nil, nil)
 		}
 	}
+	for _, o := range sorted {
+		for _, a := range atlasesUsed(o.r) {
+			addRow(TicketPaint, o.name, a.Name)
+		}
+	}
 	for _, phase := range []string{TicketSurface, TicketEncode} {
 		for _, o := range sorted {
 			ticket := phase
 			if phase == TicketSurface && usesBranchClass(o.r) {
 				ticket = TicketSurfaceBranches
+			}
+			if phase == TicketEncode && len(atlasesUsed(o.r)) > 0 {
+				ticket = TicketEncodeImages
 			}
 			for lv := 0; lv < o.levels; lv++ {
 				add(ticket, o.name, intp(lv), nil)
@@ -703,6 +764,20 @@ func classBound(c Charge, outs map[string]resolvedOutput, snapshotBytes []int, a
 		}
 		if _, ok := resolve.Assignments(o.r.Params, params); !ok {
 			return fmt.Sprintf("output %s has more than %d assignments of its tested parameters; the class allows %d", c.Output, maxAssignments, maxAssignments)
+		}
+	case TicketPaint:
+		a := outs[c.Output].r.Atlas(c.Row)
+		if a == nil {
+			break
+		}
+		if texels := a.Layout.Width() * a.Layout.Height(); texels > maxPaintTexels {
+			return fmt.Sprintf("the atlas %s is %d x %d texels (%d); the class allows %d", a.Name, a.Layout.Width(), a.Layout.Height(), texels, maxPaintTexels)
+		}
+		if len(a.Cells) > maxPaintCells {
+			return fmt.Sprintf("the atlas %s has %d cells; the class allows %d", a.Name, len(a.Cells), maxPaintCells)
+		}
+		if a.Ops > maxPaintOps {
+			return fmt.Sprintf("the atlas %s needs %d scalar painter operations; the class allows %d", a.Name, a.Ops, maxPaintOps)
 		}
 	case TicketMeasure:
 		if a := acc[accKey{c.Output, *c.Level}]; a.nonImage > maxMeasureExpects {
@@ -780,4 +855,51 @@ func expandedItems(r *resolve.Resolved) int {
 		walk(c, 1, 0)
 	}
 	return total
+}
+
+// atlasesUsed lists, by name, the atlases that a drawn material of the output
+// samples: the base texture of a material or of a Selena fallback, and the
+// texture a Selena descriptor names.
+func atlasesUsed(r *resolve.Resolved) []*resolve.Atlas {
+	if len(r.Atlases) == 0 {
+		return nil
+	}
+	reach := map[string]bool{}
+	for _, m := range r.Look.Materials {
+		reach[m] = true
+	}
+	seen := map[string]*resolve.Atlas{}
+	var visit func(n *resolve.Node)
+	visit = func(n *resolve.Node) {
+		for _, f := range n.Fields {
+			if f.Value.Kind != unitsRef {
+				continue
+			}
+			name := f.Value.Str
+			if a, painted := resolve.ParsePaintRef(name); painted {
+				name = a
+			}
+			if at := r.Atlas(name); at != nil {
+				seen[at.Name] = at
+			}
+		}
+		for _, c := range n.Children {
+			visit(c)
+		}
+	}
+	for _, m := range r.Materials {
+		if reach[m.Name] {
+			visit(m)
+		}
+	}
+	var names []string
+	for n := range seen {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	out := make([]*resolve.Atlas, len(names))
+	for i, n := range names {
+		out[i] = seen[n]
+	}
+	return out
 }

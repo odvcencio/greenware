@@ -56,7 +56,8 @@ func TestTableIsConsistent(t *testing.T) {
 		for _, b := range k.Blocks {
 			_, inShape := registry.Lookup(registry.CtxShape, b)
 			_, inDoc := registry.Lookup(registry.CtxDocument, b)
-			if !inShape && !inDoc {
+			_, inAtlas := registry.Lookup(registry.CtxAtlas, b)
+			if !inShape && !inDoc && !inAtlas {
 				t.Errorf("%s lists unknown block %s", k.Name, b)
 			}
 		}
