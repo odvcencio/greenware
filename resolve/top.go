@@ -64,13 +64,14 @@ func (r *run) paramValue(v units.Value, e ast.Expr, t registry.Type, sc *scope) 
 func (r *run) srcText(sp diag.Span) string { return string(r.f.Source[sp.Start:sp.End]) }
 
 // checkRange tests a value against a parameter's bounds. A failure offers the
-// nearest bound as an edit when the value is a source expression.
-func (r *run) checkRange(p *ast.Param, v, lo, hi units.Value, sp diag.Span, editable bool, what string) {
+// nearest bound as an edit when the value is a source expression. It reports
+// whether the value is in range.
+func (r *run) checkRange(p *ast.Param, v, lo, hi units.Value, sp diag.Span, editable bool, what string) bool {
 	if !v.Valid() || v.Kind != units.KNumber || !lo.Valid() || !hi.Valid() {
-		return
+		return true
 	}
 	if v.Num >= lo.Num && v.Num <= hi.Num {
-		return
+		return true
 	}
 	d := diag.New(diag.CodeParamRange, sp, "%s %s is outside the range %s..%s of `%s`", what, v.Format(), lo.Format(), hi.Format(), p.Name.Name).
 		WithRelated(p.Range.Span, "declared range")
@@ -82,6 +83,7 @@ func (r *run) checkRange(p *ast.Param, v, lo, hi units.Value, sp diag.Span, edit
 		d = d.WithEdit("use the "+src+" bound "+r.srcText(near.Span()), sp, r.srcText(near.Span()))
 	}
 	r.report(d)
+	return false
 }
 
 // evalParam evaluates a parameter: its default, its range, and an override.
@@ -130,12 +132,13 @@ func (r *run) evalParam(p *ast.Param) units.Value {
 				v = units.Bad()
 			}
 		}
+		inRange := true
 		if hasRange {
-			r.checkRange(p, v, lo, hi, sp, e != nil, "the value")
+			inRange = r.checkRange(p, v, lo, hi, sp, e != nil, "the value")
 		}
-		if v.Valid() {
-			val = v
-		} else {
+		// An override outside the range is reported and rejected: the
+		// parameter keeps its default (spec 2.7, the last valid state).
+		if inRange {
 			val = v
 		}
 	}

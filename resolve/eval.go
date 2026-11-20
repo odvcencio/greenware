@@ -49,9 +49,13 @@ func (r *run) eval(e ast.Expr, sc *scope) units.Value {
 	case *ast.Name:
 		return r.lookup(n.Name, n.Span(), sc)
 	case *ast.Qualified:
-		v := r.lookup(n.Parts[0], n.Span(), sc)
-		for _, m := range n.Parts[1:] {
-			v = r.member(v, m, n.Span())
+		// The token is one run of text with no spaces, so each part's span
+		// follows from the lengths of the parts before it.
+		at := n.Span().Start
+		v := r.lookup(n.Parts[0], diag.Span{Start: at, End: at + len(n.Parts[0])}, sc)
+		for i, m := range n.Parts[1:] {
+			at += len(n.Parts[i]) + 1 // the previous part and its dot
+			v = r.member(v, m, diag.Span{Start: at, End: at + len(m)})
 		}
 		return v
 	case *ast.Tuple:
@@ -133,7 +137,9 @@ func (r *run) index(n *ast.Index, sc *scope) units.Value {
 		r.report(diag.New(diag.CodeDomain, n.Span(), "index %d is outside 0..%d", k, len(x.Elems)-1))
 		return units.Bad()
 	}
-	return x.Elems[k]
+	out := x.Elems[k]
+	out.Runtime = out.Runtime || x.Runtime || i.DependsOnRuntime()
+	return out
 }
 
 func (r *run) unary(n *ast.Unary, sc *scope) units.Value {
@@ -257,12 +263,14 @@ func (r *run) ifExpr(n *ast.If, sc *scope) units.Value {
 	if !taken.Valid() || !other.Valid() {
 		return units.Bad()
 	}
-	if !units.Compatible(taken, other, r.d) {
+	unified, ok := units.Unify(taken, other, r.d)
+	if !ok {
 		r.report(diag.New(diag.CodeUnit, n.Span(), "the two branches of `if` have different types: %s and %s", describe(taken), describe(other)))
 		return units.Bad()
 	}
-	taken.Runtime = taken.DependsOnRuntime() || c.DependsOnRuntime()
-	return taken
+	// Both branches share one type whichever is taken (spec 2.3 rule 1).
+	unified.Runtime = taken.DependsOnRuntime() || c.DependsOnRuntime()
+	return unified
 }
 
 func describe(v units.Value) string { return v.Describe() }

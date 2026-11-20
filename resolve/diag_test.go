@@ -230,7 +230,7 @@ let q = clamp(7, 0, 5) * 1m`)
 }
 
 func TestAssetDefaultUnits(t *testing.T) {
-	src := "greenware 1\n\nasset a { root = a length = ft angle = turn }\n\nlet one = 1m + 2\nlet turn = 90deg + 0.25\n\npart a { }\n"
+	src := "greenware 1\n\nasset a { root = a length = ft angle = rad }\n\nlet one = 1m + 2\nlet turn = 90deg + 0.25\n\npart a { }\n"
 	f, ds := ast.Lower(lang.Parse([]byte(src)))
 	r, more := resolve.Evaluate(f, nil)
 	if len(ds)+len(more) != 0 {
@@ -241,8 +241,8 @@ func TestAssetDefaultUnits(t *testing.T) {
 		t.Errorf("1m + 2 in a foot document = %v, want %v", one.Num, want)
 	}
 	turn, _ := r.Let("turn")
-	if want := 90*units.DegToRad + 0.25*units.TwoPi; turn.Num-want > 1e-12 || want-turn.Num > 1e-12 {
-		t.Errorf("90deg + 0.25 in a turn document = %v, want %v", turn.Num, want)
+	if want := 90*units.DegToRad + 0.25; turn.Num-want > 1e-12 || want-turn.Num > 1e-12 {
+		t.Errorf("90deg + 0.25 in a radian document = %v, want %v", turn.Num, want)
 	}
 }
 

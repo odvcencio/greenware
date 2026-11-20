@@ -155,6 +155,12 @@ func (r *run) force(b *binding) units.Value {
 	}
 	b.state = stBusy
 	r.stack = append(r.stack, b)
+	// A binding's own errors do not depend on the branch that reached it
+	// first, so it is evaluated with domain errors on even when the caller is
+	// checking a branch that is not taken.
+	quiet := r.quiet
+	r.quiet = 0
+	defer func() { r.quiet = quiet }()
 	switch {
 	case b.param != nil:
 		b.value = r.evalParam(b.param)

@@ -203,16 +203,26 @@ func call(name string, a []Value, d Defaults) (Value, *Error) {
 		if err != nil {
 			return Bad(), err
 		}
-		if !IsIntegral(e.Num) || math.Abs(e.Num) > 1024 {
-			return Bad(), &Error{Kind: ErrUnsupported, Msg: "pow with a non-integer or very large exponent is outside this compiler's subset"}
-		}
 		if e.Num == 0 {
 			return Num(1), nil
 		}
-		if b.Num == 0 && e.Num < 0 {
-			return Bad(), errDomain("pow of zero with a negative exponent")
+		whole := IsIntegral(e.Num)
+		switch {
+		case b.Num == 0:
+			if e.Num < 0 {
+				return Bad(), errDomain("pow of zero with a negative exponent")
+			}
+			return Num(0), nil
+		case whole && math.Abs(e.Num) <= 1024:
+			// Exact repeated squaring, for any sign of base.
+			return Num(det.Pow(b.Num, int(e.Num))), nil
+		case b.Num < 0 && !whole:
+			return Bad(), errDomain("pow of a negative number needs a whole exponent")
+		case b.Num < 0:
+			return Bad(), &Error{Kind: ErrUnsupported, Msg: "pow of a negative number with a very large exponent is outside this compiler's subset"}
 		}
-		return Num(det.Pow(b.Num, int(e.Num))), nil
+		// A positive base with a real exponent: exp(e * log(b)).
+		return Num(Exp(float64(e.Num * Log(b.Num)))), nil
 	case "abs":
 		if a[0].Kind != KNumber {
 			return Bad(), errType("abs needs a number, found a %s", a[0].Describe())

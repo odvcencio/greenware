@@ -187,7 +187,8 @@ func Div(a, b Value, d Defaults) (Value, *Error) {
 	case a.Pending:
 		return Bad(), errUnit("cannot divide a bare number by a %s: write the unit, or divide by the number first", b.Dim)
 	case b.Pending:
-		r = Value{Kind: KNumber, Dim: a.Dim, Pending: false, Num: a.Num / b.Num}
+		// Mirrors Mul: a plain number over a pending literal stays pending.
+		r = Value{Kind: KNumber, Dim: a.Dim, Pending: a.Dim == Number, Num: a.Num / b.Num}
 	default:
 		r = Value{Kind: KNumber, Dim: a.Dim.Div(b.Dim), Num: a.Num / b.Num}
 	}
@@ -258,7 +259,9 @@ func Compare(op string, a, b Value, d Defaults) (Value, *Error) {
 	default:
 		return Bad(), errType("cannot compare a %s with a %s using %s", a.Describe(), b.Describe(), op)
 	}
-	return runtime2(Switch(res), a, b), nil
+	out := Switch(res)
+	out.Runtime = a.DependsOnRuntime() || b.DependsOnRuntime()
+	return out, nil
 }
 
 // Coerce checks that v is a number of dimension want and returns it. A
@@ -279,14 +282,42 @@ func Coerce(v Value, want Dim, d Defaults) (Value, *Error) {
 
 // Compatible reports whether a and b can unify (for the two branches of if).
 func Compatible(a, b Value, d Defaults) bool {
+	_, ok := Unify(a, b, d)
+	return ok
+}
+
+// Unify gives the two branches of an `if` one type (spec 2.3 rule 1) and
+// returns the first operand in that type. A pending number takes the
+// dimension of its peer; two pending numbers stay pending. Tuples, lists and
+// ranges need equal length and unify elementwise. It reports false when the
+// two cannot share a type.
+func Unify(a, b Value, d Defaults) (Value, bool) {
 	if a.Kind != b.Kind {
-		return false
+		return Bad(), false
 	}
-	if a.Kind == KNumber {
-		_, _, err := unify(a, b, d, "unify")
-		return err == nil
+	switch a.Kind {
+	case KNumber:
+		x, _, err := unify(a, b, d, "unify")
+		if err != nil {
+			return Bad(), false
+		}
+		return x, true
+	case KTuple, KList, KRange:
+		if len(a.Elems) != len(b.Elems) {
+			return Bad(), false
+		}
+		out := a
+		out.Elems = make([]Value, len(a.Elems))
+		for i := range a.Elems {
+			e, ok := Unify(a.Elems[i], b.Elems[i], d)
+			if !ok {
+				return Bad(), false
+			}
+			out.Elems[i] = e
+		}
+		return out, true
 	}
-	return true
+	return a, true
 }
 
 const maxInt = 9007199254740991 // 2^53 - 1

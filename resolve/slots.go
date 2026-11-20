@@ -219,7 +219,12 @@ func (r *run) slot(sc *scope, f *registry.Field, s *ast.Setting) units.Value {
 			r.report(diag.New(diag.CodeFieldRange, s.Range.Span, "the range %s..%s is empty", lo.Format(), hi.Format()))
 			return units.Bad()
 		}
-		return units.Pair(lo, hi)
+		pair := units.Pair(lo, hi)
+		if pair.DependsOnRuntime() && !f.Runtime {
+			r.report(diag.New(diag.CodeRuntime, s.Range.Span, "`%s` depends on a runtime parameter, but this field must be known when the file compiles", f.Name))
+			return units.Bad()
+		}
+		return pair
 	}
 	if s.Value == nil {
 		r.report(diag.New(diag.CodeType, vsp, "`%s` takes a %s, not a range", f.Name, t.Name()))
@@ -420,6 +425,16 @@ func (r *run) sample(n *ast.SampleRow, k *registry.Kind, sc *scope) ([]Row, bool
 	lo, hi := r.eval(n.Range.Lo, sc), r.eval(n.Range.Hi, sc)
 	cnt := r.coerce(r.eval(n.Count, sc), registry.Type{Kind: registry.TInteger}, n.Count.Span())
 	if !lo.Valid() || !hi.Valid() || !cnt.Valid() {
+		return nil, false
+	}
+	// The count and the positions of sampled rows are fixed when the file
+	// compiles (spec 2.7).
+	if lo.DependsOnRuntime() || hi.DependsOnRuntime() {
+		r.report(diag.New(diag.CodeRuntime, n.Range.Span, "the range of a sampled row cannot depend on a runtime parameter"))
+		return nil, false
+	}
+	if cnt.DependsOnRuntime() {
+		r.report(diag.New(diag.CodeRuntime, n.Count.Span(), "the count of a sampled row cannot depend on a runtime parameter"))
 		return nil, false
 	}
 	if lo.Kind != units.KNumber || hi.Kind != units.KNumber {

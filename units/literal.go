@@ -24,8 +24,8 @@ func DefaultUnits() Defaults { return Defaults{LengthScale: 1, AngleScale: DegTo
 
 // LengthUnits and AngleUnits list the unit names `asset` accepts.
 var (
-	LengthUnits = []string{"m", "mm", "cm", "km", "yd", "ft", "in"}
-	AngleUnits  = []string{"deg", "rad", "turn"}
+	LengthUnits = []string{"m", "mm", "cm", "km", "yd", "ft"}
+	AngleUnits  = []string{"deg", "rad"}
 )
 
 // LengthUnit returns the metres in one unit of name.
@@ -45,8 +45,6 @@ func AngleUnit(name string) (float64, bool) {
 		return DegToRad, true
 	case "rad":
 		return 1, true
-	case "turn":
-		return TwoPi, true
 	}
 	return 0, false
 }
@@ -60,7 +58,7 @@ type unitDef struct {
 // Order matters: longer suffixes first so "mm" is not read as "m".
 var unitDefs = []unitDef{
 	{"mm", Length, 1, 1000}, {"cm", Length, 1, 100}, {"km", Length, 1000, 1},
-	{"yd", Length, 9144, 10000}, {"ft", Length, 3048, 10000}, {"in", Length, 254, 10000},
+	{"yd", Length, 9144, 10000}, {"ft", Length, 3048, 10000},
 	{"m", Length, 1, 1},
 	{"ms", Duration, 1, 1000}, {"s", Duration, 1, 1},
 	{"px", Pixels, 1, 1},
@@ -100,7 +98,7 @@ func ParseNumber(text string) (Value, error) {
 		return Value{Kind: KNumber, Pending: true, Num: f}, nil
 	}
 	switch suffix {
-	case "deg", "rad", "turn":
+	case "deg", "rad":
 		f, _ := r.Float64()
 		scale, _ := AngleUnit(suffix)
 		if suffix == "rad" {

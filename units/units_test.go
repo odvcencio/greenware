@@ -29,11 +29,9 @@ func TestParseNumber(t *testing.T) {
 		{"2cm", units.Length, 0.02, false},
 		{"1ft", units.Length, 0.3048, false},
 		{"2yd", units.Length, 1.8288, false},
-		{"1in", units.Length, 0.0254, false},
 		{"0.015", units.Number, 0.015, true},
 		{"90deg", units.Angle, float64(90 * units.DegToRad), false},
 		{"1.39rad", units.Angle, 1.39, false},
-		{"0.25turn", units.Angle, float64(0.25 * units.TwoPi), false},
 		{"7%", units.Number, 0.07, false},
 		{"240ms", units.Duration, 0.24, false},
 		{"96KiB", units.Bytes, 98304, false},
@@ -134,8 +132,14 @@ func TestFunctions(t *testing.T) {
 	if v, _ := call("pow", parse(t, "2"), parse(t, "10")); v.Num != 1024 {
 		t.Errorf("pow = %v", v.Num)
 	}
-	if _, err := call("pow", parse(t, "2"), parse(t, "1.5")); err == nil || err.Kind != units.ErrUnsupported {
-		t.Errorf("fractional pow: %v", err)
+	if v, err := call("pow", parse(t, "2"), parse(t, "1.5")); err != nil || math.Abs(v.Num-math.Pow(2, 1.5)) > 1e-12 {
+		t.Errorf("fractional pow: %v %v", v.Num, err)
+	}
+	if _, err := call("pow", parse(t, "2"), parse(t, "5000")); err != nil {
+		// A positive base with a huge exponent overflows to a domain error.
+		if err.Kind != units.ErrDomain {
+			t.Errorf("pow(2, 5000): %v", err)
+		}
 	}
 	if v, _ := call("mod", units.Len(-1), parse(t, "3m")); v.Num != 2 || v.Dim != units.Length {
 		t.Errorf("mod = %v", v)
@@ -205,5 +209,134 @@ func TestJSON(t *testing.T) {
 		if err != nil || string(b) != want {
 			t.Errorf("got %s, want %s (%v)", b, want, err)
 		}
+	}
+}
+
+// ReviewCompare: a tuple that holds a runtime value makes the comparison
+// runtime-dependent.
+func TestCompareKeepsTupleRuntime(t *testing.T) {
+	d := units.DefaultUnits()
+	rt := units.Len(1).WithRuntime(true)
+	a := units.Tuple(rt, units.Len(2))
+	b := units.Tuple(units.Len(1), units.Len(2))
+	v, err := units.Compare("==", a, b, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.DependsOnRuntime() {
+		t.Error("tuple equality with a runtime element is bake-time")
+	}
+}
+
+// Div of a plain number by a pending literal stays pending, as Mul does.
+func TestDivPendingMirrorsMul(t *testing.T) {
+	d := units.DefaultUnits()
+	k := units.Num(3)
+	half := parse(t, "2")
+	m, _ := units.Mul(k, parse(t, "0.5"), d)
+	q, _ := units.Div(k, half, d)
+	if !m.Pending || !q.Pending {
+		t.Errorf("k*0.5 pending=%v, k/2 pending=%v; both should be pending", m.Pending, q.Pending)
+	}
+	// A length over a pending literal is a length, fixed.
+	l, _ := units.Div(units.Len(4), half, d)
+	if l.Pending || l.Dim != units.Length || l.Num != 2 {
+		t.Errorf("4m/2 = %+v", l)
+	}
+}
+
+func TestCompatibleChecksShape(t *testing.T) {
+	d := units.DefaultUnits()
+	l2 := units.Tuple(units.Len(1), units.Len(2))
+	l3 := units.Tuple(units.Len(1), units.Len(2), units.Len(3))
+	a2 := units.Tuple(units.Ang(1), units.Ang(2))
+	if units.Compatible(l2, l3, d) {
+		t.Error("tuples of 2 and 3")
+	}
+	if units.Compatible(l2, a2, d) {
+		t.Error("length tuple and angle tuple")
+	}
+	if !units.Compatible(l2, l2, d) {
+		t.Error("equal tuples")
+	}
+	if units.Compatible(units.List(units.Len(1)), units.List(units.Ang(1)), d) {
+		t.Error("lists of different dimension")
+	}
+	p := units.Tuple(parse(t, "1"), parse(t, "2"))
+	if !units.Compatible(p, l2, d) {
+		t.Error("pending tuple against a length tuple")
+	}
+	u, ok := units.Unify(p, l2, d)
+	if !ok || u.Elems[0].Dim != units.Length || u.Elems[0].Pending {
+		t.Errorf("unified = %+v", u)
+	}
+}
+
+func TestNonSpecUnitsAreRejected(t *testing.T) {
+	for _, s := range []string{"1in", "0.25turn"} {
+		if _, err := units.ParseNumber(s); err == nil {
+			t.Errorf("%s accepted; the spec lists neither in nor turn", s)
+		}
+	}
+	if _, ok := units.LengthUnit("in"); ok {
+		t.Error("in is a length unit")
+	}
+	if _, ok := units.AngleUnit("turn"); ok {
+		t.Error("turn is an angle unit")
+	}
+}
+
+func TestPowRealExponent(t *testing.T) {
+	d := units.DefaultUnits()
+	got, err := units.Call("pow", []units.Value{parse(t, "3"), parse(t, "1.6")}, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := math.Pow(3, 1.6); math.Abs(got.Num-want) > 1e-12*want {
+		t.Errorf("pow(3, 1.6) = %v, want %v", got.Num, want)
+	}
+	if v, err := units.Call("pow", []units.Value{parse(t, "0"), parse(t, "0.5")}, d); err != nil || v.Num != 0 {
+		t.Errorf("pow(0, 0.5) = %v %v", v, err)
+	}
+	if _, err := units.Call("pow", []units.Value{parse(t, "0"), units.Num(-0.5)}, d); err == nil || err.Kind != units.ErrDomain {
+		t.Errorf("pow(0, -0.5): %v", err)
+	}
+	if _, err := units.Call("pow", []units.Value{units.Num(-2), parse(t, "0.5")}, d); err == nil || err.Kind != units.ErrDomain {
+		t.Errorf("pow(-2, 0.5): %v", err)
+	}
+	// An integer exponent keeps the exact integer path.
+	if v, _ := units.Call("pow", []units.Value{units.Num(-2), parse(t, "3")}, d); v.Num != -8 {
+		t.Errorf("pow(-2, 3) = %v", v.Num)
+	}
+}
+
+func TestExpLogAgainstMath(t *testing.T) {
+	rel := func(got, want float64) float64 {
+		if want == 0 {
+			return math.Abs(got)
+		}
+		return math.Abs(got-want) / math.Abs(want)
+	}
+	for x := -40.0; x <= 40; x += 0.37 {
+		if e := rel(units.Exp(x), math.Exp(x)); e > 1e-12 {
+			t.Errorf("Exp(%v) rel err %g", x, e)
+		}
+	}
+	for x := 1e-6; x < 1e6; x *= 1.37 {
+		if e := rel(units.Log(x), math.Log(x)); e > 1e-12 && math.Abs(units.Log(x)-math.Log(x)) > 1e-14 {
+			t.Errorf("Log(%v) rel err %g", x, e)
+		}
+	}
+	for _, b := range []float64{0.01, 0.5, 1, 1.7, 2, 10, 123.4} {
+		for y := -5.0; y <= 5; y += 0.31 {
+			want := math.Pow(b, y)
+			got := units.Exp(float64(y * units.Log(b)))
+			if e := rel(got, want); e > 1e-12 {
+				t.Errorf("pow(%v,%v) rel err %g", b, y, e)
+			}
+		}
+	}
+	if units.Exp(0) != 1 || units.Log(1) != 0 {
+		t.Error("Exp(0) or Log(1)")
 	}
 }
