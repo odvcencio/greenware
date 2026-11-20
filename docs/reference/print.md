@@ -1,6 +1,6 @@
 # Printing: 3MF
 
-This page describes the first print backend: one level of one output, written as a 3MF file of solid bodies. It is a Go API (`compiler.BuildPrint`, `backend/threemf`); the command-line flag is the lead's to add. The design is in `compiler.md` section 8.3 in the Hyphae space `hypha://m31labs/greenware`.
+This page describes the first print backend: one level of one output, written as a 3MF file of solid bodies. It is a Go API (`compiler.BuildPrint`, `backend/threemf`); the command is `greenware print`; see commands.md. The design is in `compiler.md` section 8.3 in the Hyphae space `hypha://m31labs/greenware`.
 
 ## Use
 

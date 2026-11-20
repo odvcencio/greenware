@@ -4,10 +4,11 @@
 
 Source: https://github.com/odvcencio/greenware
 
-The README says the compiler that joins the parts is under construction. `CHANGELOG.md` lists what works now.
+The README says much of the language is still unbuilt. `CHANGELOG.md` lists what works now.
 
 ## Start here
 
+- [Examples](examples/): the goal post, helmet, rigged arm (`examples/arm`) and athlete.
 - [Goal post source](examples/goalpost/goalpost.gw): the example to start from. It uses parameters, materials, parts, sockets, levels of detail, collision, a budget and outputs.
 - [Goal post acceptance tests](examples/goalpost/goalpost.accept.gw): the checks that run on the decoded GLB files of the goal post at each level of detail.
 - [Overview](README.md): a short example, the layout and the licence.
@@ -15,7 +16,9 @@ The README says the compiler that joins the parts is under construction. `CHANGE
 
 ## Commands
 
-- [Command-line tool](cmd/greenware/main.go): the four commands are `build <file>` (writes GLB files), `check <file>` (lists diagnostics), `fmt <file>` (formats source; `--check` and `--write` change how it runs) and `accept <source.gw> <accept.gw> --glb-dir DIR` (runs acceptance tests). Each command takes `--json`.
+- [Command-line tool](cmd/greenware/main.go): the commands are `build <file>` (writes GLB files), `check <file>` (lists diagnostics), `fmt <file>` (formats source), `accept <source.gw> <accept.gw> --glb-dir DIR` (runs acceptance tests), `print <file>` (writes a 3MF file), and the authoring commands `fix`, `diff`, `describe`, `ir`, `init`, `lock`, `explain`, `search` and `trace`. Each command takes `--json`.
+- [Command reference](docs/reference/commands.md): every command, its flags and its exit status.
+- [Printing](docs/reference/print.md): the 3MF backend and the `GW-PRINT` gate.
 - Exit status: 0 means success. 1 means an error diagnostic, or a file that `fmt --check` finds unformatted. 2 means a usage or read error. `accept` exits 3 when no check failed but some could not be measured.
 
 ## Code map
@@ -27,9 +30,12 @@ The README says the compiler that joins the parts is under construction. `CHANGE
 - [units/](units/): values, dimensions and arithmetic. Lengths are metres and angles are radians.
 - [registry/](registry/): the fields, child blocks and rows that each declaration accepts.
 - [diag/](diag/): diagnostics, with their codes and severities.
-- [compiler/](compiler/): the back end. Builds each output into GLB files.
+- [compiler/](compiler/): the back end. Builds each output into GLB files or a 3MF print, and reserves cost tickets.
+- [std/](std/): the standard library of `.gw` sources.
+- [tools/](tools/): the authoring commands (`fix`, `diff`, `describe`, `ir`, `init`, `lock`, `explain`, `search`, `trace`).
+- [backend/threemf/](backend/threemf/): the 3MF writer, reader and validator.
 - [accept/](accept/): runs acceptance files on decoded GLB files.
-- [kernel/](kernel/): the geometry kernel. `kernel/build` makes parametric shapes and `kernel/mesh` holds the mesh type.
+- [kernel/](kernel/): the geometry kernel. `kernel/build` makes parametric shapes, `kernel/mesh` holds the mesh type, `kernel/geom` measures distance, `kernel/image` makes textures and `kernel/rig` compiles skeletons, skins, morphs and clips.
 - [gltf/](gltf/): reads and writes GLB. Its own module, and it imports only `det`.
 - [det/](det/): deterministic scalar math. Its own module.
 - [conformance/](conformance/): an independent checker in its own module. It reads no Greenware code.

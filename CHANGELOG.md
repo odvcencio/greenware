@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+What works now, as of this list:
+
+- Examples that build with `greenware build`: the goal post (`examples/goalpost`), the helmet, the rigged arm and the athlete, each with an acceptance file.
+- `greenware accept` runs those acceptance files on decoded GLB files.
+- Authoring commands: `fix`, `diff`, `describe`, `ir`, `init`, `lock`, `explain`, `search` and `trace` (`docs/reference/commands.md`).
+- `greenware print` writes one level of one output as a 3MF file of solids, and refuses a shape that is not a closed manifold with `GW-PRINT` (`docs/reference/print.md`). It does not check wall thickness or intersections.
+- The cost ledger: a build reserves cost tickets and refuses a build over its limits.
+
 - Renamed from Facet to Greenware (`.gw`, module `m31labs.dev/greenware`).
 - Geometry kernel (`kernel/`), neutral GLB codec (`gltf/`), deterministic math (`det/`) and an independent checker (`conformance/`).
 

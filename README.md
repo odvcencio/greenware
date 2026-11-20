@@ -30,7 +30,28 @@ output main { file = "post.glb" }
 greenware build post.gw --out-dir out
 ```
 
-Status: early. The grammar, the geometry kernel, the GLB codec and an independent checker exist; the compiler that joins them is under construction. See `CHANGELOG.md` for what works now.
+Status: early. The grammar, the geometry kernel, the compiler, the GLB codec and an independent checker exist. The compiler builds the goal post, helmet, rigged arm and athlete examples in `examples/`, and a 3MF print of the goal post. Much of the language is still unbuilt. See `CHANGELOG.md` for what works now.
+
+## Commands
+
+| Command | Job |
+|---|---|
+| `build` | Compile a file to GLB files and a build record |
+| `check` | List the diagnostics of a file |
+| `fmt` | Format a file |
+| `accept` | Run an acceptance file on built GLB files |
+| `fix` | Apply the fixes that diagnostics offer |
+| `diff` | Compare two sources and report breaking changes |
+| `describe` | Summarise a file's declarations |
+| `ir` | Show the evaluated form of an output |
+| `init` | Create a project folder |
+| `lock` | Write or check the project's lock file |
+| `explain` | Explain a diagnostic code |
+| `search` | Find declarations in a project |
+| `trace` | Follow a name to where it is used |
+| `print` | Write one output level as a 3MF file of solids |
+
+Flags, output and exit status are in `docs/reference/commands.md`.
 
 ## Layout
 
@@ -39,8 +60,15 @@ Status: early. The grammar, the geometry kernel, the GLB codec and an independen
 | `det/` | Deterministic scalar math (own module, `m31labs.dev/greenware/det`) |
 | `gltf/` | Neutral GLB reader and writer (own module, `m31labs.dev/greenware/gltf`) |
 | `language/`, `lang/` | The tree-sitter grammar, parser and formatter |
-| `kernel/` | The geometry kernel |
+| `ast/`, `resolve/`, `units/`, `registry/`, `diag/` | The declaration model, name and constant evaluation, units, field tables and diagnostics |
+| `std/` | The standard library of `.gw` sources |
+| `kernel/` | The geometry kernel: `build` (shapes), `mesh`, `geom` (distance and bounding volumes), `image` (textures) and `rig` (skeletons, skins, morphs, clips) |
+| `compiler/` | The back end: GLB output, the cost ledger, the rig audit and the print backend |
+| `backend/threemf` | The 3MF writer, reader and validator |
+| `accept/` | The acceptance-file evaluator |
+| `tools/` | The authoring commands (`fix`, `diff`, `describe`, `ir`, `init`, `lock`, `explain`, `search`, `trace`) |
 | `cmd/greenware` | The command-line tool |
+| `examples/` | The goal post, helmet, rigged arm and athlete |
 | `conformance/` | An independent checker, in its own module |
 
 Greenware depends on no game engine. The core never imports GoSX or Kiln; `internal/depcheck` enforces that.

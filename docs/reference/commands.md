@@ -7,7 +7,7 @@
 1. A flag can come before or after the operands. `--flag value` and `--flag=value` both work. `--` ends the flags.
 2. `--json` makes a command write exactly one JSON value to standard output, with a `schema` key first and the keys in a fixed order. Text for people goes to standard output in plain mode and diagnostics go to standard error.
 3. Exit status: 0 success; 1 findings (an error diagnostic, a refused or failed gate, a drift, a conflict); 2 a usage or read error (a bad flag, a missing file, an unknown diagnostic code).
-4. Every command here runs the front end only (parse, lower, evaluate the constant values). None builds geometry.
+4. Every command here except `print` runs the front end only (parse, lower, evaluate the constant values). They build no geometry. `print` builds one output level.
 5. Positions are one-based lines and columns. Byte offsets are zero-based and count UTF-8 bytes.
 
 ## greenware check
@@ -270,6 +270,25 @@ $ greenware trace testdata/tools/post_a.gw cap_height
 let cap_height  testdata/tools/post_a.gw:19:5
   testdata/tools/post_a.gw:37:16 in shape ball: radius = cap_height
   testdata/tools/post_a.gw:42:25 in socket flag: at = (0, height + cap_height, 0)
+```
+
+## greenware print
+
+`greenware print <file> [--output NAME] [--level N] [--scale S] [--out FILE] [--force] [--project DIR] [--json]`
+
+Builds one level of one output as a 3MF file of solid bodies and writes it. `--output` defaults to the first output of the file and `--level` to 0. `--scale` multiplies every dimension (default 1; a 12 m goal post needs a scale below 1 to fit a printer). `--out` defaults to `<name>.3mf` in the current directory, where the name comes from the output's file (`goalpost.3mf`). The command refuses to replace an existing file unless `--force` is given, and exits 2 in that case. The model is in millimetres with +z up. The rules, the notes and the GW-PRINT gate are in `docs/reference/print.md`.
+
+Plain mode prints one line for the file (path, bytes, objects, triangles, SHA-256), then one line per object (name, triangles, closed, volume in cm3, bounds in mm), then the notes: what the file does not carry or check. Exit 0 when the file is written, 1 when a diagnostic is an error (an open or non-manifold shape gives `GW-PRINT` and nothing is written), 2 on a usage or read error or when `--out` exists.
+
+JSON (`greenware.print/1`): `schema, ok, written, output, level, scale, out, bytes, sha256, triangles, objects, notes, diagnostics`. Each object has `name, triangles, closed, volume_cm3, lo_mm, hi_mm`.
+
+This command writes a file, so the test that runs the `$ greenware ...` examples cannot run its example; it is shown without the `$ ` prefix. `cmd/greenware/print_test.go` runs the command instead.
+
+```text
+greenware print examples/goalpost/goalpost.gw --output stadium --level 0 --out goalpost.3mf
+goalpost.3mf  101981 bytes, 16 objects, 1340 triangles, sha256 2c4f1a0c...
+goalpost/post/sweep  316 triangles, closed true, 124821.601 cm3, bounds (-100.00, -1930.00, 0.00) to (100.00, 9.80, 3149.52) mm
+...
 ```
 
 ## Other commands

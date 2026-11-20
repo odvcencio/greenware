@@ -4,6 +4,7 @@
 //	greenware check <file> [--project DIR] [--geometry-only] [--json]
 //	greenware fmt <file> [--check] [--write] [--json]
 //	greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
+//	greenware print <file> [--output NAME] [--level N] [--scale S] [--out FILE] [--force] [--project DIR] [--json]
 //	greenware fix | diff | describe | ir | init | lock | explain | search | trace (package tools; see docs/reference/commands.md)
 //
 // With --json the command writes exactly one JSON value to standard output.
@@ -35,7 +36,7 @@ const usage = `usage:
   greenware check <file> [--project DIR] [--geometry-only] [--json]
   greenware fmt <file> [--check] [--write] [--json]
   greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
-` + toolsUsage
+` + printUsage + toolsUsage
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -160,6 +161,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		allowed = map[string]bool{"json": true, "geometry-only": true, "project": true}
 	case "fmt":
 		allowed = map[string]bool{"check": true, "write": true, "json": true}
+	case "print":
+		return runPrint(rest, stdout, stderr)
 	case "accept":
 		return accept.Command(rest, stdout, stderr)
 	case "help", "-h", "--help":
