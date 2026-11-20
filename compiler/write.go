@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 // RecordSchema names the layout of the build record.
@@ -40,10 +41,41 @@ type recordFile struct {
 	AnimKeys   int `json:"animation_keys,omitempty"`
 }
 
+// LevelInfo is one level of an output in the build record and the build
+// report: what the game needs to choose a file by distance. The fields are
+// the same as the file's census row, plus the `lod` block's own numbers.
+type LevelInfo struct {
+	Level int    `json:"level"`
+	File  string `json:"file"`
+	// DistanceM is the `distance` of the level's `lod` block in metres. It is
+	// null for level 0, which is the source and declares none.
+	DistanceM *float64 `json:"distance_m"`
+	// MaxErrorM is the `max_error` of the `lod` block in metres; 0 for level 0.
+	MaxErrorM float64 `json:"max_error_m"`
+	Triangles int     `json:"triangles"`
+	Draws     int     `json:"draws"`
+}
+
+// Levels returns the output's levels, sorted by level.
+func (o *OutputProduct) Levels() []LevelInfo {
+	out := make([]LevelInfo, 0, len(o.Files))
+	for _, f := range o.Files {
+		out = append(out, LevelInfo{
+			Level: f.Level, File: f.Name, DistanceM: f.Distance, MaxErrorM: f.MaxError,
+			Triangles: f.Triangles, Draws: f.Draws,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Level < out[j].Level })
+	return out
+}
+
 type recordOutput struct {
 	Name      string       `json:"name"`
 	FirSHA256 string       `json:"fir_sha256"`
 	Files     []recordFile `json:"files"`
+	// Levels lists every level with its declared switch distance, so a game
+	// can read the distances here instead of repeating them.
+	Levels []LevelInfo `json:"levels"`
 }
 
 type record struct {
@@ -83,7 +115,7 @@ func (p *Product) Record() []byte {
 		Cost: p.Receipt,
 	}
 	for _, o := range p.Outputs {
-		ro := recordOutput{Name: o.Name, FirSHA256: o.FirSHA256, Files: []recordFile{}}
+		ro := recordOutput{Name: o.Name, FirSHA256: o.FirSHA256, Files: []recordFile{}, Levels: o.Levels()}
 		for _, f := range o.Files {
 			rf := recordFile{
 				Name: f.Name, Level: f.Level, Bytes: f.Size, SHA256: f.SHA256,

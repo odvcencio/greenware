@@ -55,6 +55,12 @@ type File struct {
 	// Audit is the audit of the level's rig and mounts; nil when the source
 	// declares no `check rig` and no fit.
 	Audit *AuditReport
+	// Distance is the `distance` of the level's `lod` block in metres, and
+	// MaxError its `max_error` in metres. Level 0 is the source and declares
+	// neither: Distance is nil and MaxError is 0. They go in the build record
+	// (Levels), never into the file.
+	Distance *float64
+	MaxError float64
 }
 
 // OutputProduct is the files of one output, level 0 first.
@@ -321,6 +327,7 @@ func outputSpan(f *ast.File, name string) diag.Span {
 type levelSpec struct {
 	n      int
 	maxErr float64
+	dist   float64 // `distance` in metres
 	drop   []string
 	keep   []string
 }
@@ -334,6 +341,8 @@ func (e *elab) levelSpecs() []levelSpec {
 			switch f.Name {
 			case "max_error":
 				spec.maxErr = f.Value.Num
+			case "distance":
+				spec.dist = f.Value.Num
 			case "drop":
 				for _, d := range f.Value.Elems {
 					spec.drop = append(spec.drop, d.Str)
@@ -396,7 +405,7 @@ func buildOutputWith(file *ast.File, r *resolve.Resolved, oname string, pol Poli
 		e.report(diag.CodeUnsupported, osp, "`profile = %s` is not supported yet", out.Profile)
 	}
 	if out.Manifest {
-		notes = append(notes, fmt.Sprintf("output %s: manifest = on writes no GoSX manifest entry; the specification does not define its layout", oname))
+		notes = append(notes, fmt.Sprintf("output %s: manifest = on writes no GoSX manifest entry because the specification does not define its layout; the level distances are in the build record (levels)", oname))
 	}
 	if r.Root == nil {
 		e.report(diag.CodeMissing, osp, "the asset has no root part to build")
@@ -467,7 +476,14 @@ func buildOutputWith(file *ast.File, r *resolve.Resolved, oname string, pol Poli
 		if lv > 0 {
 			name = stem + "-lod" + strconv.Itoa(lv) + ext
 		}
+		var dist *float64
+		var maxErr float64
+		if lv > 0 {
+			d := specs[lv-1].dist
+			dist, maxErr = &d, specs[lv-1].maxErr
+		}
 		op.Files = append(op.Files, &File{
+			Distance: dist, MaxError: maxErr,
 			Name: name, Level: lv, Doc: l.doc, GLB: glb, SHA256: hex.EncodeToString(sum[:]),
 			Triangles: l.tris, Draws: l.draws, Materials: l.mats, Vertices: l.verts, Size: len(glb),
 			TrianglesWorst: l.trisWorst, TrianglesStored: l.trisStored, DrawsWorst: l.drawsWorst, Alternates: l.alternates,
