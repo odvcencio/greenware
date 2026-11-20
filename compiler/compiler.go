@@ -51,15 +51,36 @@ type Product struct {
 	// Unsupported lists what the source asked for and the compiler did not
 	// write, such as the GoSX manifest entry. None of it stops a build.
 	Unsupported []string
+	// Receipt lists the cost tickets the build reserved, in order. It is nil
+	// for a Product that was not made by Build.
+	Receipt *Receipt
 }
 
 // Build compiles one output, or every output when outputName is empty. It
 // returns a nil product when any diagnostic is an error: nothing is
 // published. The diagnostics include those of the front end for the chosen
-// outputs.
+// outputs. It runs under the default policy and plans no acceptance step; see
+// BuildWith.
 func Build(file *ast.File, outputName string) (*Product, []diag.Diagnostic) {
+	p, _, ds := BuildWith(file, outputName, Options{})
+	return p, ds
+}
+
+// arrayCapMessage is the start of the front end's message for an array above
+// its copy cap. The front end reports it as GW-FIELD-RANGE; BuildWith reports
+// it as GW-LIMIT on the `plan` ticket (compiler.md 3.1: an operand above a
+// class bound is a count ceiling). TestLimitOversizedArray pins the text.
+const arrayCapMessage = "an array makes at most"
+
+// BuildWith is Build under an explicit policy and with an optional planned
+// acceptance step. It reserves every ticket of the run, in schedule order,
+// before it builds anything (see the package's cost ledger). The receipt is
+// returned even when the build is refused, holding the tickets reserved so far
+// and the refusal. It is nil only when the build stopped before the ledger
+// began.
+func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Receipt, []diag.Diagnostic) {
 	if file == nil || file.Broken {
-		return nil, []diag.Diagnostic{diag.New(diag.CodeSyntax, diag.Span{}, "the file has syntax errors; nothing was built")}
+		return nil, nil, []diag.Diagnostic{diag.New(diag.CodeSyntax, diag.Span{}, "the file has syntax errors; nothing was built")}
 	}
 	var names []string
 	for _, o := range file.Outputs {
@@ -69,9 +90,9 @@ func Build(file *ast.File, outputName string) (*Product, []diag.Diagnostic) {
 	}
 	if len(names) == 0 {
 		if outputName != "" {
-			return nil, []diag.Diagnostic{diag.New(diag.CodeUnknownName, diag.Span{}, "the file has no output named %q", outputName)}
+			return nil, nil, []diag.Diagnostic{diag.New(diag.CodeUnknownName, diag.Span{}, "the file has no output named %q", outputName)}
 		}
-		return nil, []diag.Diagnostic{diag.New(diag.CodeMissing, diag.Span{}, "the file declares no output to build")}
+		return nil, nil, []diag.Diagnostic{diag.New(diag.CodeMissing, diag.Span{}, "the file declares no output to build")}
 	}
 	srcSum := sha256.Sum256(file.Source)
 	p := &Product{SourceSHA256: hex.EncodeToString(srcSum[:])}
@@ -82,17 +103,81 @@ func Build(file *ast.File, outputName string) (*Product, []diag.Diagnostic) {
 		p.Asset = file.Asset.Name.Name
 	}
 
+	// Front end for every chosen output, before any ticket: a different error
+	// is not a cost receipt.
 	var all []diag.Diagnostic
-	files := map[string]string{} // output file name -> output name; lookup only
+	var resolved []resolvedOutput
+	byName := map[string]resolvedOutput{}
 	for _, name := range names {
 		r, ds := resolve.EvaluateOutput(file, name)
+		for i := range ds {
+			if ds[i].Code == diag.CodeFieldRange && strings.HasPrefix(ds[i].Message, arrayCapMessage) {
+				ds[i].Code = diag.CodeLimit
+				ds[i].Severity = diag.Error
+				ds[i].Message = fmt.Sprintf("the `%s` ticket (%s %s) cannot take this operand: %s (the class allows %d copies per array)",
+					TicketPlan, TicketPlan, name, ds[i].Message, maxPlanItems)
+			}
+		}
 		all = append(all, ds...)
 		if diag.HasErrors(ds) || r == nil {
 			continue
 		}
-		op, ds, notes := buildOutput(file, r, name)
+		ro := resolvedOutput{name: name, r: r, levels: len(r.Lods) + 1}
+		resolved = append(resolved, ro)
+		byName[name] = ro
+	}
+
+	// The ledger: reserve the whole planned run before running any of it.
+	var rc *Receipt
+	if !diag.HasErrors(all) {
+		levels := map[string]int{}
+		for _, o := range resolved {
+			levels[o.name] = o.levels
+		}
+		var plan []acceptLevel
+		var inputs = []int{len(file.Source)}
+		if opts.Accept != nil {
+			plan = planAccept(opts.Accept, levels)
+			inputs = append(inputs, len(opts.Accept.Source))
+		}
+		accByKey := map[accKey]acceptLevel{}
+		for _, a := range plan {
+			k := accKey{a.output, a.level}
+			cur := accByKey[k]
+			cur.output, cur.level = a.output, a.level
+			cur.nonImage += a.nonImage
+			accByKey[k] = cur
+		}
+		lg := newLedger(opts.Policy.limit())
+		rc = lg.rc
+		for _, c := range schedule(resolved, plan) {
+			// The class bound comes first: a ticket whose operand does not fit
+			// its class is never priced.
+			var ref *Refusal
+			if b := classBound(c, byName, inputs, accByKey); b != "" {
+				ref = &Refusal{Charge: c, Bound: b}
+			} else {
+				ref = lg.reserve(c)
+			}
+			if ref != nil {
+				lg.rc.Refused = ref
+				return nil, rc, diag.Dedup(append(all, limitDiag(outputSpan(file, c.Output), ref, lg.rc.Limit)))
+			}
+		}
+		p.Receipt = rc
+	}
+
+	files := map[string]string{} // output file name -> output name; lookup only
+	for _, ro := range resolved {
+		name := ro.name
+		op, ds, notes := buildOutput(file, ro.r, name)
 		all = append(all, ds...)
 		if op == nil || diag.HasErrors(ds) {
+			continue
+		}
+		if ref := classBoundFiles(op); ref != nil && rc != nil {
+			rc.Refused = ref
+			all = append(all, limitDiag(outputSpan(file, name), ref, rc.Limit))
 			continue
 		}
 		for _, f := range op.Files {
@@ -106,9 +191,27 @@ func Build(file *ast.File, outputName string) (*Product, []diag.Diagnostic) {
 	}
 	all = diag.Dedup(all)
 	if diag.HasErrors(all) {
-		return nil, all
+		return nil, rc, all
 	}
-	return p, all
+	return p, rc, all
+}
+
+// classBoundFiles checks the class bounds that only the built files show: the
+// triangles of a level (the `surface` ticket) and the size of a file (the
+// `encode` ticket). It returns the first breach in level order.
+func classBoundFiles(op *OutputProduct) *Refusal {
+	for _, f := range op.Files {
+		lv := f.Level
+		if f.Triangles > maxSurfaceTris {
+			return &Refusal{Charge: Charge{Ticket: TicketSurface, Output: op.Name, Level: &lv},
+				Bound: fmt.Sprintf("output %s level %d holds %d triangles; the class allows %d", op.Name, lv, f.Triangles, maxSurfaceTris)}
+		}
+		if f.Size > maxEncodeBytes {
+			return &Refusal{Charge: Charge{Ticket: TicketEncode, Output: op.Name, Level: &lv},
+				Bound: fmt.Sprintf("%s is %d bytes; the class allows %d", f.Name, f.Size, maxEncodeBytes)}
+		}
+	}
+	return nil
 }
 
 func appendUnique(dst []string, add ...string) []string {

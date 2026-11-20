@@ -25,6 +25,12 @@
 //   - Sockets and colliders as meshless nodes, with their data in node extras.
 //   - Budgets, measured on the encoded files, at the output's effective budget.
 //
+// Cost: BuildWith reserves a fixed price for every operation of the planned
+// run, in a fixed order, before it builds anything (cost.go). A ticket that
+// does not fit under Policy.MaxTotalWork, or whose operand is over its class
+// bound, stops the build with GW-LIMIT and no product. The reserved tickets
+// are a Receipt, written into the build record.
+//
 // Where it differs from the specification, the package states it here:
 //
 //   - The runtime table and the other Greenware data are written in the

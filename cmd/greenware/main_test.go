@@ -203,3 +203,101 @@ func TestFmt(t *testing.T) {
 		t.Errorf("syntax error: exit %d", code)
 	}
 }
+
+const (
+	example      = "../../examples/goalpost/goalpost.gw"
+	exampleAccep = "../../examples/goalpost/goalpost.accept.gw"
+)
+
+// dirBytes reads every file of dir, by name.
+func dirBytes(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := map[string]string{}
+	for _, e := range ents {
+		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		m[e.Name()] = string(b)
+	}
+	return m
+}
+
+func costOf(t *testing.T, rep map[string]any) map[string]any {
+	t.Helper()
+	c, ok := rep["cost"].(map[string]any)
+	if !ok {
+		t.Fatalf("no cost in the report: %v", rep)
+	}
+	return c
+}
+
+func TestBuildMaxWorkBoundary(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "out")
+	code, out, errOut := exec(t, "build", example, "--accept", exampleAccep, "--max-work", "8750000", "--out-dir", dir, "--json")
+	if code != 0 {
+		t.Fatalf("exit %d at the exact ceiling\n%s\n%s", code, out, errOut)
+	}
+	cost := costOf(t, oneJSON(t, out))
+	if cost["total_work"] != float64(8750000) || cost["limit"] != float64(8750000) || len(cost["tickets"].([]any)) != 34 {
+		t.Errorf("cost: %v", cost)
+	}
+	before := dirBytes(t, dir)
+	if !strings.Contains(before["goalpost.build.json"], `"total_work": 8750000`) {
+		t.Errorf("the record holds no receipt:\n%s", before["goalpost.build.json"])
+	}
+
+	// One unit below: refused at publish, and the old set stays exactly as it was.
+	code, out, _ = exec(t, "build", example, "--accept", exampleAccep, "--max-work=8749999", "--out-dir", dir, "--json")
+	if code != 1 {
+		t.Fatalf("exit %d at 8749999, want 1\n%s", code, out)
+	}
+	rep := oneJSON(t, out)
+	if rep["ok"] != false || rep["written"] != false || !strings.Contains(out, "GW-LIMIT") {
+		t.Errorf("report: %s", out)
+	}
+	ref := costOf(t, rep)["refused"].(map[string]any)
+	if ref["ticket"] != "publish" || ref["requested"] != float64(50000) || ref["remaining"] != float64(49999) {
+		t.Errorf("refusal: %v", ref)
+	}
+	after := dirBytes(t, dir)
+	if len(after) != len(before) {
+		t.Errorf("the folder held %d files, now %d", len(before), len(after))
+	}
+	for name, b := range before {
+		if after[name] != b {
+			t.Errorf("%s changed", name)
+		}
+	}
+
+	// A refused build into a new folder creates nothing.
+	fresh := filepath.Join(t.TempDir(), "never")
+	if code, _, _ := exec(t, "build", example, "--accept", exampleAccep, "--max-work", "8749999", "--out-dir", fresh); code != 1 {
+		t.Errorf("exit %d", code)
+	}
+	if _, err := os.Stat(fresh); err == nil {
+		t.Error("the refused build created its folder")
+	}
+}
+
+func TestBuildMaxWorkText(t *testing.T) {
+	code, _, errOut := exec(t, "build", example, "--max-work", "1000", "--out-dir", filepath.Join(t.TempDir(), "o"))
+	if code != 1 || !strings.Contains(errOut, "GW-LIMIT") || !strings.Contains(errOut, "snapshot") {
+		t.Errorf("exit %d\n%s", code, errOut)
+	}
+}
+
+func TestBuildMaxWorkUsage(t *testing.T) {
+	for _, v := range []string{"0", "-5", "many", "8,750,000"} {
+		if code, _, errOut := exec(t, "build", example, "--max-work", v); code != 2 || !strings.Contains(errOut, "--max-work") {
+			t.Errorf("--max-work %s: exit %d\n%s", v, code, errOut)
+		}
+	}
+	if code, _, _ := exec(t, "build", example, "--accept", "no-such-file.gw", "--out-dir", filepath.Join(t.TempDir(), "o")); code != 2 {
+		t.Errorf("a missing acceptance file: exit %d", code)
+	}
+}

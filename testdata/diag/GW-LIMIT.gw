@@ -1,0 +1,23 @@
+greenware 1
+
+// An array of ten million bolts. One array makes at most 4096 copies, the
+// class the `plan` ticket admits, so `greenware build` refuses it with
+// GW-LIMIT before it allocates any copy. `greenware check` reaches the same
+// count through the front end and reports it as GW-FIELD-RANGE.
+
+asset a { root = a }
+
+output demo { file = "a.glb" }
+
+part bolt {
+  cylinder { radius = 0.01m height = 0.02m segments = 6 }
+}
+
+part a {
+  array bolts {
+    mode = linear
+    count = 10000000
+    step = (0.03, 0, 0)
+    instance { of = bolt }
+  }
+}

@@ -1,0 +1,268 @@
+greenware 1
+
+// REGRESSION CONTROL, not a goal post to ship: examples/goalpost/goalpost.gw
+// with the whole post sweep moved 7 cm toward +z (`at = (0, 0, 0.07m)`). Its
+// end ring no longer reaches the 6 cm crossbar. Every socket, collider and
+// triangle count is where it was; `connected` must fail.
+
+// A single-post ("gooseneck") goal post: a rigid prop with parameters, sockets,
+// three levels of detail and collision shapes. It is the first compiler's
+// target (milestone M2). It compiles to goalpost.glb, goalpost-lod1.glb and
+// goalpost-lod2.glb plus a GoSX asset manifest entry, and the owner's tests in
+// goalpost.accept.gw run on those decoded files.
+//
+// The default sizes follow the common US college layout. They were not checked
+// against a rulebook; the acceptance file is where the owner states them.
+
+asset goalpost {
+  title = "Goal post"
+  root = goalpost          // the part at the top of the hierarchy
+  length = m               // bare literals in length slots are metres
+  angle = deg              // bare literals in angle slots are degrees
+  up = y
+  forward = -z             // the field of play lies toward -z
+}
+
+meta {
+  author = "M31 Labs"
+  license = "CC0-1.0"
+  intent = "A gooseneck goal post for a college stadium, padded, with wind ribbons"
+}
+
+// ---- Parameters ---------------------------------------------------------
+// Bake parameters are fixed when the file compiles. The one runtime parameter
+// becomes a material binding the game can change per instance.
+
+param crossbar_height : length = 3.05m in 2.5m..3.5m
+param upright_gap : length = 5.64m in 4m..7.5m      // inside faces of the uprights
+param upright_rise : length = 9.14m in 3m..12m      // from the crossbar to the tip
+param setback : length = 1.83m in 0.5m..2.4m        // the gooseneck's reach behind the end line
+param padding : switch = on                          // the padded sleeve on the base post
+param pad_color : color = #1d4e89 runtime { doc = "The home school's colour on the pad" }
+
+let post_r = 0.10m
+let bar_r = 0.06m
+let upright_r = 0.05m
+let bend_start = crossbar_height - setback          // where the post starts to curve
+let half_span = upright_gap / 2 + upright_r         // centre line of each upright
+
+check params {
+  require (bend_start >= 0.3m, "the post needs 0.3 m of straight pipe below the bend")
+}
+
+// ---- Materials ------------------------------------------------------------
+// Shading lives in Selena. Every material also carries a plain PBR fallback,
+// which is what the GLB's core material holds, so any glTF viewer draws it.
+// The first compiler (M2) writes the fallback only; it still pins and checks
+// the Selena artifact.
+
+material paint = selena {
+  source = "materials/painted_metal.sel"
+  name = "PaintedMetal"
+  color = #f2c200
+  chips = 0.15
+  fallback = pbr { base = #f2c200 roughness = 0.4 metallic = 0 }
+}
+
+material steel = pbr { base = #8a8d8f roughness = 0.45 metallic = 1 }
+
+// pad_color is a runtime parameter, so this material's base colour is bound
+// to it. The default scene shows the default colour.
+material pad_cover = pbr { base = pad_color roughness = 0.85 }
+
+// ---- Parts ----------------------------------------------------------------
+// Top-level parts other than the root are templates for "instance".
+
+part bolt {
+  cylinder {
+    radius = 0.012m
+    height = 0.025m
+    segments = 6
+    material = steel
+  }
+}
+
+part goalpost {
+  material = paint
+
+  part base {
+    export = on                                   // its own node, so lod 2 can drop it
+    material = steel
+    cylinder plate {
+      at = (0, 0.015, setback)
+      radius = 0.35m
+      height = 0.03m
+      segments = 24
+      bevel { width = 6mm segments = 2 edges = top }   // round the plate's top edge only
+    }
+    array bolts {
+      mode = radial
+      count = 8
+      axis = y
+      centre = (0, 0.03, setback)
+      radius = 0.28m
+      instance { of = bolt }
+    }
+  }
+
+  // The post rises behind the end line, then bends forward to meet the
+  // crossbar's centre directly above the line. The sampled quarter circle
+  // starts at the bend, so the straight run is the path's first segment.
+  part post {
+    sweep {
+      profile = circle(post_r, 16)
+      at = (0, 0, 0.07m)
+      caps = both                                 // closed ends, so the frame has no open edges
+      path {
+        point (0, 0, setback)
+        // Radius setback, centred on (0, bend_start, 0); a = 0 is the bend's start.
+        sample a in 0deg..90deg by 9 -> point (0, bend_start + setback * sin(a), setback * cos(a))
+      }
+    }
+  }
+
+  part crossbar {
+    cylinder {
+      at = (0, crossbar_height, 0)
+      axis = x
+      radius = bar_r
+      height = 2 * half_span
+      segments = 16
+      // Capped: the 5 cm uprights do not cover the 6 cm bar's ends. Draft 2
+      // left them open, a hole Fable's review found by hand.
+      caps = on
+    }
+    socket crossbar_centre {
+      kind = anchor                               // the kicking rules read this point
+      at = (0, crossbar_height, 0)
+    }
+  }
+
+  // The uprights merge into the root's painted mesh: one draw for the frame.
+  mirror {
+    plane = x
+    part (upright_l, upright_r) {
+      cylinder {
+        // From the bottom of the crossbar to the tip.
+        at = (half_span, crossbar_height + (upright_rise - bar_r) / 2, 0)
+        axis = y
+        radius = upright_r
+        height = upright_rise + bar_r
+        segments = 12
+      }
+      sphere {
+        // post-upright/2: the centre sits 2 mm above the pipe's top, so the
+        // sphere's rim never coincides with the pipe's capped rim.
+        at = (half_span, crossbar_height + upright_rise + 2mm, 0)
+        radius = upright_r
+        segments = 12
+      }
+      // A wind ribbon hangs here; the game mounts its own cloth model.
+      socket (ribbon_l, ribbon_r) {
+        kind = ribbon
+        at = (half_span, crossbar_height + upright_rise, 0)
+      }
+      // The inside face of the upright, for the kicking rules.
+      socket (inside_l, inside_r) {
+        kind = anchor
+        at = (half_span - upright_r, crossbar_height, 0)
+      }
+    }
+  }
+
+  when padding {
+    part pad {
+      export = on
+      material = pad_cover
+      // A closed profile turned about the post: a padded sleeve 1.8 m tall.
+      lathe {
+        at = (0, 0, setback)
+        segments = 24
+        closed = on
+        uv = cylindrical
+        point (0.11, 0)
+        point (0.25, 0.02)
+        point (0.26, 0.10)
+        point (0.26, 1.70)
+        point (0.25, 1.78)
+        point (0.11, 1.80)
+      }
+    }
+  }
+}
+
+// ---- Levels of detail ----------------------------------------------------
+// Parametric shapes are re-tessellated: each shape gets the fewest segments
+// (never more than at lod 0) that keep its chord error within max_error. The
+// 5 cm uprights get 7 segments at 5 mm and 3 at 30 mm. Author rows (the
+// path's points, the pad's profile) are kept. "drop" removes geometry from
+// that level's file before merging; it adds no node and no draw. GoSX swaps
+// whole files by distance (scene.ModelLODGroup).
+
+lod 1 {
+  distance = 40m
+  max_error = 5mm
+  drop = [bolt]             // every instance of the bolt template
+}
+
+lod 2 {
+  distance = 90m
+  max_error = 30mm
+  drop = [base, pad]
+}
+
+// ---- Collision ---------------------------------------------------------------
+// Collider nodes with their shapes in the M31 data (spec 3.20 and 5.3).
+
+collision {
+  capsule post_lower {
+    from = (0, 0, setback)
+    to = (0, bend_start, setback)
+    radius = post_r
+  }
+  capsule crossbar {
+    from = (-half_span, crossbar_height, 0)
+    to = (half_span, crossbar_height, 0)
+    radius = bar_r
+  }
+  mirror {
+    plane = x
+    capsule (upright_l, upright_r) {
+      from = (half_span, crossbar_height, 0)
+      to = (half_span, crossbar_height + upright_rise, 0)
+      radius = upright_r
+    }
+  }
+}
+
+// ---- Budgets and outputs ----------------------------------------------------
+// Draws in the default look: the painted frame, the steel base (plate and
+// bolts merged), the pad. Nothing changes visibility at run time, so the
+// worst case equals the default.
+
+// Spec appendix A.2 counts 1,340 triangles at lod 0 by hand, by the counting
+// rules it states; the budget allows 1,600.
+budget {
+  triangles = 1600          // drawn at lod 0 in the default look
+  triangles_worst = 1600
+  materials = 3
+  draw_calls = 3
+  draw_calls_worst = 3
+  file_size = 96KiB
+}
+
+output stadium {
+  file = "goalpost.glb"
+  lods = files              // goalpost-lod1.glb and goalpost-lod2.glb beside it
+  manifest = on             // adds the entry gosx assets build reads
+}
+
+output practice {
+  file = "goalpost-practice.glb"
+  lods = files
+  set {
+    padding = off
+    upright_rise = 6.1m
+  }
+  budget { materials = 2 draw_calls = 2 draw_calls_worst = 2 }
+}

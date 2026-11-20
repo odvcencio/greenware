@@ -36,6 +36,9 @@ type record struct {
 	InputSHA256  string         `json:"input_sha256"`
 	Outputs      []recordOutput `json:"outputs"`
 	Unsupported  []string       `json:"unsupported"`
+	// Cost is the ticket receipt (CostVersion). It is in the record, not in
+	// any GLB, so the files' bytes do not depend on the policy.
+	Cost *Receipt `json:"cost,omitempty"`
 }
 
 // RecordName is the file name of the build record: the asset's name plus
@@ -56,6 +59,7 @@ func (p *Product) Record() []byte {
 		Schema: RecordSchema, Generator: Generator,
 		SourceSHA256: p.SourceSHA256, InputSHA256: p.InputSHA256,
 		Outputs: []recordOutput{}, Unsupported: append([]string{}, p.Unsupported...),
+		Cost: p.Receipt,
 	}
 	for _, o := range p.Outputs {
 		ro := recordOutput{Name: o.Name, FirSHA256: o.FirSHA256, Files: []recordFile{}}

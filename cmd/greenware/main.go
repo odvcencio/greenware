@@ -1,6 +1,6 @@
 // Command greenware compiles Greenware sources (.gw files).
 //
-//	greenware build <file> [--output NAME] [--out-dir DIR] [--json]
+//	greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--json]
 //	greenware check <file> [--json]
 //	greenware fmt <file> [--check] [--write] [--json]
 //	greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"m31labs.dev/greenware/accept"
@@ -29,7 +30,7 @@ import (
 )
 
 const usage = `usage:
-  greenware build <file> [--output NAME] [--out-dir DIR] [--json]
+  greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--json]
   greenware check <file> [--json]
   greenware fmt <file> [--check] [--write] [--json]
   greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
@@ -49,6 +50,11 @@ type options struct {
 	write   bool
 	hasOut  bool
 	hasName bool
+	// maxWork is the total_work ceiling; zero means the default.
+	maxWork uint64
+	// accept is the acceptance file whose decode, measure and outline tickets
+	// the build reserves.
+	accept string
 }
 
 var errUsage = errors.New("usage")
@@ -94,6 +100,17 @@ func parse(args []string, allowed map[string]bool) (options, error) {
 		case "out-dir":
 			o.outDir, err = takes()
 			o.hasOut = true
+		case "max-work":
+			var v string
+			if v, err = takes(); err == nil {
+				n, perr := strconv.ParseUint(v, 10, 64)
+				if perr != nil || n == 0 {
+					return o, fmt.Errorf("flag --max-work needs a whole number of work units above zero, got %q", v)
+				}
+				o.maxWork = n
+			}
+		case "accept":
+			o.accept, err = takes()
 		}
 		if err != nil {
 			return o, err
@@ -114,7 +131,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	var allowed map[string]bool
 	switch cmd {
 	case "build":
-		allowed = map[string]bool{"output": true, "out-dir": true, "json": true}
+		allowed = map[string]bool{"output": true, "out-dir": true, "json": true, "max-work": true, "accept": true}
 	case "check":
 		allowed = map[string]bool{"json": true}
 	case "fmt":
@@ -281,26 +298,43 @@ type buildOutput struct {
 }
 
 type buildReport struct {
-	Schema      string          `json:"schema"`
-	OK          bool            `json:"ok"`
-	Written     bool            `json:"written"`
-	OutDir      string          `json:"out_dir,omitempty"`
-	Record      string          `json:"record,omitempty"`
-	InputSHA256 string          `json:"input_sha256,omitempty"`
-	Outputs     []buildOutput   `json:"outputs"`
-	Unsupported []string        `json:"unsupported"`
-	Diagnostics json.RawMessage `json:"diagnostics"`
+	Schema      string        `json:"schema"`
+	OK          bool          `json:"ok"`
+	Written     bool          `json:"written"`
+	OutDir      string        `json:"out_dir,omitempty"`
+	Record      string        `json:"record,omitempty"`
+	InputSHA256 string        `json:"input_sha256,omitempty"`
+	Outputs     []buildOutput `json:"outputs"`
+	Unsupported []string      `json:"unsupported"`
+	// Cost is the ticket receipt, present on a refusal as well.
+	Cost        *compiler.Receipt `json:"cost,omitempty"`
+	Diagnostics json.RawMessage   `json:"diagnostics"`
 }
 
 func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 	f, ds, loc := front(src)
+	opts := compiler.Options{Policy: compiler.Policy{MaxTotalWork: o.maxWork}}
+	if o.accept != "" {
+		accSrc, err := os.ReadFile(o.accept)
+		if err != nil {
+			fmt.Fprintf(stderr, "greenware build: %v\n", err)
+			return 2
+		}
+		accAST, accDs, accLoc := front(accSrc)
+		if accAST.Broken || diag.HasErrors(accDs) {
+			printText(stderr, o.accept, accDs, accLoc)
+			return 1
+		}
+		opts.Accept = accAST
+	}
 	var p *compiler.Product
+	var receipt *compiler.Receipt
 	if !diag.HasErrors(ds) {
 		var more []diag.Diagnostic
-		p, more = compiler.Build(f, o.output)
+		p, receipt, more = compiler.BuildWith(f, o.output, opts)
 		ds = diag.Dedup(append(ds, more...))
 	}
-	rep := buildReport{Schema: "greenware.build/1", Outputs: []buildOutput{}, Unsupported: []string{}}
+	rep := buildReport{Schema: "greenware.build/1", Outputs: []buildOutput{}, Unsupported: []string{}, Cost: receipt}
 	code := status(ds)
 	var writeErr error
 	if p != nil && code == 0 {

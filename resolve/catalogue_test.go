@@ -30,7 +30,7 @@ func TestCatalogueFixtures(t *testing.T) {
 			}
 			// GW-ACCEPT comes from running an acceptance file on built
 			// files, not from the front end; accept/fixture_test.go checks it.
-			if e.Code == diag.CodeAccept {
+			if e.Code == diag.CodeAccept || e.Code == diag.CodeLimit {
 				return
 			}
 			src, err := os.ReadFile(filepath.Join("..", e.Fixture))
