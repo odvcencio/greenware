@@ -151,7 +151,11 @@ func (m *Model) buildDraws(ni int, nd glb.Node) error {
 			dr.Material = *p.Material
 		}
 		if p.Mode == 4 {
-			tris, err := m.primitiveTriangles(p, weights, m.nodes[ni].world)
+			world := m.nodes[ni].world
+			if nd.Skin != nil {
+				world = identity // a skinned mesh node's own transform is ignored
+			}
+			tris, err := m.primitiveTriangles(p, weights, world)
 			if err != nil {
 				return fmt.Errorf("measure: node %d mesh %d primitive %d: %w", ni, *nd.Mesh, pi, err)
 			}
@@ -328,6 +332,23 @@ func (m *Model) subtree(root int) []int {
 // selectedDraws lists the drawn primitives in the selection. A primitive is
 // drawn when its node is in the default scene and it has at least one triangle.
 func (m *Model) selectedDraws(s Select) ([]*Draw, error) {
+	ids, err := m.selectedNodes(s)
+	if err != nil {
+		return nil, err
+	}
+	var out []*Draw
+	for _, i := range ids {
+		for _, di := range m.byNode[i] {
+			if len(m.draws[di].Tris) > 0 {
+				out = append(out, &m.draws[di])
+			}
+		}
+	}
+	return out, nil
+}
+
+// selectedNodes lists the nodes of a selection that are in the default scene.
+func (m *Model) selectedNodes(s Select) ([]int, error) {
 	var ids []int
 	if s.Name == "" {
 		for i := range m.nodes {
@@ -344,15 +365,10 @@ func (m *Model) selectedDraws(s Select) ([]*Draw, error) {
 			ids = m.subtree(root)
 		}
 	}
-	var out []*Draw
+	out := ids[:0]
 	for _, i := range ids {
-		if !m.nodes[i].inDefault {
-			continue
-		}
-		for _, di := range m.byNode[i] {
-			if len(m.draws[di].Tris) > 0 {
-				out = append(out, &m.draws[di])
-			}
+		if m.nodes[i].inDefault {
+			out = append(out, i)
 		}
 	}
 	return out, nil

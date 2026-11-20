@@ -21,8 +21,7 @@ func (f *File) validate(c *collector) {
 	viewOK := f.validateBufferViews(c)
 	f.validateAccessors(c, viewOK)
 	f.checkAccessorData(c)
-	parent := f.validateNodes(c)
-	_ = parent
+	f.parent = f.validateNodes(c)
 	f.validateMeshes(c)
 	f.validateSkins(c)
 	f.validateAnimations(c)
@@ -203,11 +202,17 @@ func (f *File) accessorOK(i int) bool {
 
 func (f *File) validateMeshes(c *collector) {
 	d := f.Doc
-	// largest joint index per (mesh, set) for the skin cross-check
+	skinned := map[int]bool{} // meshes drawn by a node with a skin; validateSkinnedNodes covers their set 0
+	for _, nd := range d.Nodes {
+		if nd.Mesh != nil && nd.Skin != nil {
+			skinned[*nd.Mesh] = true
+		}
+	}
 	for mi, m := range d.Meshes {
 		for pi, p := range m.Primitives {
 			path := fmt.Sprintf("/meshes/%d/primitives/%d", mi, pi)
 			f.validatePrimitive(c, path, p)
+			checkSetPairs(c, path, p, skinned[mi])
 		}
 		if len(m.Primitives) > 0 {
 			n0 := len(m.Primitives[0].Targets)
@@ -219,31 +224,10 @@ func (f *File) validateMeshes(c *collector) {
 			if m.Weights != nil && len(m.Weights) != n0 {
 				c.errf("MESH-WEIGHTS", fmt.Sprintf("/meshes/%d/weights", mi), "%d weights for %d morph targets", len(m.Weights), n0)
 			}
+			f.checkTargetNames(c, mi, m, n0)
 		}
 	}
-	for ni, nd := range d.Nodes {
-		if nd.Mesh == nil || nd.Skin == nil || *nd.Mesh >= len(d.Meshes) || *nd.Skin >= len(d.Skins) {
-			continue
-		}
-		nj := len(d.Skins[*nd.Skin].Joints)
-		for pi, p := range d.Meshes[*nd.Mesh].Primitives {
-			for name, ai := range p.Attributes {
-				if b, _, ok := semanticBase(name); ok && b == "JOINTS" {
-					v, _, ok := f.Floats(ai)
-					if !ok {
-						continue
-					}
-					for k, x := range v {
-						if int(x) >= nj {
-							c.errf("SKIN-JOINT-INDEX", fmt.Sprintf("/meshes/%d/primitives/%d/attributes/%s", *nd.Mesh, pi, name),
-								"joint index %d (element %d) is not below the %d joints of skin %d used by node %d", int(x), k/4, nj, *nd.Skin, ni)
-							break
-						}
-					}
-				}
-			}
-		}
-	}
+	f.validateSkinnedNodes(c)
 }
 
 func (f *File) validatePrimitive(c *collector, path string, p Primitive) {
@@ -288,6 +272,7 @@ func (f *File) validatePrimitive(c *collector, path string, p Primitive) {
 		f.checkAttribute(c, ap, name, a, ai)
 	}
 	_ = pos
+	f.checkPrimitiveWeights(c, path, p)
 	// indices
 	if p.Indices != nil {
 		ip := path + "/indices"
@@ -327,6 +312,9 @@ func (f *File) validatePrimitive(c *collector, path string, p Primitive) {
 			if !attrSemantics[name] {
 				c.errf("TARGET-SEMANTIC", ap, "morph targets may carry POSITION, NORMAL and TANGENT only")
 				continue
+			}
+			if _, inBase := p.Attributes[name]; !inBase {
+				c.errf("TARGET-BASE", ap, "the target changes %s but the base primitive has no %s", name, name)
 			}
 			if ai >= len(d.Accessors) {
 				c.errf("TARGET-ACCESSOR", ap, "accessor %d is out of range", ai)
@@ -452,20 +440,7 @@ func (f *File) checkAttribute(c *collector, ap, name string, a Accessor, ai int)
 		case "JOINTS":
 			typeErr("VEC4", 5121, 5123)
 		case "WEIGHTS":
-			if !typeErr("VEC4", 5126, 5121, 5123) || !ok {
-				return
-			}
-			tol := 1e-3
-			if a.ComponentType != 5126 {
-				tol = 0.02
-			}
-			for e := 0; e < a.Count; e++ {
-				s := vals[e*4] + vals[e*4+1] + vals[e*4+2] + vals[e*4+3]
-				if math.Abs(s-1) > tol {
-					c.warnf("WEIGHTS-SUM", ap, "weights of vertex %d sum to %v", e, s)
-					break
-				}
-			}
+			typeErr("VEC4", 5126, 5121, 5123) // the values are checked per primitive
 		}
 	}
 	_ = ncomp
@@ -488,6 +463,7 @@ func (f *File) validateSkins(c *collector) {
 		if s.Skeleton != nil && *s.Skeleton >= len(d.Nodes) {
 			c.errf("SKIN-SKELETON", path+"/skeleton", "node %d is out of range", *s.Skeleton)
 		}
+		f.checkSkeleton(c, path, s)
 		if s.InverseBindMatrices != nil {
 			ai := *s.InverseBindMatrices
 			ip := path + "/inverseBindMatrices"
@@ -510,36 +486,13 @@ func (f *File) validateAnimations(c *collector) {
 	for ai, an := range d.Animations {
 		path := fmt.Sprintf("/animations/%d", ai)
 		for si, s := range an.Samplers {
-			sp := fmt.Sprintf("%s/samplers/%d", path, si)
-			switch s.Interpolation {
-			case "LINEAR", "STEP", "CUBICSPLINE":
-			default:
-				c.errf("ANIM-INTERP", sp+"/interpolation", "interpolation %q is not LINEAR, STEP or CUBICSPLINE", s.Interpolation)
-			}
-			if s.Input >= len(d.Accessors) || s.Output >= len(d.Accessors) {
-				c.errf("ANIM-ACCESSOR", sp, "input %d or output %d is out of range (%d accessors)", s.Input, s.Output, len(d.Accessors))
-				continue
-			}
-			if !f.accessorOK(s.Input) {
-				continue
-			}
-			in := d.Accessors[s.Input]
-			if in.Type != "SCALAR" || in.ComponentType != 5126 {
-				c.errf("ANIM-INPUT", sp+"/input", "sampler input must be SCALAR FLOAT times")
-			} else {
-				if !in.HasMinMax {
-					c.errf("ANIM-INPUT", sp+"/input", "sampler input accessors must carry min and max")
-				}
-				if v, _, ok := f.Floats(s.Input); ok {
-					for k, x := range v {
-						if x < 0 || (k > 0 && x <= v[k-1]) {
-							c.errf("ANIM-TIMES", sp+"/input", "time %d (%v) is negative or not greater than the one before", k, x)
-							break
-						}
-					}
-				}
-			}
+			f.checkSamplerInput(c, fmt.Sprintf("%s/samplers/%d", path, si), s)
 		}
+		type target struct {
+			node int
+			path string
+		}
+		seen := map[target]int{}
 		for ci, ch := range an.Channels {
 			cp := fmt.Sprintf("%s/channels/%d", path, ci)
 			if ch.Sampler >= len(an.Samplers) {
@@ -547,7 +500,11 @@ func (f *File) validateAnimations(c *collector) {
 				continue
 			}
 			s := an.Samplers[ch.Sampler]
-			if ch.Node != nil && *ch.Node >= len(d.Nodes) {
+			if ch.Node == nil {
+				c.warnf("ANIM-TARGET-NONE", cp+"/target", "the channel has no target node; it animates nothing")
+				continue
+			}
+			if *ch.Node >= len(d.Nodes) {
 				c.errf("ANIM-CHANNEL", cp+"/target/node", "node %d is out of range (%d nodes)", *ch.Node, len(d.Nodes))
 				continue
 			}
@@ -563,6 +520,28 @@ func (f *File) validateAnimations(c *collector) {
 				c.errf("ANIM-PATH", cp+"/target/path", "path %q is not translation, rotation, scale or weights", ch.Path)
 				continue
 			}
+			key := target{*ch.Node, ch.Path}
+			if first, dup := seen[key]; dup {
+				c.errf("ANIM-DUP-TARGET", cp+"/target", "channel %d already animates %s of node %d", first, ch.Path, *ch.Node)
+			} else {
+				seen[key] = ci
+			}
+			node := d.Nodes[*ch.Node]
+			if ch.Path != "weights" && node.Matrix != nil {
+				c.errf("ANIM-TARGET-MATRIX", cp+"/target", "node %d has a matrix; its %s cannot be animated", *ch.Node, ch.Path)
+			}
+			nt := 0
+			if ch.Path == "weights" {
+				if node.Mesh != nil && *node.Mesh < len(d.Meshes) {
+					if p := d.Meshes[*node.Mesh].Primitives; len(p) > 0 {
+						nt = len(p[0].Targets)
+					}
+				}
+				if nt == 0 {
+					c.errf("ANIM-WEIGHTS-TARGET", cp+"/target", "node %d has no mesh with morph targets to animate", *ch.Node)
+					continue
+				}
+			}
 			if s.Input >= len(d.Accessors) || s.Output >= len(d.Accessors) || !f.accessorOK(s.Output) || !f.accessorOK(s.Input) {
 				continue
 			}
@@ -571,34 +550,106 @@ func (f *File) validateAnimations(c *collector) {
 				c.errf("ANIM-OUTPUT", cp, "path %s needs %s output; accessor has %s", ch.Path, want, out.Type)
 				continue
 			}
+			if !outputComponentOK(ch.Path, out) {
+				c.errf("ANIM-OUTPUT-TYPE", cp, "%s output has component type %d (normalized %v), which glTF does not allow for this path", ch.Path, out.ComponentType, out.Normalized)
+				continue
+			}
 			mult := 1
 			if s.Interpolation == "CUBICSPLINE" {
 				mult = 3
 			}
 			expect := in.Count * mult
 			if ch.Path == "weights" {
-				nt := 0
-				if ch.Node != nil && d.Nodes[*ch.Node].Mesh != nil && *d.Nodes[*ch.Node].Mesh < len(d.Meshes) {
-					if p := d.Meshes[*d.Nodes[*ch.Node].Mesh].Primitives; len(p) > 0 {
-						nt = len(p[0].Targets)
-					}
-				}
 				expect *= nt
 			}
 			if out.Count != expect {
 				c.errf("ANIM-OUTPUT", cp, "output has %d elements; %s interpolation over %d times needs %d", out.Count, s.Interpolation, in.Count, expect)
+				continue
 			}
-			if ch.Path == "rotation" && s.Interpolation != "CUBICSPLINE" {
-				if v, _, ok := f.Floats(s.Output); ok {
-					for e := 0; e+3 < len(v); e += 4 {
-						l := math.Sqrt(v[e]*v[e] + v[e+1]*v[e+1] + v[e+2]*v[e+2] + v[e+3]*v[e+3])
-						if math.Abs(l-1) > 1e-3 {
-							c.errf("ANIM-QUAT", cp, "rotation key %d has length %v; it must be 1", e/4, l)
-							break
-						}
-					}
-				}
+			if ch.Path == "rotation" {
+				f.checkQuats(c, cp, s, out)
 			}
+		}
+	}
+}
+
+// outputComponentOK applies the glTF rule for each animation path: translation
+// and scale are FLOAT; rotation and weights are FLOAT or a normalized integer.
+func outputComponentOK(path string, a Accessor) bool {
+	if a.ComponentType == 5126 {
+		return true
+	}
+	if !a.Normalized {
+		return false
+	}
+	switch path {
+	case "rotation":
+		return a.ComponentType == 5120 || a.ComponentType == 5122
+	case "weights":
+		return a.ComponentType == 5120 || a.ComponentType == 5121 || a.ComponentType == 5122 || a.ComponentType == 5123
+	}
+	return false
+}
+
+func (f *File) checkSamplerInput(c *collector, sp string, s AnimSampler) {
+	d := f.Doc
+	switch s.Interpolation {
+	case "LINEAR", "STEP", "CUBICSPLINE":
+	default:
+		c.errf("ANIM-INTERP", sp+"/interpolation", "interpolation %q is not LINEAR, STEP or CUBICSPLINE", s.Interpolation)
+	}
+	if s.Input >= len(d.Accessors) || s.Output >= len(d.Accessors) {
+		c.errf("ANIM-ACCESSOR", sp, "input %d or output %d is out of range (%d accessors)", s.Input, s.Output, len(d.Accessors))
+		return
+	}
+	if !f.accessorOK(s.Input) {
+		return
+	}
+	in := d.Accessors[s.Input]
+	if in.Type != "SCALAR" || in.ComponentType != 5126 {
+		c.errf("ANIM-INPUT", sp+"/input", "sampler input must be SCALAR FLOAT times")
+		return
+	}
+	if !in.HasMinMax {
+		c.errf("ANIM-INPUT", sp+"/input", "sampler input accessors must carry min and max")
+	}
+	if s.Interpolation == "CUBICSPLINE" && in.Count < 2 {
+		c.errf("ANIM-INPUT-COUNT", sp+"/input", "CUBICSPLINE needs at least two keys; the input has %d", in.Count)
+	}
+	if v, _, ok := f.Floats(s.Input); ok {
+		for k, x := range v {
+			if math.IsNaN(x) || math.IsInf(x, 0) {
+				return // ACC-NONFINITE already reports it
+			}
+			if x < 0 || (k > 0 && x <= v[k-1]) {
+				c.errf("ANIM-TIMES", sp+"/input", "time %d (%v) is negative or not greater than the one before", k, x)
+				return
+			}
+		}
+	}
+}
+
+// checkQuats warns about rotation keys that are not unit length. For
+// CUBICSPLINE only the value element of each key (the middle of three) is a
+// rotation; the tangents are free.
+func (f *File) checkQuats(c *collector, cp string, s AnimSampler, out Accessor) {
+	v, _, ok := f.Floats(s.Output)
+	if !ok {
+		return
+	}
+	step, first := 1, 0
+	if s.Interpolation == "CUBICSPLINE" {
+		step, first = 3, 1
+	}
+	for e := first; (e*4)+3 < len(v); e += step {
+		q := v[e*4 : e*4+4]
+		l := math.Sqrt(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3])
+		if math.IsNaN(l) || math.IsInf(l, 0) {
+			return // ACC-NONFINITE already reports it
+		}
+		if math.Abs(l-1) > 1e-3 {
+			c.warnf("ANIM-QUAT", cp, "rotation key %d has length %v; it should be 1 within 1e-3", e/step, l)
+			return
 		}
 	}
 }

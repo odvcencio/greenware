@@ -54,6 +54,7 @@ type Mesh struct {
 	Name       string
 	Primitives []Primitive
 	Weights    []float64
+	Extras     any
 }
 
 // Primitive is one draw.
@@ -63,6 +64,7 @@ type Primitive struct {
 	Material   *int
 	Mode       int
 	Targets    []map[string]int
+	Extras     any
 }
 
 // Material keeps only what reference checks and reports need.
@@ -399,6 +401,7 @@ func parseDocument(root any, c *collector) *Document {
 		m := Mesh{}
 		m.Name, _ = p.str(o, "name", path)
 		m.Weights, _ = p.floats(o, "weights", path, 0)
+		m.Extras = o["extras"]
 		prims, _ := p.arr(o, "primitives", path, true)
 		if len(prims) == 0 && o["primitives"] != nil {
 			c.errf("JSON-RANGE", path+"/primitives", "a mesh needs at least one primitive")
@@ -415,6 +418,7 @@ func parseDocument(root any, c *collector) *Document {
 			}
 			pr.Indices = p.optInt(po, "indices", pp)
 			pr.Material = p.optInt(po, "material", pp)
+			pr.Extras = po["extras"]
 			if ao, ok := p.obj(po["attributes"], pp+"/attributes"); ok {
 				for k := range ao {
 					if n, ok := p.integer(ao, k, pp+"/attributes", true, 0); ok {

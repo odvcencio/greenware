@@ -378,6 +378,7 @@ func TestTriangleDistance(t *testing.T) {
 // FuzzPipeline decodes arbitrary bytes and, when the file has no error
 // findings, runs every measurement. Nothing may panic.
 func FuzzPipeline(f *testing.F) {
+	f.Add(fixture.RichRig())
 	f.Add(post(0, 0.02, 0))
 	f.Add(upright(0.002))
 	b := fixture.New()
@@ -404,5 +405,73 @@ func FuzzPipeline(f *testing.F) {
 		m.DrawCalls(measure.Whole)
 		m.Sockets()
 		m.Colliders()
+		exercisePose(t, m)
+	})
+}
+
+// exercisePose runs every rig measurement on a loaded model and checks that the
+// posed positions are finite when the file has no error findings.
+func exercisePose(t *testing.T, m *measure.Model) {
+	t.Helper()
+	m.Rig()
+	m.BindPoseDeviation()
+	m.WeightStats()
+	m.Clips()
+	for ci := -1; ci < len(m.Clips()); ci++ {
+		m.KeyTimes(ci)
+		for _, tm := range []float64{-1, 0, 0.25, 0.5, 1, 1.5, 2, 100} {
+			p, err := m.PoseAt(ci, tm)
+			if err != nil {
+				continue
+			}
+			prims, err := m.Posed(p, measure.Whole)
+			if err != nil {
+				continue
+			}
+			for _, pp := range prims {
+				for v, pt := range pp.Pos {
+					if !pp.Used[v] {
+						continue
+					}
+					for _, x := range pt {
+						if math.IsNaN(x) {
+							t.Fatalf("clip %d at %v: NaN position", ci, tm)
+						}
+					}
+				}
+			}
+			m.PosedBounds(p, measure.Whole)
+			m.LowestVertex(p, measure.Whole)
+			m.JointDistance(p, "j0", "j1")
+		}
+	}
+}
+
+// FuzzPose keeps the JSON of a valid rig and fills its binary chunk with fuzz
+// bytes, then poses every clip at several times. Nothing may panic, and a
+// posed vertex that a triangle uses may not be NaN when the file decodes
+// without error findings.
+func FuzzPose(f *testing.F) {
+	seed := fixture.RichRig()
+	off, n, _ := fixture.BinRange(seed)
+	f.Add(seed[off : off+n])
+	f.Add(make([]byte, n))
+	f.Fuzz(func(t *testing.T, bin []byte) {
+		data := append([]byte(nil), seed...)
+		copy(data[off:off+n], bin)
+		file, fs := glb.Decode(data)
+		for _, x := range fs {
+			if x.Code == "ORACLE-INTERNAL" {
+				t.Fatalf("decoder fault: %s", x.Message)
+			}
+		}
+		if glb.HasErrors(fs) {
+			return
+		}
+		m, err := measure.Load(file)
+		if err != nil {
+			return
+		}
+		exercisePose(t, m)
 	})
 }

@@ -22,13 +22,15 @@ type Prim struct {
 
 // Builder accumulates a glTF document and its binary chunk.
 type Builder struct {
-	bin       []byte
-	accessors []any
-	views     []any
-	meshes    []any
-	materials []any
-	nodes     []map[string]any
-	scenes    []any
+	bin        []byte
+	accessors  []any
+	views      []any
+	meshes     []any
+	materials  []any
+	nodes      []map[string]any
+	scenes     []any
+	skins      []any
+	animations []any
 }
 
 // New returns an empty builder.
@@ -178,6 +180,12 @@ func (b *Builder) Parts() (map[string]any, []byte) {
 	}
 	if len(b.materials) > 0 {
 		doc["materials"] = b.materials
+	}
+	if len(b.skins) > 0 {
+		doc["skins"] = b.skins
+	}
+	if len(b.animations) > 0 {
+		doc["animations"] = b.animations
 	}
 	if len(b.accessors) > 0 {
 		doc["accessors"] = b.accessors

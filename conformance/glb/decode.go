@@ -26,6 +26,7 @@ type File struct {
 
 	buffers [][]byte // resolved bytes per buffer, nil when unresolved
 	accs    []accInfo
+	parent  []int // parent node per node, -1 for roots; set by validateNodes
 	cache   map[int][]float64
 }
 

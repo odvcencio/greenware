@@ -2,8 +2,11 @@
 // measurements. Usage:
 //
 //	oracle check [--strict] [--node NAME]... [--gap NODE:AXIS:X,Y,Z]... file.glb
+//	oracle pose file.glb [--clip NAME] [--time T] [--node NAME]... [--distance A:B]...
 //
-// It prints one JSON report. Exit status: 0 no findings, 1 findings (errors;
+// check prints one JSON report that includes a "rig" section. pose evaluates a
+// clip at a time and prints one JSON value with the skinned bounds, the lowest
+// vertex and the joint positions. Exit status: 0 no findings, 1 findings (errors;
 // with --strict also warnings), 2 usage or unreadable file.
 package main
 
@@ -15,11 +18,15 @@ import (
 	"strings"
 )
 
-const usage = "usage: oracle check [--strict] [--node NAME]... [--gap NODE:AXIS:X,Y,Z]... file.glb\n"
+const usage = "usage: oracle check [--strict] [--node NAME]... [--gap NODE:AXIS:X,Y,Z]... file.glb\n" +
+	"       oracle pose file.glb [--clip NAME] [--time T] [--node NAME]... [--distance A:B]...\n"
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
 func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "pose" {
+		return runPose(args[1:], stdout, stderr)
+	}
 	if len(args) == 0 || args[0] != "check" {
 		fmt.Fprint(stderr, usage)
 		return 2

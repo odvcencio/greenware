@@ -56,6 +56,7 @@ type Report struct {
 	Counts       Counts        `json:"counts"`
 	Findings     []glb.Finding `json:"findings"`
 	Measurements *Measurements `json:"measurements"`
+	Rig          *measure.Rig  `json:"rig"`
 	Skipped      string        `json:"measurements_skipped,omitempty"`
 }
 
@@ -198,6 +199,13 @@ func check(path string, data []byte, o options) *Report {
 		ms.Gaps = append(ms.Gaps, GapReport{g.node, g.axis, g.at, r})
 	}
 	rep.Measurements = ms
+	rig, err := m.Rig()
+	if err != nil {
+		rep.Findings = append(rep.Findings, glb.Finding{Severity: glb.Error, Code: "ORACLE-RIG", Path: "rig", Message: err.Error()})
+		rep.Counts.Errors++
+	} else {
+		rep.Rig = rig
+	}
 	return rep
 }
 
