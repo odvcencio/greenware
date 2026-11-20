@@ -75,8 +75,7 @@ producer's reading may differ; a difference is a finding to resolve.
 | `oracle pose --node` | Repeatable. Restricts the joint list to the named nodes (any node, not only joints). The bounds and lowest vertex always cover the whole default scene. With no `--node` the list is every skin joint. An invalid file is reported (exit 1), not posed. | `cmd/oracle/pose.go` |
 
 Not done: the oracle does not compose clips, loop, blend, or apply the
-`KHR_animation_pointer` or `KHR_mesh_quantization` extensions; it reads no
-sparse-accessor-specific rules beyond the earlier ones; and it does not check
+`KHR_animation_pointer` or `KHR_mesh_quantization` extensions; and it does not check
 that the joint hierarchy matches any named Greenware joint set.
 
 ## Contradictions and mismatches found in the spec or the brief
@@ -147,3 +146,41 @@ that the joint hierarchy matches any named Greenware joint set.
 * Outline measurements (`outline(...)`) are not implemented: they need the protected
   reference mask and camera sidecar.
 * Appearance, skin, clip and morph contracts are only structurally checked.
+
+## Sparse accessor readings (`glb`, `measure`)
+
+Written from glTF 2.0 section 3.6.2.3 (sparse accessors) and the schema pages
+`accessor.sparse.*`. Codes are `SPARSE-*`; each malformed block gives one
+finding (the first fault) and the accessor then reads as unavailable, so no
+second finding follows from the same fault.
+
+| Rule | Reading taken | Where |
+|---|---|---|
+| Base | An accessor with no `bufferView` has a base of all zeros. With a `bufferView` the base is those values. Sparse values then replace the base values at their indices: they overwrite, they are not added. The same overlay is used for every float or integer accessor, so a sparse base POSITION that a primitive attribute uses is read like any other. | `File.raw` |
+| `sparse.count` | Must be at least 1 and at most the accessor count (`SPARSE-COUNT`). A count equal to the accessor count is valid (it replaces every element) and is read normally. The schema says `minimum: 1`; the oracle reports 0 and negative counts as `SPARSE-COUNT`, not as a schema range error, so the code is stable. | `validateSparse`, parser |
+| Index type | 5121, 5123 or 5125 only (`SPARSE-INDEX-TYPE`). | |
+| Indices | Strictly increasing and each below the accessor count (`SPARSE-INDEX`, path `/accessors/N/sparse/indices/K` for the first bad entry). A duplicate counts as not increasing. The oracle does not distinguish "out of order" and "duplicate" by code, only by message. | |
+| Views | The `bufferView` of `indices` and of `values` must exist (`SPARSE-VIEW`) and must set neither `target` nor `byteStride` (`SPARSE-VIEW-USE`), per the schema text. | |
+| Alignment | The schema says the view and the optional `byteOffset` must be aligned to the component size. Read as: `byteOffset` and the sum of the view's `byteOffset` and `byteOffset` must each be a multiple of the component size. For indices the size is the index type; for values it is the accessor's component type (`SPARSE-ALIGN`). Sparse values are not padded per element; elements of matrix types keep the accessor's column padding. | |
+| Length | Indices need `count * index size` bytes and values need `count * element size` bytes after their offsets, inside the view (`SPARSE-BOUNDS`). The check is against the `bufferView` length, not the buffer length. | |
+| min and max | POSITION `min`/`max` must equal the extrema of the applied values (base plus overlay), exactly in binary32, the same rule as dense accessors (`ACC-MIN`, `ACC-MAX`). Min and max written for the base alone fail when a sparse value is outside them. | `checkAccessorData` |
+| Finite floats, normals | Checked on the applied values: a NaN in a sparse value is `ACC-NONFINITE`; a zero-length sparse normal is `NORMAL-ZERO`. | |
+| Morph targets | Target accessors may be sparse (typical) or dense. `measure` reads a target through the same applied values. `moved_vertices` counts vertices whose POSITION delta has any nonzero component, over all primitives of the mesh (NORMAL and TANGENT deltas are not counted). `vertices` is the sum of the POSITION accessor counts. `sparse` on a target is true when its POSITION accessor is sparse in any primitive (else any other attribute accessor of the target). The glTF guidance is sparse when fewer than about half the vertices move; the report shows both numbers and applies no rule. | `measure.Rig`, `morphTargets` |
+
+Contradictions and unresolved points:
+
+* The schema text for `sparse.values.bufferView` says "MUST NOT have its target
+  or byteStride properties defined", while the accessor text says nothing about
+  a base view with a `target`. The oracle only applies the target/stride rule
+  to the sparse views.
+* The specification does not say what a validator does with an accessor whose
+  `bufferView` is absent and has no `sparse`: the base is zeros. The oracle
+  reads zeros and writes no finding. A POSITION attribute of that kind still
+  needs `min`/`max` (`POSITION-MINMAX`), and they are checked against zeros.
+* The specification leaves the byte alignment of the sparse `values` view open
+  for types made of several components. The oracle uses the component size, not
+  the element size, as it does for dense accessors.
+* `FuzzPipeline` (measure) runs very slowly under the fuzz engine (about 10
+  executions in 30 s) because of its heavy seeds (`post`, `upright`) and the
+  exact shell-contact test. It did the same with the sparse seeds removed, so it
+  is not caused by the sparse work. It finds no failure.

@@ -186,7 +186,10 @@ type Strip struct {
 	IBM        [][16]float32
 	Morph      bool // add one POSITION target "lift" moving vertex 5 by (0,0,1), default weight 0
 	MorphNames []string
-	MeshMove   [3]float64 // translation of the skinned mesh node (ignored by skinning)
+	// MorphSparse stores the "lift" target as a sparse accessor (one index,
+	// no base view) instead of six dense deltas.
+	MorphSparse bool
+	MeshMove    [3]float64 // translation of the skinned mesh node (ignored by skinning)
 }
 
 // StripIDs names the parts of a built strip.
@@ -240,7 +243,12 @@ func NewStrip(o Strip) (*Builder, StripIDs) {
 	if o.Morph {
 		delta := make([][3]float32, 6)
 		delta[5] = [3]float32{0, 0, 1}
-		targets = []map[string]int{{"POSITION": b.Vec3s(delta, true)}}
+		if o.MorphSparse {
+			targets = []map[string]int{{"POSITION": b.Sparse(SparseOpts{
+				Count: 6, Indices: []uint32{5}, Values: []float32{0, 0, 1}, IndexType: 5121, MinMax: true})}}
+		} else {
+			targets = []map[string]int{{"POSITION": b.Vec3s(delta, true)}}
+		}
 		weights = []float64{0}
 		if o.MorphNames != nil {
 			extras = map[string]any{"targetNames": o.MorphNames}
@@ -269,8 +277,13 @@ func (b *Builder) Floats32(typ string, vals []float32) int {
 // RichRig is a valid strip with a morph target and four clips: LINEAR
 // rotation ("bend"), STEP translation ("step"), CUBICSPLINE translation
 // ("cubic") and morph weights ("morph"). Tests and fuzz seeds use it.
-func RichRig() []byte {
-	b, ids := NewStrip(Strip{Morph: true, MorphNames: []string{"lift"}})
+func RichRig() []byte { return richRig(false) }
+
+// RichRigSparse is RichRig with the "lift" target stored as a sparse accessor.
+func RichRigSparse() []byte { return richRig(true) }
+
+func richRig(sparse bool) []byte {
+	b, ids := NewStrip(Strip{Morph: true, MorphSparse: sparse, MorphNames: []string{"lift"}})
 	t2 := b.Floats32("SCALAR", []float32{0, 1})
 	b.Animation("bend", []Sampler{{Input: t2, Output: b.Floats32("VEC4", []float32{0, 0, 0, 1, Quat90Z[0], Quat90Z[1], Quat90Z[2], Quat90Z[3]})}},
 		[]Channel{{Sampler: 0, Node: ids.J1, Path: "rotation"}})

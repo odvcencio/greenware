@@ -159,51 +159,84 @@ func (f *File) validateAccessors(c *collector, viewOK []bool) {
 	}
 }
 
+// validateSparse checks an accessor's sparse block against glTF 2.0 section
+// 3.6.2.3. It reports the first fault only and then marks the accessor
+// unreadable, so one malformed block gives one finding and no cascade.
 func (f *File) validateSparse(c *collector, i int, a Accessor, info *accInfo, viewOK []bool) {
 	d := f.Doc
 	path := fmt.Sprintf("/accessors/%d/sparse", i)
 	s := a.Sparse
-	if s.Count > a.Count {
-		c.errf("SPARSE-COUNT", path+"/count", "sparse count %d exceeds accessor count %d", s.Count, a.Count)
+	fail := func(code, p, format string, args ...any) {
+		c.errf(code, p, format, args...)
 		info.readable = false
+	}
+	if s.Count < 1 {
+		fail("SPARSE-COUNT", path+"/count", "sparse count %d must be at least 1", s.Count)
+		return
+	}
+	if s.Count > a.Count {
+		fail("SPARSE-COUNT", path+"/count", "sparse count %d exceeds accessor count %d", s.Count, a.Count)
 		return
 	}
 	isz, ok := compSize(s.IndicesComponentType)
 	if !ok || s.IndicesComponentType == 5120 || s.IndicesComponentType == 5122 || s.IndicesComponentType == 5126 {
-		c.errf("SPARSE-INDEX-TYPE", path+"/indices/componentType", "sparse indices must be unsigned byte, short or int; got %d", s.IndicesComponentType)
-		info.readable = false
+		fail("SPARSE-INDEX-TYPE", path+"/indices/componentType", "sparse indices must be unsigned byte, short or int; got %d", s.IndicesComponentType)
 		return
 	}
-	check := func(view, off, need int, key string) []byte {
+	// check validates one of the two sparse byte ranges and returns its bytes
+	// (nil when they are not available). The size is the component size the
+	// range must be aligned to: the index type for indices, the accessor's
+	// component type for values.
+	check := func(view, off, need, size int, key string) ([]byte, bool) {
 		if view >= len(d.BufferViews) {
-			c.errf("SPARSE-VIEW", path+"/"+key+"/bufferView", "bufferView %d is out of range", view)
-			return nil
+			fail("SPARSE-VIEW", path+"/"+key+"/bufferView", "bufferView %d is out of range (%d views)", view, len(d.BufferViews))
+			return nil, false
 		}
 		bv := d.BufferViews[view]
+		if bv.Target != 0 || bv.ByteStride != 0 {
+			fail("SPARSE-VIEW-USE", path+"/"+key+"/bufferView", "bufferView %d is used for sparse data and must not set target or byteStride", view)
+			return nil, false
+		}
+		if off%size != 0 || (bv.ByteOffset+off)%size != 0 {
+			fail("SPARSE-ALIGN", path+"/"+key, "offset %d (absolute %d in the buffer) is not a multiple of the component size %d", off, bv.ByteOffset+off, size)
+			return nil, false
+		}
 		if off+need > bv.ByteLength {
-			c.errf("SPARSE-BOUNDS", path+"/"+key, "needs %d bytes at offset %d but bufferView %d has %d", need, off, view, bv.ByteLength)
-			return nil
+			fail("SPARSE-BOUNDS", path+"/"+key, "needs %d bytes at offset %d but bufferView %d has %d", need, off, view, bv.ByteLength)
+			return nil, false
 		}
 		if !viewOK[view] || f.buffers[bv.Buffer] == nil {
-			return nil
+			info.readable = false // bytes unavailable; not a fault of the file
+			return nil, true
 		}
-		return f.buffers[bv.Buffer][bv.ByteOffset+off:]
+		return f.buffers[bv.Buffer][bv.ByteOffset+off:], true
 	}
-	info.sparseIdx = check(s.IndicesView, s.IndicesOffset, s.Count*isz, "indices")
-	info.sparseVals = check(s.ValuesView, s.ValuesOffset, s.Count*info.elem, "values")
-	if info.sparseIdx == nil || info.sparseVals == nil {
+	idx, ok1 := check(s.IndicesView, s.IndicesOffset, s.Count*isz, isz, "indices")
+	if !ok1 {
+		return
+	}
+	vals, ok2 := check(s.ValuesView, s.ValuesOffset, s.Count*info.elem, info.csize, "values")
+	if !ok2 {
+		return
+	}
+	info.sparseIdx, info.sparseVals = idx, vals
+	if idx == nil || vals == nil {
 		info.readable = false
 		return
 	}
 	prev := -1
 	for k := 0; k < s.Count; k++ {
-		idx := int(readUint(info.sparseIdx[k*isz:], isz))
-		if idx >= a.Count || idx <= prev {
-			c.errf("SPARSE-INDEX", fmt.Sprintf("%s/indices/%d", path, k), "sparse index %d is out of range or not strictly increasing", idx)
-			info.readable = false
+		v := readUint(idx[k*isz:], isz)
+		ip := fmt.Sprintf("%s/indices/%d", path, k)
+		if v >= uint64(a.Count) {
+			fail("SPARSE-INDEX", ip, "sparse index %d is not below the accessor count %d", v, a.Count)
 			return
 		}
-		prev = idx
+		if int(v) <= prev {
+			fail("SPARSE-INDEX", ip, "sparse index %d does not increase (previous %d); indices must be strictly increasing", v, prev)
+			return
+		}
+		prev = int(v)
 	}
 }
 

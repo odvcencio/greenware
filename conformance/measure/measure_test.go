@@ -379,6 +379,8 @@ func TestTriangleDistance(t *testing.T) {
 // findings, runs every measurement. Nothing may panic.
 func FuzzPipeline(f *testing.F) {
 	f.Add(fixture.RichRig())
+	f.Add(fixture.RichRigSparse())
+	f.Add(sparseQuad(0.5))
 	f.Add(post(0, 0.02, 0))
 	f.Add(upright(0.002))
 	b := fixture.New()
@@ -472,6 +474,39 @@ func FuzzPose(f *testing.F) {
 		if err != nil {
 			return
 		}
+		exercisePose(t, m)
+	})
+}
+
+// FuzzPoseSparse is FuzzPose over a rig whose morph target is sparse, and a
+// quad whose morph target is sparse, so the fuzz bytes reach the sparse
+// indices and values.
+func FuzzPoseSparse(f *testing.F) {
+	seeds := [][]byte{fixture.RichRigSparse(), sparseQuad(1)}
+	for i, seed := range seeds {
+		off, n, _ := fixture.BinRange(seed)
+		f.Add(seed[off:off+n], i)
+	}
+	f.Fuzz(func(t *testing.T, bin []byte, which int) {
+		seed := seeds[((which%len(seeds))+len(seeds))%len(seeds)]
+		off, n, _ := fixture.BinRange(seed)
+		data := append([]byte(nil), seed...)
+		copy(data[off:off+n], bin)
+		file, fs := glb.Decode(data)
+		for _, x := range fs {
+			if x.Code == "ORACLE-INTERNAL" {
+				t.Fatalf("decoder fault: %s", x.Message)
+			}
+		}
+		if glb.HasErrors(fs) {
+			return
+		}
+		m, err := measure.Load(file)
+		if err != nil {
+			return
+		}
+		m.Bounds(measure.Whole)
+		m.Closed(measure.Whole)
 		exercisePose(t, m)
 	})
 }

@@ -494,7 +494,8 @@ func parseDocument(root any, c *collector) *Document {
 		a.HasMinMax = a.Min != nil || a.Max != nil
 		if so, ok := asObj(o["sparse"]); ok {
 			s := &Sparse{}
-			s.Count, _ = p.integer(so, "count", path+"/sparse", true, 1)
+			// A count below 1 is reported as SPARSE-COUNT by the accessor pass, not as a schema range error.
+			s.Count, _ = p.integer(so, "count", path+"/sparse", true, -(1 << 40))
 			if io, ok := p.obj(so["indices"], path+"/sparse/indices"); ok {
 				s.IndicesView, _ = p.integer(io, "bufferView", path+"/sparse/indices", true, 0)
 				s.IndicesOffset, _ = p.integer(io, "byteOffset", path+"/sparse/indices", false, 0)

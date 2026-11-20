@@ -787,6 +787,72 @@ type MorphInfo struct {
 	Name  string   `json:"name"`
 	Count int      `json:"count"`
 	Names []string `json:"target_names"`
+	// Sparse is true when any target accessor of the mesh is stored sparse.
+	Sparse bool `json:"sparse"`
+	// Vertices is the vertex count summed over the mesh's primitives.
+	Vertices int `json:"vertices"`
+	// Targets has one entry per morph target, in order.
+	Targets []MorphTarget `json:"targets"`
+}
+
+// MorphTarget describes one morph target of a mesh.
+type MorphTarget struct {
+	Index int    `json:"index"`
+	Name  string `json:"name,omitempty"`
+	// Sparse is true when the target's POSITION accessor (or, if it has none,
+	// any attribute accessor) is stored sparse in any primitive.
+	Sparse bool `json:"sparse"`
+	// MovedVertices counts vertices whose POSITION delta is nonzero in any
+	// component, summed over the mesh's primitives. A reviewer compares it
+	// with Vertices: glTF advises sparse storage when fewer than about half
+	// the vertices move.
+	MovedVertices int `json:"moved_vertices"`
+}
+
+// morphTargets summarises the targets of mesh mi.
+func (m *Model) morphTargets(mi int) (targets []MorphTarget, vertices int, sparse bool) {
+	d := m.f.Doc
+	mesh := d.Meshes[mi]
+	names, _ := d.TargetNames(mi)
+	n := len(mesh.Primitives[0].Targets)
+	targets = make([]MorphTarget, n)
+	for ti := range targets {
+		targets[ti].Index = ti
+		if ti < len(names) {
+			targets[ti].Name = names[ti]
+		}
+	}
+	for _, pr := range mesh.Primitives {
+		if pa, ok := pr.Attributes["POSITION"]; ok && pa < len(d.Accessors) {
+			vertices += d.Accessors[pa].Count
+		}
+		for ti := 0; ti < n && ti < len(pr.Targets); ti++ {
+			for name, ai := range pr.Targets[ti] {
+				if ai < 0 || ai >= len(d.Accessors) {
+					continue
+				}
+				if d.Accessors[ai].Sparse != nil && (name == "POSITION" || !targets[ti].Sparse) {
+					targets[ti].Sparse = true
+				}
+				if name != "POSITION" {
+					continue
+				}
+				dv, nc, ok := m.f.Floats(ai)
+				if !ok || nc != 3 {
+					continue
+				}
+				for e := 0; e+2 < len(dv); e += 3 {
+					if dv[e] != 0 || dv[e+1] != 0 || dv[e+2] != 0 {
+						targets[ti].MovedVertices++
+					}
+				}
+			}
+		}
+	}
+	for _, t := range targets {
+		sparse = sparse || t.Sparse
+	}
+	return targets, vertices, sparse
 }
 
 // Rig is the summary the command prints in the report's rig section.
@@ -827,7 +893,9 @@ func (m *Model) Rig() (*Rig, error) {
 		if names == nil {
 			names = []string{}
 		}
-		r.Morphs = append(r.Morphs, MorphInfo{Mesh: i, Name: mesh.Name, Count: len(mesh.Primitives[0].Targets), Names: names})
+		targets, vertices, sparse := m.morphTargets(i)
+		r.Morphs = append(r.Morphs, MorphInfo{Mesh: i, Name: mesh.Name, Count: len(mesh.Primitives[0].Targets), Names: names,
+			Sparse: sparse, Vertices: vertices, Targets: targets})
 	}
 	ws, err := m.WeightStats()
 	if err != nil {
