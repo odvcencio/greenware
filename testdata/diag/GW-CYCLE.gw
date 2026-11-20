@@ -1,0 +1,8 @@
+greenware 1
+
+asset a { root = a }
+
+let first = second + 1m
+let second = first + 1m
+
+part a { }

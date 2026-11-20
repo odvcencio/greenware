@@ -1,0 +1,3 @@
+asset a { root = a }
+
+part a { }

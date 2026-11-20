@@ -1,0 +1,2670 @@
+{
+  "asset": [
+    {
+      "name": "title",
+      "value": "Goal post"
+    },
+    {
+      "name": "root",
+      "value": {
+        "ref": "goalpost"
+      }
+    },
+    {
+      "name": "length",
+      "value": {
+        "label": "m"
+      }
+    },
+    {
+      "name": "angle",
+      "value": {
+        "label": "deg"
+      }
+    },
+    {
+      "name": "up",
+      "value": {
+        "axis": "+y"
+      }
+    },
+    {
+      "name": "forward",
+      "value": {
+        "axis": "-z"
+      }
+    }
+  ],
+  "meta": [
+    {
+      "name": "author",
+      "value": "M31 Labs"
+    },
+    {
+      "name": "license",
+      "value": "CC0-1.0"
+    },
+    {
+      "name": "intent",
+      "value": "A gooseneck goal post for a college stadium, padded, with wind ribbons"
+    }
+  ],
+  "params": [
+    {
+      "name": "crossbar_height",
+      "type": "length",
+      "value": {
+        "dim": "length",
+        "value": 3.05
+      },
+      "lo": {
+        "dim": "length",
+        "value": 2.5
+      },
+      "hi": {
+        "dim": "length",
+        "value": 3.5
+      }
+    },
+    {
+      "name": "upright_gap",
+      "type": "length",
+      "value": {
+        "dim": "length",
+        "value": 5.64
+      },
+      "lo": {
+        "dim": "length",
+        "value": 4
+      },
+      "hi": {
+        "dim": "length",
+        "value": 7.5
+      }
+    },
+    {
+      "name": "upright_rise",
+      "type": "length",
+      "value": {
+        "dim": "length",
+        "value": 9.14
+      },
+      "lo": {
+        "dim": "length",
+        "value": 3
+      },
+      "hi": {
+        "dim": "length",
+        "value": 12
+      }
+    },
+    {
+      "name": "setback",
+      "type": "length",
+      "value": {
+        "dim": "length",
+        "value": 1.83
+      },
+      "lo": {
+        "dim": "length",
+        "value": 0.5
+      },
+      "hi": {
+        "dim": "length",
+        "value": 2.4
+      }
+    },
+    {
+      "name": "padding",
+      "type": "switch",
+      "value": true
+    },
+    {
+      "name": "pad_color",
+      "type": "color",
+      "runtime": true,
+      "value": {
+        "color": "#1d4e89ff",
+        "runtime": true
+      },
+      "doc": "The home school's colour on the pad"
+    }
+  ],
+  "lets": [
+    {
+      "name": "post_r",
+      "value": {
+        "dim": "length",
+        "value": 0.1
+      }
+    },
+    {
+      "name": "bar_r",
+      "value": {
+        "dim": "length",
+        "value": 0.06
+      }
+    },
+    {
+      "name": "upright_r",
+      "value": {
+        "dim": "length",
+        "value": 0.05
+      }
+    },
+    {
+      "name": "bend_start",
+      "value": {
+        "dim": "length",
+        "value": 1.2199999999999998
+      }
+    },
+    {
+      "name": "half_span",
+      "value": {
+        "dim": "length",
+        "value": 2.8699999999999997
+      }
+    }
+  ],
+  "materials": [
+    {
+      "kind": "selena",
+      "name": "paint",
+      "fields": [
+        {
+          "name": "source",
+          "value": "materials/painted_metal.sel"
+        },
+        {
+          "name": "name",
+          "value": "PaintedMetal"
+        },
+        {
+          "name": "color",
+          "value": {
+            "color": "#f2c200ff"
+          }
+        },
+        {
+          "name": "chips",
+          "value": {
+            "dim": "number",
+            "value": 0.15
+          }
+        }
+      ],
+      "children": [
+        {
+          "kind": "pbr",
+          "name": "fallback",
+          "fields": [
+            {
+              "name": "base",
+              "value": {
+                "color": "#f2c200ff"
+              }
+            },
+            {
+              "name": "roughness",
+              "value": {
+                "dim": "number",
+                "value": 0.4
+              }
+            },
+            {
+              "name": "metallic",
+              "value": {
+                "dim": "number",
+                "value": 0
+              }
+            },
+            {
+              "name": "emissive",
+              "value": {
+                "color": "#000000ff"
+              },
+              "default": true
+            },
+            {
+              "name": "emissive_strength",
+              "value": {
+                "dim": "number",
+                "value": 1
+              },
+              "default": true
+            },
+            {
+              "name": "alpha",
+              "value": {
+                "dim": "number",
+                "value": 1
+              },
+              "default": true
+            },
+            {
+              "name": "blend",
+              "value": false,
+              "default": true
+            },
+            {
+              "name": "double_sided",
+              "value": false,
+              "default": true
+            },
+            {
+              "name": "clearcoat",
+              "value": {
+                "dim": "number",
+                "value": 0
+              },
+              "default": true
+            },
+            {
+              "name": "clearcoat_roughness",
+              "value": {
+                "dim": "number",
+                "value": 0
+              },
+              "default": true
+            },
+            {
+              "name": "filter",
+              "value": {
+                "label": "trilinear"
+              },
+              "default": true
+            },
+            {
+              "name": "wrap",
+              "value": {
+                "label": "repeat"
+              },
+              "default": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "pbr",
+      "name": "steel",
+      "fields": [
+        {
+          "name": "base",
+          "value": {
+            "color": "#8a8d8fff"
+          }
+        },
+        {
+          "name": "roughness",
+          "value": {
+            "dim": "number",
+            "value": 0.45
+          }
+        },
+        {
+          "name": "metallic",
+          "value": {
+            "dim": "number",
+            "value": 1
+          }
+        },
+        {
+          "name": "emissive",
+          "value": {
+            "color": "#000000ff"
+          },
+          "default": true
+        },
+        {
+          "name": "emissive_strength",
+          "value": {
+            "dim": "number",
+            "value": 1
+          },
+          "default": true
+        },
+        {
+          "name": "alpha",
+          "value": {
+            "dim": "number",
+            "value": 1
+          },
+          "default": true
+        },
+        {
+          "name": "blend",
+          "value": false,
+          "default": true
+        },
+        {
+          "name": "double_sided",
+          "value": false,
+          "default": true
+        },
+        {
+          "name": "clearcoat",
+          "value": {
+            "dim": "number",
+            "value": 0
+          },
+          "default": true
+        },
+        {
+          "name": "clearcoat_roughness",
+          "value": {
+            "dim": "number",
+            "value": 0
+          },
+          "default": true
+        },
+        {
+          "name": "filter",
+          "value": {
+            "label": "trilinear"
+          },
+          "default": true
+        },
+        {
+          "name": "wrap",
+          "value": {
+            "label": "repeat"
+          },
+          "default": true
+        }
+      ]
+    },
+    {
+      "kind": "pbr",
+      "name": "pad_cover",
+      "fields": [
+        {
+          "name": "base",
+          "value": {
+            "color": "#1d4e89ff",
+            "runtime": true
+          }
+        },
+        {
+          "name": "roughness",
+          "value": {
+            "dim": "number",
+            "value": 0.85
+          }
+        },
+        {
+          "name": "metallic",
+          "value": {
+            "dim": "number",
+            "value": 0
+          },
+          "default": true
+        },
+        {
+          "name": "emissive",
+          "value": {
+            "color": "#000000ff"
+          },
+          "default": true
+        },
+        {
+          "name": "emissive_strength",
+          "value": {
+            "dim": "number",
+            "value": 1
+          },
+          "default": true
+        },
+        {
+          "name": "alpha",
+          "value": {
+            "dim": "number",
+            "value": 1
+          },
+          "default": true
+        },
+        {
+          "name": "blend",
+          "value": false,
+          "default": true
+        },
+        {
+          "name": "double_sided",
+          "value": false,
+          "default": true
+        },
+        {
+          "name": "clearcoat",
+          "value": {
+            "dim": "number",
+            "value": 0
+          },
+          "default": true
+        },
+        {
+          "name": "clearcoat_roughness",
+          "value": {
+            "dim": "number",
+            "value": 0
+          },
+          "default": true
+        },
+        {
+          "name": "filter",
+          "value": {
+            "label": "trilinear"
+          },
+          "default": true
+        },
+        {
+          "name": "wrap",
+          "value": {
+            "label": "repeat"
+          },
+          "default": true
+        }
+      ]
+    }
+  ],
+  "root": {
+    "kind": "part",
+    "name": "goalpost",
+    "fields": [
+      {
+        "name": "at",
+        "value": {
+          "tuple": [
+            {
+              "dim": "length",
+              "value": 0
+            },
+            {
+              "dim": "length",
+              "value": 0
+            },
+            {
+              "dim": "length",
+              "value": 0
+            }
+          ]
+        },
+        "default": true
+      },
+      {
+        "name": "pivot",
+        "value": {
+          "tuple": [
+            {
+              "dim": "length",
+              "value": 0
+            },
+            {
+              "dim": "length",
+              "value": 0
+            },
+            {
+              "dim": "length",
+              "value": 0
+            }
+          ]
+        },
+        "default": true
+      },
+      {
+        "name": "rot",
+        "value": {
+          "tuple": [
+            {
+              "dim": "angle",
+              "value": 0
+            },
+            {
+              "dim": "angle",
+              "value": 0
+            },
+            {
+              "dim": "angle",
+              "value": 0
+            }
+          ]
+        },
+        "default": true
+      },
+      {
+        "name": "scale",
+        "value": {
+          "tuple": [
+            {
+              "dim": "number",
+              "value": 1
+            },
+            {
+              "dim": "number",
+              "value": 1
+            },
+            {
+              "dim": "number",
+              "value": 1
+            }
+          ]
+        },
+        "default": true
+      },
+      {
+        "name": "export",
+        "value": false,
+        "default": true
+      },
+      {
+        "name": "material",
+        "value": {
+          "ref": "paint"
+        }
+      }
+    ],
+    "children": [
+      {
+        "kind": "part",
+        "name": "base",
+        "fields": [
+          {
+            "name": "at",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "pivot",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "rot",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "angle",
+                  "value": 0
+                },
+                {
+                  "dim": "angle",
+                  "value": 0
+                },
+                {
+                  "dim": "angle",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "scale",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "number",
+                  "value": 1
+                },
+                {
+                  "dim": "number",
+                  "value": 1
+                },
+                {
+                  "dim": "number",
+                  "value": 1
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "export",
+            "value": true
+          },
+          {
+            "name": "material",
+            "value": {
+              "ref": "steel"
+            }
+          }
+        ],
+        "children": [
+          {
+            "kind": "cylinder",
+            "name": "plate",
+            "fields": [
+              {
+                "name": "radius",
+                "value": {
+                  "dim": "length",
+                  "value": 0.35
+                }
+              },
+              {
+                "name": "height",
+                "value": {
+                  "dim": "length",
+                  "value": 0.03
+                }
+              },
+              {
+                "name": "axis",
+                "value": {
+                  "axis": "+y"
+                },
+                "default": true
+              },
+              {
+                "name": "segments",
+                "value": {
+                  "dim": "number",
+                  "value": 24
+                }
+              },
+              {
+                "name": "caps",
+                "value": true,
+                "default": true
+              },
+              {
+                "name": "at",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0.015
+                    },
+                    {
+                      "dim": "length",
+                      "value": 1.83
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "rot",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    }
+                  ]
+                },
+                "default": true
+              },
+              {
+                "name": "uv",
+                "value": {
+                  "label": "auto"
+                },
+                "default": true
+              }
+            ],
+            "children": [
+              {
+                "kind": "bevel",
+                "fields": [
+                  {
+                    "name": "width",
+                    "value": {
+                      "dim": "length",
+                      "value": 0.006
+                    }
+                  },
+                  {
+                    "name": "segments",
+                    "value": {
+                      "dim": "number",
+                      "value": 2
+                    }
+                  },
+                  {
+                    "name": "edges",
+                    "value": {
+                      "label": "top"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "array",
+            "name": "bolts",
+            "fields": [
+              {
+                "name": "mode",
+                "value": {
+                  "label": "radial"
+                }
+              },
+              {
+                "name": "count",
+                "value": {
+                  "dim": "number",
+                  "value": 8
+                }
+              },
+              {
+                "name": "step",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0
+                    }
+                  ]
+                },
+                "default": true
+              },
+              {
+                "name": "axis",
+                "value": {
+                  "axis": "+y"
+                }
+              },
+              {
+                "name": "centre",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0.03
+                    },
+                    {
+                      "dim": "length",
+                      "value": 1.83
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "radius",
+                "value": {
+                  "dim": "length",
+                  "value": 0.28
+                }
+              }
+            ],
+            "children": [
+              {
+                "kind": "instance",
+                "fields": [
+                  {
+                    "name": "of",
+                    "value": {
+                      "ref": "bolt"
+                    }
+                  },
+                  {
+                    "name": "at",
+                    "value": {
+                      "tuple": [
+                        {
+                          "dim": "length",
+                          "value": 0
+                        },
+                        {
+                          "dim": "length",
+                          "value": 0
+                        },
+                        {
+                          "dim": "length",
+                          "value": 0
+                        }
+                      ]
+                    },
+                    "default": true
+                  },
+                  {
+                    "name": "rot",
+                    "value": {
+                      "tuple": [
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        },
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        },
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        }
+                      ]
+                    },
+                    "default": true
+                  },
+                  {
+                    "name": "scale",
+                    "value": {
+                      "tuple": [
+                        {
+                          "dim": "number",
+                          "value": 1
+                        },
+                        {
+                          "dim": "number",
+                          "value": 1
+                        },
+                        {
+                          "dim": "number",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    "default": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "part",
+        "name": "post",
+        "fields": [
+          {
+            "name": "at",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "pivot",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "rot",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "angle",
+                  "value": 0
+                },
+                {
+                  "dim": "angle",
+                  "value": 0
+                },
+                {
+                  "dim": "angle",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "scale",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "number",
+                  "value": 1
+                },
+                {
+                  "dim": "number",
+                  "value": 1
+                },
+                {
+                  "dim": "number",
+                  "value": 1
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "export",
+            "value": false,
+            "default": true
+          }
+        ],
+        "children": [
+          {
+            "kind": "sweep",
+            "fields": [
+              {
+                "name": "profile",
+                "value": {
+                  "profile": "circle",
+                  "args": [
+                    {
+                      "dim": "length",
+                      "value": 0.1
+                    },
+                    {
+                      "dim": "number",
+                      "value": 16
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "twist",
+                "value": {
+                  "dim": "angle",
+                  "value": 0
+                },
+                "default": true
+              },
+              {
+                "name": "end_scale",
+                "value": {
+                  "dim": "number",
+                  "value": 1
+                },
+                "default": true
+              },
+              {
+                "name": "caps",
+                "value": {
+                  "label": "both"
+                }
+              },
+              {
+                "name": "frame",
+                "value": {
+                  "label": "minimal"
+                },
+                "default": true
+              },
+              {
+                "name": "at",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0
+                    }
+                  ]
+                },
+                "default": true
+              },
+              {
+                "name": "rot",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    }
+                  ]
+                },
+                "default": true
+              },
+              {
+                "name": "uv",
+                "value": {
+                  "label": "auto"
+                },
+                "default": true
+              }
+            ],
+            "children": [
+              {
+                "kind": "path",
+                "rows": [
+                  {
+                    "name": "point",
+                    "values": [
+                      {
+                        "dim": "length",
+                        "value": 0
+                      },
+                      {
+                        "dim": "length",
+                        "value": 0
+                      },
+                      {
+                        "dim": "length",
+                        "value": 1.83
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "values": [
+                      {
+                        "dim": "length",
+                        "value": 0
+                      },
+                      {
+                        "dim": "length",
+                        "value": 1.2199999999999998
+                      },
+                      {
+                        "dim": "length",
+                        "value": 1.83
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "values": [
+                      {
+                        "dim": "length",
+                        "value": 0
+                      },
+                      {
+                        "dim": "length",
+                        "value": 1.5770152892895144
+                      },
+                      {
+                        "dim": "length",
+                        "value": 1.7948370631379118
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "values": [
+                      {
+                        "dim": "length",
+                        "value": 0
+                      },
+                      {
+                        "dim": "length",
+                        "value": 1.920310681228114
+                      },
+                      {
+                        "dim": "length",
+                        "value": 1.6906995444956547
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "values": [
+                      {
+                        "dim": "length",
+                        "value": 0
+                      },
+                      {
+                        "dim": "length",
+                        "value": 2.2366935264258716
+                      },
+                      {
+                        "dim": "length",
+                        "value": 1.521589390513658
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "values": [
+                      {
+                        "dim": "length",
+                        "value": 0
+                      },
+                      {
+                        "dim": "length",
+                        "value": 2.5140054095713817
+                      },
+                      {
+                        "dim": "length",
+                        "value": 1.2940054095713822
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "values": [
+                      {
+                        "dim": "length",
+                        "value": 0
+                      },
+                      {
+                        "dim": "length",
+                        "value": 2.7415893905136572
+                      },
+                      {
+                        "dim": "length",
+                        "value": 1.0166935264258723
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "values": [
+                      {
+                        "dim": "length",
+                        "value": 0
+                      },
+                      {
+                        "dim": "length",
+                        "value": 2.9106995444956545
+                      },
+                      {
+                        "dim": "length",
+                        "value": 0.7003106812281145
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "values": [
+                      {
+                        "dim": "length",
+                        "value": 0
+                      },
+                      {
+                        "dim": "length",
+                        "value": 3.0148370631379118
+                      },
+                      {
+                        "dim": "length",
+                        "value": 0.3570152892895148
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "values": [
+                      {
+                        "dim": "length",
+                        "value": 0
+                      },
+                      {
+                        "dim": "length",
+                        "value": 3.05
+                      },
+                      {
+                        "dim": "length",
+                        "value": 1.1205518212198283e-16
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "part",
+        "name": "crossbar",
+        "fields": [
+          {
+            "name": "at",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "pivot",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "rot",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "angle",
+                  "value": 0
+                },
+                {
+                  "dim": "angle",
+                  "value": 0
+                },
+                {
+                  "dim": "angle",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "scale",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "number",
+                  "value": 1
+                },
+                {
+                  "dim": "number",
+                  "value": 1
+                },
+                {
+                  "dim": "number",
+                  "value": 1
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "export",
+            "value": false,
+            "default": true
+          }
+        ],
+        "children": [
+          {
+            "kind": "cylinder",
+            "fields": [
+              {
+                "name": "radius",
+                "value": {
+                  "dim": "length",
+                  "value": 0.06
+                }
+              },
+              {
+                "name": "height",
+                "value": {
+                  "dim": "length",
+                  "value": 5.739999999999999
+                }
+              },
+              {
+                "name": "axis",
+                "value": {
+                  "axis": "+x"
+                }
+              },
+              {
+                "name": "segments",
+                "value": {
+                  "dim": "number",
+                  "value": 16
+                }
+              },
+              {
+                "name": "caps",
+                "value": true
+              },
+              {
+                "name": "at",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 3.05
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "rot",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    }
+                  ]
+                },
+                "default": true
+              },
+              {
+                "name": "uv",
+                "value": {
+                  "label": "auto"
+                },
+                "default": true
+              }
+            ]
+          },
+          {
+            "kind": "socket",
+            "name": "crossbar_centre",
+            "fields": [
+              {
+                "name": "kind",
+                "value": {
+                  "label": "anchor"
+                }
+              },
+              {
+                "name": "at",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 3.05
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "rot",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    }
+                  ]
+                },
+                "default": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "mirror",
+        "fields": [
+          {
+            "name": "plane",
+            "value": {
+              "label": "x"
+            }
+          }
+        ],
+        "children": [
+          {
+            "kind": "part",
+            "name": "upright_l",
+            "pair": "upright_r",
+            "fields": [
+              {
+                "name": "at",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0
+                    }
+                  ]
+                },
+                "default": true
+              },
+              {
+                "name": "pivot",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0
+                    }
+                  ]
+                },
+                "default": true
+              },
+              {
+                "name": "rot",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    }
+                  ]
+                },
+                "default": true
+              },
+              {
+                "name": "scale",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "number",
+                      "value": 1
+                    },
+                    {
+                      "dim": "number",
+                      "value": 1
+                    },
+                    {
+                      "dim": "number",
+                      "value": 1
+                    }
+                  ]
+                },
+                "default": true
+              },
+              {
+                "name": "export",
+                "value": false,
+                "default": true
+              }
+            ],
+            "children": [
+              {
+                "kind": "cylinder",
+                "fields": [
+                  {
+                    "name": "radius",
+                    "value": {
+                      "dim": "length",
+                      "value": 0.05
+                    }
+                  },
+                  {
+                    "name": "height",
+                    "value": {
+                      "dim": "length",
+                      "value": 9.200000000000001
+                    }
+                  },
+                  {
+                    "name": "axis",
+                    "value": {
+                      "axis": "+y"
+                    }
+                  },
+                  {
+                    "name": "segments",
+                    "value": {
+                      "dim": "number",
+                      "value": 12
+                    }
+                  },
+                  {
+                    "name": "caps",
+                    "value": true,
+                    "default": true
+                  },
+                  {
+                    "name": "at",
+                    "value": {
+                      "tuple": [
+                        {
+                          "dim": "length",
+                          "value": 2.8699999999999997
+                        },
+                        {
+                          "dim": "length",
+                          "value": 7.59
+                        },
+                        {
+                          "dim": "length",
+                          "value": 0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "rot",
+                    "value": {
+                      "tuple": [
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        },
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        },
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        }
+                      ]
+                    },
+                    "default": true
+                  },
+                  {
+                    "name": "uv",
+                    "value": {
+                      "label": "auto"
+                    },
+                    "default": true
+                  }
+                ]
+              },
+              {
+                "kind": "sphere",
+                "fields": [
+                  {
+                    "name": "radius",
+                    "value": {
+                      "dim": "length",
+                      "value": 0.05
+                    }
+                  },
+                  {
+                    "name": "segments",
+                    "value": {
+                      "dim": "number",
+                      "value": 12
+                    }
+                  },
+                  {
+                    "name": "at",
+                    "value": {
+                      "tuple": [
+                        {
+                          "dim": "length",
+                          "value": 2.8699999999999997
+                        },
+                        {
+                          "dim": "length",
+                          "value": 12.190000000000001
+                        },
+                        {
+                          "dim": "length",
+                          "value": 0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "rot",
+                    "value": {
+                      "tuple": [
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        },
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        },
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        }
+                      ]
+                    },
+                    "default": true
+                  },
+                  {
+                    "name": "uv",
+                    "value": {
+                      "label": "auto"
+                    },
+                    "default": true
+                  },
+                  {
+                    "name": "rings",
+                    "value": {
+                      "dim": "number",
+                      "value": 6
+                    },
+                    "default": true
+                  }
+                ]
+              },
+              {
+                "kind": "socket",
+                "name": "ribbon_l",
+                "pair": "ribbon_r",
+                "fields": [
+                  {
+                    "name": "kind",
+                    "value": {
+                      "label": "ribbon"
+                    }
+                  },
+                  {
+                    "name": "at",
+                    "value": {
+                      "tuple": [
+                        {
+                          "dim": "length",
+                          "value": 2.8699999999999997
+                        },
+                        {
+                          "dim": "length",
+                          "value": 12.190000000000001
+                        },
+                        {
+                          "dim": "length",
+                          "value": 0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "rot",
+                    "value": {
+                      "tuple": [
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        },
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        },
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        }
+                      ]
+                    },
+                    "default": true
+                  }
+                ]
+              },
+              {
+                "kind": "socket",
+                "name": "inside_l",
+                "pair": "inside_r",
+                "fields": [
+                  {
+                    "name": "kind",
+                    "value": {
+                      "label": "anchor"
+                    }
+                  },
+                  {
+                    "name": "at",
+                    "value": {
+                      "tuple": [
+                        {
+                          "dim": "length",
+                          "value": 2.82
+                        },
+                        {
+                          "dim": "length",
+                          "value": 3.05
+                        },
+                        {
+                          "dim": "length",
+                          "value": 0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "rot",
+                    "value": {
+                      "tuple": [
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        },
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        },
+                        {
+                          "dim": "angle",
+                          "value": 0
+                        }
+                      ]
+                    },
+                    "default": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "part",
+        "name": "pad",
+        "fields": [
+          {
+            "name": "at",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "pivot",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                },
+                {
+                  "dim": "length",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "rot",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "angle",
+                  "value": 0
+                },
+                {
+                  "dim": "angle",
+                  "value": 0
+                },
+                {
+                  "dim": "angle",
+                  "value": 0
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "scale",
+            "value": {
+              "tuple": [
+                {
+                  "dim": "number",
+                  "value": 1
+                },
+                {
+                  "dim": "number",
+                  "value": 1
+                },
+                {
+                  "dim": "number",
+                  "value": 1
+                }
+              ]
+            },
+            "default": true
+          },
+          {
+            "name": "export",
+            "value": true
+          },
+          {
+            "name": "material",
+            "value": {
+              "ref": "pad_cover"
+            }
+          }
+        ],
+        "children": [
+          {
+            "kind": "lathe",
+            "fields": [
+              {
+                "name": "segments",
+                "value": {
+                  "dim": "number",
+                  "value": 24
+                }
+              },
+              {
+                "name": "closed",
+                "value": true
+              },
+              {
+                "name": "axis",
+                "value": {
+                  "axis": "+y"
+                },
+                "default": true
+              },
+              {
+                "name": "arc",
+                "value": {
+                  "range": [
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 6.283185307179586
+                    }
+                  ]
+                },
+                "default": true
+              },
+              {
+                "name": "at",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 0
+                    },
+                    {
+                      "dim": "length",
+                      "value": 1.83
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "rot",
+                "value": {
+                  "tuple": [
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    },
+                    {
+                      "dim": "angle",
+                      "value": 0
+                    }
+                  ]
+                },
+                "default": true
+              },
+              {
+                "name": "uv",
+                "value": {
+                  "label": "cylindrical"
+                }
+              }
+            ],
+            "rows": [
+              {
+                "name": "point",
+                "values": [
+                  {
+                    "dim": "length",
+                    "value": 0.11
+                  },
+                  {
+                    "dim": "length",
+                    "value": 0
+                  }
+                ]
+              },
+              {
+                "name": "point",
+                "values": [
+                  {
+                    "dim": "length",
+                    "value": 0.25
+                  },
+                  {
+                    "dim": "length",
+                    "value": 0.02
+                  }
+                ]
+              },
+              {
+                "name": "point",
+                "values": [
+                  {
+                    "dim": "length",
+                    "value": 0.26
+                  },
+                  {
+                    "dim": "length",
+                    "value": 0.1
+                  }
+                ]
+              },
+              {
+                "name": "point",
+                "values": [
+                  {
+                    "dim": "length",
+                    "value": 0.26
+                  },
+                  {
+                    "dim": "length",
+                    "value": 1.7
+                  }
+                ]
+              },
+              {
+                "name": "point",
+                "values": [
+                  {
+                    "dim": "length",
+                    "value": 0.25
+                  },
+                  {
+                    "dim": "length",
+                    "value": 1.78
+                  }
+                ]
+              },
+              {
+                "name": "point",
+                "values": [
+                  {
+                    "dim": "length",
+                    "value": 0.11
+                  },
+                  {
+                    "dim": "length",
+                    "value": 1.8
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "definitions": [
+    {
+      "kind": "part",
+      "name": "bolt",
+      "fields": [
+        {
+          "name": "at",
+          "value": {
+            "tuple": [
+              {
+                "dim": "length",
+                "value": 0
+              },
+              {
+                "dim": "length",
+                "value": 0
+              },
+              {
+                "dim": "length",
+                "value": 0
+              }
+            ]
+          },
+          "default": true
+        },
+        {
+          "name": "pivot",
+          "value": {
+            "tuple": [
+              {
+                "dim": "length",
+                "value": 0
+              },
+              {
+                "dim": "length",
+                "value": 0
+              },
+              {
+                "dim": "length",
+                "value": 0
+              }
+            ]
+          },
+          "default": true
+        },
+        {
+          "name": "rot",
+          "value": {
+            "tuple": [
+              {
+                "dim": "angle",
+                "value": 0
+              },
+              {
+                "dim": "angle",
+                "value": 0
+              },
+              {
+                "dim": "angle",
+                "value": 0
+              }
+            ]
+          },
+          "default": true
+        },
+        {
+          "name": "scale",
+          "value": {
+            "tuple": [
+              {
+                "dim": "number",
+                "value": 1
+              },
+              {
+                "dim": "number",
+                "value": 1
+              },
+              {
+                "dim": "number",
+                "value": 1
+              }
+            ]
+          },
+          "default": true
+        },
+        {
+          "name": "export",
+          "value": false,
+          "default": true
+        }
+      ],
+      "children": [
+        {
+          "kind": "cylinder",
+          "fields": [
+            {
+              "name": "radius",
+              "value": {
+                "dim": "length",
+                "value": 0.012
+              }
+            },
+            {
+              "name": "height",
+              "value": {
+                "dim": "length",
+                "value": 0.025
+              }
+            },
+            {
+              "name": "axis",
+              "value": {
+                "axis": "+y"
+              },
+              "default": true
+            },
+            {
+              "name": "segments",
+              "value": {
+                "dim": "number",
+                "value": 6
+              }
+            },
+            {
+              "name": "caps",
+              "value": true,
+              "default": true
+            },
+            {
+              "name": "at",
+              "value": {
+                "tuple": [
+                  {
+                    "dim": "length",
+                    "value": 0
+                  },
+                  {
+                    "dim": "length",
+                    "value": 0
+                  },
+                  {
+                    "dim": "length",
+                    "value": 0
+                  }
+                ]
+              },
+              "default": true
+            },
+            {
+              "name": "rot",
+              "value": {
+                "tuple": [
+                  {
+                    "dim": "angle",
+                    "value": 0
+                  },
+                  {
+                    "dim": "angle",
+                    "value": 0
+                  },
+                  {
+                    "dim": "angle",
+                    "value": 0
+                  }
+                ]
+              },
+              "default": true
+            },
+            {
+              "name": "material",
+              "value": {
+                "ref": "steel"
+              }
+            },
+            {
+              "name": "uv",
+              "value": {
+                "label": "auto"
+              },
+              "default": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "lods": [
+    {
+      "kind": "lod",
+      "name": "1",
+      "fields": [
+        {
+          "name": "distance",
+          "value": {
+            "dim": "length",
+            "value": 40
+          }
+        },
+        {
+          "name": "max_error",
+          "value": {
+            "dim": "length",
+            "value": 0.005
+          }
+        },
+        {
+          "name": "drop",
+          "value": {
+            "list": [
+              {
+                "ref": "bolt"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "lod",
+      "name": "2",
+      "fields": [
+        {
+          "name": "distance",
+          "value": {
+            "dim": "length",
+            "value": 90
+          }
+        },
+        {
+          "name": "max_error",
+          "value": {
+            "dim": "length",
+            "value": 0.03
+          }
+        },
+        {
+          "name": "drop",
+          "value": {
+            "list": [
+              {
+                "ref": "base"
+              },
+              {
+                "ref": "pad"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "collision": [
+    {
+      "kind": "capsule",
+      "name": "post_lower",
+      "fields": [
+        {
+          "name": "from",
+          "value": {
+            "tuple": [
+              {
+                "dim": "length",
+                "value": 0
+              },
+              {
+                "dim": "length",
+                "value": 0
+              },
+              {
+                "dim": "length",
+                "value": 1.83
+              }
+            ]
+          }
+        },
+        {
+          "name": "to",
+          "value": {
+            "tuple": [
+              {
+                "dim": "length",
+                "value": 0
+              },
+              {
+                "dim": "length",
+                "value": 1.2199999999999998
+              },
+              {
+                "dim": "length",
+                "value": 1.83
+              }
+            ]
+          }
+        },
+        {
+          "name": "radius",
+          "value": {
+            "dim": "length",
+            "value": 0.1
+          }
+        }
+      ]
+    },
+    {
+      "kind": "capsule",
+      "name": "crossbar",
+      "fields": [
+        {
+          "name": "from",
+          "value": {
+            "tuple": [
+              {
+                "dim": "length",
+                "value": -2.8699999999999997
+              },
+              {
+                "dim": "length",
+                "value": 3.05
+              },
+              {
+                "dim": "length",
+                "value": 0
+              }
+            ]
+          }
+        },
+        {
+          "name": "to",
+          "value": {
+            "tuple": [
+              {
+                "dim": "length",
+                "value": 2.8699999999999997
+              },
+              {
+                "dim": "length",
+                "value": 3.05
+              },
+              {
+                "dim": "length",
+                "value": 0
+              }
+            ]
+          }
+        },
+        {
+          "name": "radius",
+          "value": {
+            "dim": "length",
+            "value": 0.06
+          }
+        }
+      ]
+    },
+    {
+      "kind": "mirror",
+      "fields": [
+        {
+          "name": "plane",
+          "value": {
+            "label": "x"
+          }
+        }
+      ],
+      "children": [
+        {
+          "kind": "capsule",
+          "name": "upright_l",
+          "pair": "upright_r",
+          "fields": [
+            {
+              "name": "from",
+              "value": {
+                "tuple": [
+                  {
+                    "dim": "length",
+                    "value": 2.8699999999999997
+                  },
+                  {
+                    "dim": "length",
+                    "value": 3.05
+                  },
+                  {
+                    "dim": "length",
+                    "value": 0
+                  }
+                ]
+              }
+            },
+            {
+              "name": "to",
+              "value": {
+                "tuple": [
+                  {
+                    "dim": "length",
+                    "value": 2.8699999999999997
+                  },
+                  {
+                    "dim": "length",
+                    "value": 12.190000000000001
+                  },
+                  {
+                    "dim": "length",
+                    "value": 0
+                  }
+                ]
+              }
+            },
+            {
+              "name": "radius",
+              "value": {
+                "dim": "length",
+                "value": 0.05
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "budget": [
+    {
+      "name": "triangles",
+      "value": {
+        "dim": "number",
+        "value": 1600
+      }
+    },
+    {
+      "name": "triangles_worst",
+      "value": {
+        "dim": "number",
+        "value": 1600
+      }
+    },
+    {
+      "name": "draw_calls",
+      "value": {
+        "dim": "number",
+        "value": 3
+      }
+    },
+    {
+      "name": "draw_calls_worst",
+      "value": {
+        "dim": "number",
+        "value": 3
+      }
+    },
+    {
+      "name": "materials",
+      "value": {
+        "dim": "number",
+        "value": 3
+      }
+    },
+    {
+      "name": "file_size",
+      "value": {
+        "dim": "bytes",
+        "value": 98304
+      }
+    }
+  ],
+  "look": {
+    "materials": [
+      "paint",
+      "steel",
+      "pad_cover"
+    ],
+    "draw_calls": 3,
+    "draw_calls_worst": 3
+  },
+  "outputs": [
+    {
+      "name": "stadium",
+      "file": "goalpost.glb",
+      "lods": "files",
+      "manifest": true,
+      "profile": "source"
+    },
+    {
+      "name": "practice",
+      "file": "goalpost-practice.glb",
+      "lods": "files",
+      "manifest": false,
+      "profile": "source",
+      "set": [
+        {
+          "name": "padding",
+          "value": false
+        },
+        {
+          "name": "upright_rise",
+          "value": {
+            "dim": "length",
+            "value": 6.1
+          }
+        }
+      ],
+      "budget": [
+        {
+          "name": "draw_calls",
+          "value": {
+            "dim": "number",
+            "value": 2
+          }
+        },
+        {
+          "name": "draw_calls_worst",
+          "value": {
+            "dim": "number",
+            "value": 2
+          }
+        },
+        {
+          "name": "materials",
+          "value": {
+            "dim": "number",
+            "value": 2
+          }
+        }
+      ]
+    }
+  ]
+}

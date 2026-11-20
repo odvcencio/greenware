@@ -1,0 +1,7 @@
+greenware 1
+
+asset a { root = a }
+
+param height : length = 4m in 1m..3m
+
+part a { }

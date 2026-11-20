@@ -1,0 +1,792 @@
+greenware 1
+
+// The football player: a rigged figure with build, height and species
+// parameters as morph targets, gear sockets, joint ranges and two clips.
+//
+// It is a port of presentation/author_athletes.py, so the numbers are the
+// Python's, in field yards. Where the Python wrote
+//     R('chest',0,[(0,1.078,.002,.191,.130), ...],24)
+// this file writes
+//     loft jersey { joint = chest  cell = jersey  segments = 24
+//                   ring (0, 1.078, 0.002, 0.191, 0.130) ... }
+// and where the Python looped "for side,s in [('l',1),('r',-1)]", this file
+// writes the left (+x) side once inside "mirror { plane = x }", declaring
+// each sided name as a pair: loft (thigh_l, thigh_r), joint (arml, armr).
+//
+// It also carries the fixes in sequoia's Go port (cmd/bakeathletes in the
+// scratch game clone): longer arms ("lengthen"), skin weights blended
+// across every joint ("blend"), and the ankle clamp in the clips. The
+// helmet pieces moved to helmet.gw.
+// Of the Python's 19 clips, two are here (ready, run); the rest belong in a
+// clip library file. Spec section 13 lists what is not verified.
+
+asset athlete {
+  title = "Athlete"
+  root = body
+  length = yd                // output is metres; see spec 4.2 and open question 6
+  angle = deg
+  up = y
+  forward = -z               // the player faces -z
+  idle = ready               // the clip a renderer shows before any other: no bind pose on screen
+  generator = "Federation Athletics character workshop"
+  mesh_name = "Football uniform"
+  // Plain nodes above the skeleton, outermost first. The game samples clips on
+  // them as lookup tables for field position and heading (see the field clips).
+  wrappers = ["field lateral", "field depth", "stance height", "body heading"]
+}
+
+meta {
+  author = "M31 Labs"
+  license = "CC0-1.0"
+}
+
+import "helmet.gw" as helmet
+
+// ---- Parameters ---------------------------------------------------------
+// Runtime parameters become morph weights (and, for height, joint offsets)
+// that the game sets per player. Bake parameters pick colours per output.
+
+// The names follow sequoia's customisation model (athletelook): species Vael
+// and Brannoc, and the morph targets mass, pads, belly, neck-long, limb-lean,
+// neck-short, chest-deep and brow.
+param build : ratio = 0.35 in 0..1 runtime { doc = "0 a kicker's frame, 1 a lineman's (athletelook's mass)" }
+param pads : ratio = 0.5 in 0..1 runtime { doc = "Shoulder pad size" }
+param belly : ratio = 0 in 0..1 runtime { doc = "For heavy linemen" }
+param height : ratio = 1 in 0.94..1.08 runtime { doc = "Stature against the base figure" }
+param species : enum(human, vael, brannoc) = human runtime
+
+param jersey_color : color = #165348
+param trim_color : color = #e1ae4f
+param pants_color : color = #e9dbaf
+param sock_color : color = #e7dcc1
+param skin_tone : color = #916747
+
+// ---- Skeleton -------------------------------------------------------------
+// "at" is the joint's bind position in model space, as in the Python's
+// bone(name, parent, xyz); the compiler writes parent-relative translations.
+// Joints have identity bind orientation (no "orient"), as in the Python.
+// Limits are swing and twist (spec 3.15): every bone here lies along Y, so
+// twist is about Y and the swing ranges are about X and Z. The numbers are
+// sequoia's Euler bands (audit.go), which agree with swing and twist for
+// bones along Y at moderate angles; milestone M4 re-derives them. The mirror
+// reflects the ranges for the right side.
+
+skeleton body {
+  // The Python's joint order: both left limbs, then both right limbs.
+  joint_order = [pelvis, chest, head, arml, elbowl, handl, legl, kneel, anklel,
+                 armr, elbowr, handr, legr, kneer, ankler]
+  root_scale = height        // clip root translations scale with stature
+
+  joint pelvis {
+    at = (0, 1, 0)
+    socket towel { kind = towel at = (0.09, 1.04, -0.14) }
+
+    joint chest {
+      at = (0, 1.12, 0)
+      swing_x = -70..30
+      twist = -40..40
+      swing_z = -35..35
+
+      joint head {
+        at = (0, 1.7, -0.012)
+        swing_x = -60..70
+        twist = -80..80
+        swing_z = -40..40
+        socket head_gear { kind = helmet at = (0, 1.7, -0.012) }
+        socket crest { kind = crest at = (0, 1.93, -0.02) }   // a Vael crest runs through the helmet's channel
+      }
+
+      mirror {
+        plane = x
+        joint (arml, armr) {
+          at = (0.284, 1.59, 0)
+          swing_x = -60..170      // sequoia's 180, kept below the swing's 180° singularity
+          twist = -90..90
+          swing_z = -30..170
+          joint (elbowl, elbowr) {
+            at = (0.336, 1.275, -0.014)
+            swing_x = -5..150
+            twist = -80..80
+            swing_z = -20..20
+            joint (handl, handr) {
+              at = (0.344, 1.034, -0.024)
+              swing_x = -70..80
+              twist = -30..30
+              swing_z = -40..40
+              socket (ball_l, ball_r) { kind = ball at = (0.344, 0.97, -0.07) }
+              socket (hand_gear_l, hand_gear_r) { kind = hand at = (0.344, 0.987, -0.026) }   // species hands and gloves
+            }
+          }
+        }
+      }
+    }
+
+    mirror {
+      plane = x
+      joint (legl, legr) {
+        at = (0.148, 1.015, 0.002)
+        swing_x = -30..125
+        twist = -40..40
+        swing_z = -30..45
+        joint (kneel, kneer) {
+          at = (0.146, 0.57, -0.016)
+          swing_x = -150..5
+          twist = -15..15
+          swing_z = -8..8
+          joint (anklel, ankler) {
+            at = (0.145, 0.035, -0.062)
+            swing_x = -50..35
+            twist = -20..20
+            swing_z = -25..25
+          }
+        }
+      }
+    }
+  }
+}
+
+// ---- Looks ----------------------------------------------------------------
+// The Python's 4 x 4 atlas of 128-pixel cells, inset 7 % against mip bleed.
+// Painters are the Python's atlas() shading, per cell. u and v run 0..1 over
+// the inset area of a cell; px and py are the texel's column and row in the
+// cell. Colours are in the stored sRGB encoding (0..1), so the Python's 8-bit
+// grain of 1.2 becomes 1.2 / 255, as does its woven "textile" pattern.
+
+painter cloth(base: color, folds: switch = off, skin: switch = off, dark: switch = off) {
+  let turn = 360deg * u
+  let wrap = 0.62 + 0.38 * (0.5 + 0.5 * cos(turn + 0.27rad))
+  let shade = 0.89 + 0.10 * cos(2 * turn)
+  let f = (0.65 + 0.35 * wrap) * (0.69 + 0.31 * sin(0.22rad + 2.35rad * v)) * shade
+  let fold = if folds then 0.06 * sin(36rad * v + 2.9rad * cos(turn)) * (0.45 + 0.55 * pow(cos(180deg * v), 2)) else 0
+  let pore = if skin then 0.045 * cos(3 * turn + 0.31rad) * sin(180deg * v) else 0
+  let k = (f + fold + pore) * (if dark then 0.83 else 1)
+  let textile = 0.8 * (if mod(px, 3) == 0 then 1 else 0) + 0.65 * (if mod(py, 4) == 1 then 1 else 0)
+  color = base * k + (grain(1.2) - textile) / 255
+}
+
+painter sheen(base: color) {
+  let turn = 360deg * u
+  let wrap = 0.62 + 0.38 * (0.5 + 0.5 * cos(turn + 0.27rad))
+  let k = 0.72 + 0.20 * wrap + 0.14 * sin(1.6rad * v) + 0.16 * pow(max(0, cos(turn + 0.9rad)), 8)
+  let textile = 0.8 * (if mod(px, 3) == 0 then 1 else 0) + 0.65 * (if mod(py, 4) == 1 then 1 else 0)
+  color = base * k + (grain(1.2) - textile) / 255
+}
+
+painter flat(base: color) {
+  let wrap = 0.62 + 0.38 * (0.5 + 0.5 * cos(360deg * u + 0.27rad))
+  let textile = 0.8 * (if mod(px, 3) == 0 then 1 else 0) + 0.65 * (if mod(py, 4) == 1 then 1 else 0)
+  color = base * (0.88 + 0.12 * wrap) + (grain(1.2) - textile) / 255
+}
+
+texture kit = atlas {
+  grid = (4, 4)
+  cell_size = 128px
+  inset = 7%
+  seed = 55
+  cell jersey { index = 0  paint = cloth(jersey_color, folds = on) }
+  cell trim { index = 1  paint = sheen(trim_color) }
+  cell pants { index = 2  paint = cloth(pants_color, folds = on) }
+  cell skin { index = 3  paint = cloth(skin_tone, skin = on) }
+  cell socks { index = 4  paint = cloth(sock_color) }
+  cell mask { index = 5  paint = sheen(#48545a) }
+  cell dark { index = 6  paint = cloth(#242b30, dark = on) }
+  cell brow { index = 7  paint = flat(#2d2020) }
+  cell gold { index = 8  paint = flat(#ecaf42) }
+  cell lip { index = 9  paint = flat(#713d32) }
+  cell pad { index = 10  paint = flat(#c4ccca) }
+  cell white { index = 11  paint = cloth(#fbefd4) }
+  fill = flat(jersey_color)  // cells 12 to 15 are unused
+  encode = png
+}
+
+material kit_cloth = pbr {
+  name = "Original equipment atlas"
+  base_texture = kit
+  roughness = 0.67
+  metallic = 0.04
+  double_sided = on
+  filter = trilinear
+  wrap = clamp
+}
+
+// ---- Body -------------------------------------------------------------------
+// A loft is the Python's ring(): rows of (x, y, z, rx, rz) from bottom to top,
+// "segments" vertices per ring (default 14), both ends closed by fans. An
+// ellipsoid is ell() (12 segments, 7 rings); a tube is tube() (7 segments,
+// open ends). "joint" binds a shape rigidly; the skin block blends it.
+
+part body {
+  material = kit_cloth
+
+  loft pants {
+    joint = pelvis
+    cell = pants
+    ring (0, 0.86, 0.019, 0.138, 0.122)
+    ring (0, 0.96, 0.018, 0.212, 0.145)
+    ring (0, 1.045, 0.015, 0.224, 0.144)
+    ring (0, 1.11, 0, 0.19, 0.121)
+  }
+  loft belt {
+    joint = pelvis
+    cell = dark
+    ring (0, 1.066, 0.002, 0.208, 0.143)
+    ring (0, 1.104, 0.002, 0.203, 0.135)
+  }
+  loft jersey {
+    joint = chest
+    cell = jersey
+    segments = 24
+    ring (0, 1.078, 0.002, 0.191, 0.130)
+    ring (0, 1.12, 0.008, 0.204, 0.138)
+    ring (0, 1.153, 0.013, 0.201, 0.144)
+    ring (0, 1.179, 0.012, 0.21, 0.143)
+    ring (0, 1.257, 0.008, 0.202, 0.14)
+    ring (0, 1.352, -0.005, 0.235, 0.163)
+    ring (0, 1.447, -0.015, 0.275, 0.192)
+    ring (0, 1.503, -0.013, 0.294, 0.193)
+    ring (0, 1.569, 0.008, 0.297, 0.166)
+    ring (0, 1.615, 0.019, 0.24, 0.135)
+    ring (0, 1.668, 0.016, 0.112, 0.105)
+  }
+  loft collar {
+    joint = chest
+    cell = trim
+    segments = 15
+    ring (0, 1.622, -0.006, 0.140, 0.108)
+    ring (0, 1.657, -0.010, 0.135, 0.112)
+    ring (0, 1.678, -0.006, 0.108, 0.098)
+  }
+
+  // Head and face. The helmet is mounted on head_gear (see "mount" below).
+  loft neck {
+    joint = head
+    cell = skin
+    ring (0, 1.62, 0.004, 0.090, 0.078)
+    ring (0, 1.755, -0.014, 0.079, 0.084)
+  }
+  loft head {
+    joint = head
+    cell = skin
+    segments = 18
+    ring (0, 1.695, -0.022, 0.059, 0.069)
+    ring (0, 1.718, -0.047, 0.082, 0.097)
+    ring (0, 1.759, -0.044, 0.103, 0.115)
+    ring (0, 1.811, -0.044, 0.112, 0.12)
+    ring (0, 1.867, -0.036, 0.114, 0.11)
+    ring (0, 1.923, -0.024, 0.091, 0.09)
+  }
+  ellipsoid nose { joint = head cell = skin centre = (0, 1.791, -0.161) radii = (0.027, 0.037, 0.03) }
+  ellipsoid mouth { joint = head cell = lip centre = (0, 1.747, -0.153) radii = (0.05, 0.009, 0.008) }
+
+  mirror {
+    plane = x
+    ellipsoid (brow_l, brow_r) { joint = head cell = brow centre = (0.049, 1.823, -0.151) radii = (0.036, 0.012, 0.012) }
+    ellipsoid (eye_l, eye_r) { joint = head cell = white centre = (0.048, 1.824, -0.162) radii = (0.022, 0.006, 0.004) }
+    ellipsoid (pupil_l, pupil_r) { joint = head cell = dark centre = (0.046, 1.824, -0.166) radii = (0.008, 0.006, 0.003) }
+
+    // Sleeve cap over the deltoid, skin biceps, forearm, wrist tape, glove.
+    loft (shoulder_pad_l, shoulder_pad_r) {
+      joint = arml
+      cell = jersey
+      ring (0.314, 1.403, 0.004, 0.08, 0.092)
+      ring (0.318, 1.435, 0.002, 0.099, 0.103)
+      ring (0.301, 1.518, 0.001, 0.126, 0.122)
+      ring (0.282, 1.58, 0.005, 0.120, 0.124)
+      ring (0.258, 1.626, 0.007, 0.082, 0.094)
+      ring (0.244, 1.642, 0.006, 0.018, 0.04)
+    }
+    loft (sleeve_hem_l, sleeve_hem_r) {
+      joint = arml
+      cell = trim
+      ring (0.317, 1.445, 0.002, 0.101, 0.106)
+      ring (0.313, 1.473, 0.003, 0.107, 0.111)
+    }
+    loft (biceps_l, biceps_r) {
+      joint = arml
+      cell = skin
+      ring (0.336, 1.265, -0.01, 0.054, 0.059)
+      ring (0.335, 1.306, -0.01, 0.071, 0.07)
+      ring (0.33, 1.363, -0.016, 0.079, 0.086)
+      ring (0.315, 1.414, -0.001, 0.080, 0.083)
+      ring (0.314, 1.447, 0.005, 0.075, 0.08)
+    }
+    loft (forearm_l, forearm_r) {
+      joint = elbowl
+      cell = skin
+      ring (0.347, 1.047, -0.028, 0.044, 0.044)
+      ring (0.348, 1.123, -0.024, 0.052, 0.056)
+      ring (0.346, 1.213, -0.014, 0.073, 0.068)
+      ring (0.339, 1.275, -0.012, 0.063, 0.064)
+      ring (0.334, 1.299, -0.012, 0.045, 0.047)
+    }
+    loft (wrist_tape_l, wrist_tape_r) {
+      joint = elbowl
+      cell = white
+      segments = 10
+      ring (0.345, 1.029, -0.025, 0.048, 0.047)
+      ring (0.346, 1.088, -0.026, 0.051, 0.049)
+    }
+    ellipsoid (glove_l, glove_r) { joint = handl cell = dark centre = (0.343, 0.987, -0.026) radii = (0.048, 0.079, 0.033) }
+    ellipsoid (palm_l, palm_r) { joint = handl cell = white centre = (0.342, 1.003, -0.05) radii = (0.039, 0.046, 0.012) }
+    // Four fingers; "index" names the copy number, 0 to 3, for the expressions.
+    array (fingers_l, fingers_r) {
+      mode = linear
+      count = 4
+      index = f
+      ellipsoid {
+        joint = handl
+        cell = dark
+        centre = (0.311 + 0.018 * f, 0.934 + 0.005 * abs(f - 1), -0.025)
+        radii = (0.010, 0.034, 0.015)
+        segments = 7
+        rings = 4
+      }
+    }
+
+    // Hip to knee, lateral pad and sewn piping.
+    loft (thigh_l, thigh_r) {
+      joint = legl
+      cell = pants
+      segments = 16
+      ring (0.145, 0.555, -0.008, 0.080, 0.085)
+      ring (0.146, 0.62, -0.024, 0.094, 0.100)
+      ring (0.157, 0.699, -0.021, 0.111, 0.124)
+      ring (0.153, 0.807, -0.014, 0.128, 0.150)
+      ring (0.144, 0.912, 0.007, 0.136, 0.148)
+      ring (0.136, 1.006, 0.014, 0.121, 0.129)
+      ring (0.129, 1.057, 0.008, 0.097, 0.106)
+    }
+    ellipsoid (thigh_pad_l, thigh_pad_r) { joint = legl cell = pants centre = (0.161, 0.662, -0.089) radii = (0.079, 0.105, 0.048) }
+    tube (piping_l, piping_r) {
+      joint = legl
+      cell = trim
+      radius = 0.009
+      point (0.242, 0.608, -0.015)
+      point (0.273, 0.787, -0.010)
+      point (0.276, 0.89, 0.01)
+      point (0.256, 1.0, 0.012)
+    }
+
+    // Sock and shin, knee band, stripe, cleat, sole and laces.
+    loft (sock_l, sock_r) {
+      joint = kneel
+      cell = socks
+      ring (0.145, 0.161, 0.014, 0.048, 0.053)
+      ring (0.146, 0.28, 0.027, 0.058, 0.064)
+      ring (0.147, 0.388, 0.026, 0.080, 0.089)
+      ring (0.147, 0.472, 0.017, 0.085, 0.087)
+      ring (0.145, 0.524, -0.006, 0.076, 0.073)
+      ring (0.145, 0.573, -0.012, 0.074, 0.074)
+    }
+    loft (knee_band_l, knee_band_r) {
+      joint = kneel
+      cell = white
+      ring (0.145, 0.49, 0.013, 0.082, 0.083)
+      ring (0.145, 0.515, 0.006, 0.080, 0.079)
+    }
+    loft (sock_stripe_l, sock_stripe_r) {
+      joint = kneel
+      cell = trim
+      ring (0.145, 0.449, 0.020, 0.087, 0.088)
+      ring (0.145, 0.466, 0.019, 0.086, 0.089)
+    }
+    loft (cleat_l, cleat_r) {
+      joint = anklel
+      cell = dark
+      ring (0.145, 0.045, -0.055, 0.075, 0.164)
+      ring (0.145, 0.078, -0.054, 0.074, 0.161)
+      ring (0.145, 0.115, -0.033, 0.066, 0.132)
+      ring (0.145, 0.157, 0.009, 0.055, 0.072)
+      ring (0.145, 0.177, 0.009, 0.051, 0.065)
+    }
+    loft (sole_l, sole_r) {
+      joint = anklel
+      cell = white
+      segments = 12
+      ring (0.145, 0.035, -0.062, 0.073, 0.16)
+      ring (0.145, 0.051, -0.062, 0.076, 0.165)
+    }
+    array (laces_l, laces_r) {
+      mode = linear
+      count = 3
+      index = i
+      tube {
+        joint = anklel
+        cell = white
+        radius = 0.0035
+        segments = 4
+        point (0.115, 0.106, -0.1 + 0.03 * i)
+        point (0.175, 0.11, -0.109 + 0.03 * i)
+      }
+    }
+  }
+}
+
+// ---- Skin -------------------------------------------------------------------
+// Every shape starts rigid on its "joint". These steps then run in order.
+
+skin {
+  max_influences = 2
+
+  // sequoia's proportion(): a person's arm is about 33 % of stature, with the
+  // upper arm about 1.25 times the forearm. lengthen moves the child joint and
+  // stretches the vertices bound past "anchor" (a share of the bone).
+  mirror {
+    plane = x
+    lengthen { joint = arml to = 0.355 anchor = 0.5 rigid = [shoulder_pad_l, sleeve_hem_l] }
+    lengthen { joint = elbowl to = 0.285 anchor = 0 }
+  }
+
+  // sequoia's blend(): weights ease from parent to child across "width" either
+  // side of "centre", along "axis". joint(name) is a joint's bind position
+  // after the lengthen steps.
+  blend waist { parent = pelvis child = chest centre = joint(chest) axis = (0, 1, 0) width = 0.07 }
+  blend neck { parent = chest child = head centre = (0, 1.69, -0.006) axis = (0, 1, 0) width = 0.05 }
+  mirror {
+    plane = x
+    blend (hip_l, hip_r) {
+      parent = pelvis
+      child = legl
+      centre = joint(legl) + (0, -0.045, 0)
+      axis = (0, -1, 0)
+      width = 0.08
+      fade_x = 0..0.12       // fades in from the midline toward this side
+    }
+    blend (knee_l, knee_r) { parent = legl child = kneel centre = joint(kneel) axis = (0, -1, 0) width = 0.11 }
+    blend (shin_l, shin_r) { parent = kneel child = anklel centre = (0.145, 0.17, -0.03) axis = (0, -1, 0) width = 0.045 }
+    blend (shoulder_l, shoulder_r) {
+      parent = chest
+      child = arml
+      centre = joint(arml) + (0, -0.02, 0)
+      axis = (0, -1, 0)
+      width = 0.09
+      only = [shoulder_pad_l, sleeve_hem_l]
+    }
+    blend (elbow_l, elbow_r) { parent = arml child = elbowl centre = joint(elbowl) axis = (0, -1, 0) width = 0.08 }
+    blend (wrist_l, wrist_r) { parent = elbowl child = handl centre = joint(handl) + (0, 0.02, 0) axis = (0, -1, 0) width = 0.04 }
+  }
+}
+
+// ---- Morph targets ------------------------------------------------------------
+// Each morph is a displacement of the finished, skinned bind mesh. "weight" is
+// a piecewise-linear function of one runtime parameter; the compiler writes it
+// as a table the renderer evaluates (spec 4.5). "name" keeps athletelook's
+// hyphenated target names. The shapes are first guesses for sequoia to tune.
+
+morph mass {
+  weight = build
+  inflate { parts = [pants, belt, jersey, collar, neck] by = 14% }
+  mirror {
+    plane = x
+    inflate { parts = [thigh_l, thigh_pad_l, biceps_l, forearm_l] by = 16% }
+  }
+}
+
+morph pad_size {
+  name = "pads"
+  weight = pads
+  mirror {
+    plane = x
+    inflate { parts = [shoulder_pad_l, sleeve_hem_l] by = 20% }
+  }
+}
+
+morph belly {
+  weight = belly
+  reshape { parts = [jersey, belt, pants] about = joint(pelvis) scale = (1.06, 1, 1.18) }
+}
+
+// Stature: stretch scales the band from "from" to "to" along y by "by" and
+// lifts everything above it, so legs and trunk lengthen and the head keeps
+// its shape. joints = follow moves joint bind positions with the surface; the
+// renderer applies those as joint offsets (spec 4.5). athletelook sets a
+// uniform model Scale today; open question 12 compares the two.
+morph tall {
+  weight = clamp((height - 1) / 0.08, 0, 1)
+  stretch { axis = y from = 0 to = 1.62 by = 8% }
+  joints = follow
+}
+
+morph short {
+  weight = clamp((1 - height) / 0.06, 0, 1)
+  stretch { axis = y from = 0 to = 1.62 by = -6% }
+  joints = follow
+}
+
+// Vael: lean and long-necked. Their crest and three-fingered hands are gear
+// on the crest and hand sockets, not morphs.
+morph neck_long {
+  name = "neck-long"
+  weight = if species == vael then 1 else 0
+  stretch { axis = y from = 1.62 to = 1.70 by = 60% }
+  joints = follow
+}
+
+morph limb_lean {
+  name = "limb-lean"
+  weight = if species == vael then 1 else 0
+  mirror {
+    plane = x
+    inflate { parts = [thigh_l, sock_l, biceps_l, forearm_l] by = -12% }
+  }
+}
+
+// Brannoc: broad, deep-chested, short-necked, heavy brow.
+morph neck_short {
+  name = "neck-short"
+  weight = if species == brannoc then 1 else 0
+  stretch { axis = y from = 1.62 to = 1.70 by = -40% }
+  joints = follow
+}
+
+morph chest_deep {
+  name = "chest-deep"
+  weight = if species == brannoc then 1 else 0
+  reshape { parts = [jersey, collar] about = joint(chest) scale = (1.08, 1, 1.2) }
+}
+
+morph brow {
+  weight = if species == brannoc then 1 else 0
+  offset { parts = [brow_l, brow_r] by = (0, -0.006, -0.012) }
+  reshape { parts = [head] about = joint(head) scale = (1.06, 0.97, 1.04) }
+}
+
+// ---- Gear ---------------------------------------------------------------------
+
+// The helmet document's plug meets this figure's head_gear socket. With
+// mode = runtime the game mounts helmet-classic.glb or helmet-aero.glb on the
+// socket and sets its parameters per player; mode = bake merges the helmet
+// into this mesh, rigid on the head joint, as the Python did.
+mount headgear {
+  asset = helmet
+  socket = head_gear
+  mode = runtime
+  set {
+    shell_style = classic    // picks helmet-classic.glb
+    facemask = cage
+  }
+  // Mounted, the helmet keeps 2 mm from the head in the bind pose and at every
+  // key of every clip. The check lives here because only the host knows both.
+  fit { clearance = 2mm }
+}
+
+// ---- Clips --------------------------------------------------------------------
+// A clip samples its pose at "keys" evenly spaced times from t = 0 to t = 1,
+// both ends included, and writes LINEAR keys over "duration" (the Python's
+// linspace(0, 1, n) * duration). rot(x, y, z) is intrinsic X, then Y, then Z,
+// in degrees here. root is the root joint's translation.
+// Inside the mirror, "side" is 1 for the left copy and -1 for the right copy,
+// and the right copy's rotations are reflected (Y and Z negated for these
+// identity-oriented joints), so the Python's ro('arm'+s, upper, sg*3, sg*8) is
+// written arml = rot(upper, 3, 8). A reference to arml in the right copy
+// resolves to armr, its pair. Bare literals take degrees from the slot; a
+// "let" carries its unit, so the thigh and shin angles are written in deg.
+
+clip ready {
+  duration = 0.9s
+  keys = 13
+  loop = on
+  pose {
+    pelvis = rot(0, 0, 0)
+    chest = rot(-6, 0, 0)
+    head = rot(3.3, 0, 0)
+    mirror {
+      plane = x
+      let thigh = 15deg + 6deg * side       // a named angle carries its unit
+      let shin = -27deg - 3deg * side
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      // sequoia clamps the foot inside the ankle band (pose.go): 40 down, 20 up.
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(8 + 4 * side, 3, 8)
+      elbowl = rot(48 - 11 * side, 14, -8)
+      handl = rot(0, 0, 0)
+    }
+    // Keep cleat contact once the hips and knees bend.
+    root = (0, 1 - (0.46 * (1 - cos(18deg)) + 0.008), 0)
+  }
+}
+
+clip run {
+  duration = 0.71s
+  keys = 25
+  loop = on
+  let wob = sin(360deg * t)
+  pose {
+    pelvis = rot(0, 0, 0)
+    chest = rot(-12, -8 * wob, 0)
+    head = rot(6.6, 3 * wob, 0)
+    mirror {
+      plane = x
+      let w = side * wob
+      let thigh = 12deg + 34deg * w
+      let shin = -max(10deg, 35deg - 35deg * w)
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      // sequoia clamps the foot inside the ankle band (pose.go): 40 down, 20 up.
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(-15 - 32 * w, 3, 8)
+      elbowl = rot(48 + 7 * w, 0, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1 - (0.46 * (1 - cos(23deg)) + 0.008) + 0.028 * (1 - abs(wob)), 0)
+  }
+}
+
+// The Python's four lookup channels on the wrapper nodes. Their "times" are
+// field coordinates, not seconds: the game samples field-x at time x + 64.
+// "name" keeps the game's hyphenated animation names.
+clip field_x {
+  name = "field-x"
+  node = "field lateral"
+  key (0s, (-64, 0, 0))
+  key (128s, (64, 0, 0))
+}
+clip field_z {
+  name = "field-z"
+  node = "field depth"
+  key (0s, (0, 0, -144))
+  key (192s, (0, 0, 48))
+}
+clip stance_height {
+  name = "stance-height"
+  node = "stance height"
+  key (0s, (0, -1, 0))
+  key (2s, (0, 1, 0))
+}
+clip heading {
+  name = "heading"
+  node = "body heading"
+  sample h in -180deg..180deg by 33 -> key (seconds(radians(h + 180deg)), rot(0, h, 0))
+}
+
+// ---- Collision, checks, budgets ---------------------------------------------------
+
+// One hit capsule, independent of gear, so every build and helmet is equally
+// easy to hit.
+collision {
+  capsule hit {
+    joint = pelvis
+    from = (0, 0.12, 0)
+    to = (0, 1.82, 0)
+    radius = 0.22
+  }
+}
+
+// Every check below runs at these runtime points, not only the defaults
+// (spec 6.9): each body parameter at its extremes, every species, and both
+// helmet shells on the mount, one at a time. The named case adds the
+// combination most likely to clip, a Brannoc lineman under the aero shell.
+check runtime {
+  corners = [build, pads, belly, height]
+  each = [species]
+  gear = [helmet.classic, helmet.aero]
+  // Already inside the full product (2^4 x 3 x 2 = 96 points); named so the
+  // report lists it by name.
+  case brannoc_lineman_aero {
+    set { species = brannoc build = 1 belly = 1 }
+    gear = helmet.aero
+  }
+}
+
+// The deformation audit (spec section 6.6): every clip, every key, at every
+// level of detail, with these pass marks.
+check rig {
+  ground = -5mm..20mm         // the lowest sole vertex at every key and runtime point
+  waist = (pelvis, chest)
+  legs = (legl, legr)
+  waist_ratio = 0.95
+  torn = 1%
+  open = 2%
+  bands = error
+}
+
+budget {
+  triangles = 9000
+  bones = 15
+  influences = 2
+  texture_bytes = 1MiB       // decoded RGBA, 512 x 512
+  materials = 1
+  draw_calls = 1              // the match file; the helmet is its own model
+  draw_calls_worst = 1
+  // Ten targets, above the default of 8. sequoia measured about 870 KB per
+  // file for 8 full targets; delivery quantization and sparse targets
+  // (only the moved vertices) should cut that, which M7 must measure.
+  morphs = 10
+  file_size = 1MiB
+}
+
+// Re-tessellation, not decimation: every shape is parametric. Fewer segments
+// per ring within 4 mm, interior loft rings dropped where the surface moves
+// less than that. The skeleton, clips and sockets stay.
+lod 1 {
+  distance = 30m
+  max_error = 4mm
+  keep = [head, glove_l, glove_r]        // these keep their lod 0 segments
+  drop = [laces_l, laces_r, pupil_l, pupil_r, brow_l, brow_r, eye_l, eye_r]
+}
+
+// ---- Outputs ------------------------------------------------------------------------
+
+// The school table comes from the game's own build hook (Go), which writes
+// it from league/schools.go. The Python read that Go file with regular
+// expressions; Greenware reads data, not code.
+table schools = json {
+  path = "build/schools.json"
+  columns = (key, main, away, trim)
+}
+
+// athlete.glb: the match file. The helmet is mounted at run time on head_gear.
+output match {
+  file = "athlete.glb"
+  mounts = runtime
+}
+
+// home.glb and away.glb: the Python's two files, for parity, helmet merged in
+// with the mount's set values. The baked helmet adds its palette material.
+output home {
+  file = "home.glb"
+  mounts = bake
+  budget { materials = 2 draw_calls = 2 draw_calls_worst = 2 }
+}
+output away {
+  file = "away.glb"
+  mounts = bake
+  budget { materials = 2 draw_calls = 2 draw_calls_worst = 2 }
+  set {
+    jersey_color = #f1f2ed
+    trim_color = #aa3f28
+    pants_color = #ab4834
+    sock_color = #e5e8dd
+  }
+}
+
+// kits/home-<main>.gltf and kits/away-<main>.gltf: one small glTF per school
+// and side, each with its own atlas, all sharing kits/athlete.bin.
+output kits_home {
+  for_each = schools
+  file = "kits/home-{row.key}.gltf"
+  buffer = "kits/athlete.bin"
+  image = jpeg(89)
+  mounts = bake
+  budget { materials = 2 draw_calls = 2 draw_calls_worst = 2 }
+  set {
+    jersey_color = row.main
+    trim_color = row.trim
+    pants_color = row.away
+  }
+}
+output kits_away {
+  for_each = schools
+  file = "kits/away-{row.key}.gltf"
+  buffer = "kits/athlete.bin"
+  image = jpeg(89)
+  mounts = bake
+  budget { materials = 2 draw_calls = 2 draw_calls_worst = 2 }
+  set {
+    jersey_color = row.away
+    trim_color = row.main
+    pants_color = row.main
+    sock_color = #e5e8dd
+  }
+}

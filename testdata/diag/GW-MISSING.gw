@@ -1,0 +1,7 @@
+greenware 1
+
+asset a { root = a }
+
+part a {
+  cylinder { height = 1m }
+}

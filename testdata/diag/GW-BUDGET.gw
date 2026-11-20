@@ -1,0 +1,18 @@
+greenware 1
+
+asset a { root = a }
+
+material red = pbr { base = #ff0000 roughness = 0.5 metallic = 0 }
+material blue = pbr { base = #0000ff roughness = 0.5 metallic = 0 }
+
+part a {
+  material = red
+  cylinder { radius = 0.1m height = 1m }
+  part b {
+    export = on
+    material = blue
+    cylinder { radius = 0.1m height = 1m }
+  }
+}
+
+budget { materials = 1 }

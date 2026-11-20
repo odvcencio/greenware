@@ -1,0 +1,10 @@
+greenware 1
+
+asset a { root = a }
+
+part a {
+  mirror {
+    plane = x
+    part leg { }
+  }
+}
