@@ -1,0 +1,43 @@
+# Greenware
+
+> Greenware is a source language for 3D assets. One `.gw` file describes one asset, such as a prop, a building, a vehicle or a character. The compiler turns the file into a glTF 2.0 binary (GLB) with the same bytes on every run, and it checks the file. Greenware is pre-1.0: the language, the compiler and the file format change without notice.
+
+Source: https://github.com/odvcencio/greenware
+
+The README says the compiler that joins the parts is under construction. `CHANGELOG.md` lists what works now.
+
+## Start here
+
+- [Goal post source](examples/goalpost/goalpost.gw): the example to start from. It uses parameters, materials, parts, sockets, levels of detail, collision, a budget and outputs.
+- [Goal post acceptance tests](examples/goalpost/goalpost.accept.gw): the checks that run on the decoded GLB files of the goal post at each level of detail.
+- [Overview](README.md): a short example, the layout and the licence.
+- [Changelog](CHANGELOG.md): what changed and what works now.
+
+## Commands
+
+- [Command-line tool](cmd/greenware/main.go): the four commands are `build <file>` (writes GLB files), `check <file>` (lists diagnostics), `fmt <file>` (formats source; `--check` and `--write` change how it runs) and `accept <source.gw> <accept.gw> --glb-dir DIR` (runs acceptance tests). Each command takes `--json`.
+- Exit status: 0 means success. 1 means an error diagnostic, or a file that `fmt --check` finds unformatted. 2 means a usage or read error. `accept` exits 3 when no check failed but some could not be measured.
+
+## Code map
+
+- [lang/](lang/): parses and formats `.gw` files. Holds the parser blob `greenware.bin`.
+- [language/](language/): the names that identify the language, and the grammar source in `language/grammar`.
+- [ast/](ast/): the typed declaration model. Lowers a parsed tree into a file.
+- [resolve/](resolve/): binds names, orders `let` declarations and evaluates constants.
+- [units/](units/): values, dimensions and arithmetic. Lengths are metres and angles are radians.
+- [registry/](registry/): the fields, child blocks and rows that each declaration accepts.
+- [diag/](diag/): diagnostics, with their codes and severities.
+- [compiler/](compiler/): the back end. Builds each output into GLB files.
+- [accept/](accept/): runs acceptance files on decoded GLB files.
+- [kernel/](kernel/): the geometry kernel. `kernel/build` makes parametric shapes and `kernel/mesh` holds the mesh type.
+- [gltf/](gltf/): reads and writes GLB. Its own module, and it imports only `det`.
+- [det/](det/): deterministic scalar math. Its own module.
+- [conformance/](conformance/): an independent checker in its own module. It reads no Greenware code.
+
+## Reference
+
+- [Diagnostic codes](diag/catalogue.go): the one list of codes. Each entry gives a code, its severity, when it is reported and a fixture that triggers it.
+- [Grammar reference](docs/reference/grammar.ebnf): the generated EBNF grammar.
+- [Contributing](CONTRIBUTING.md): how to build, test and change the project.
+- [Agent rules](AGENTS.md): the rules for automated and human contributors.
+- [Licence](LICENSE): MIT, copyright M31 Labs.
