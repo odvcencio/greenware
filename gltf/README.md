@@ -27,8 +27,12 @@ back, err := gltf.Decode(glb)
   and raw-JSON extras and extensions.
 - Decode reads indices as ubyte, ushort or uint, and strided bufferViews. It turns a
   node `matrix` into translation, rotation and scale.
-- Not covered: skins, animations, cameras, morph targets, sparse accessors, other
-  vertex attributes, external buffers. See the package comment for each choice.
+- Skins (JOINTS_0, WEIGHTS_0, inverse bind matrices), morph targets (POSITION and
+  NORMAL deltas, mesh weights, target names), animations (translation, rotation,
+  scale and weights; LINEAR, STEP and CUBICSPLINE), and material alpha mode,
+  double-sided, emissive factor and texCoord.
+- Not covered: cameras, sparse accessors, other vertex attributes, quantized
+  animation output, external buffers. See the package comment for each choice.
 
 ## Canonical output
 
@@ -43,4 +47,6 @@ rejected. The writer does not merge duplicate vertices.
     go test -run xxx -fuzz FuzzDecode -fuzztime 30s .
     go test -update -run TestGolden .   # only after an intended format change
 
-`testdata/triangle.glb` is the golden file. Its SHA-256 is in `gltf_test.go`.
+`testdata/triangle.glb` and `testdata/rigged.glb` are the golden files. Their SHA-256
+values are in `gltf_test.go` and `rig_test.go`. Rewrite both with
+`go test -update -run 'TestGolden|TestRigGolden' .`.

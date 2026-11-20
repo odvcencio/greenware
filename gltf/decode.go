@@ -22,6 +22,7 @@ type jScene struct {
 type jNode struct {
 	Name        string                     `json:"name"`
 	Mesh        *int                       `json:"mesh"`
+	Skin        *int                       `json:"skin"`
 	Children    []int                      `json:"children"`
 	Translation []float64                  `json:"translation"`
 	Rotation    []float64                  `json:"rotation"`
@@ -31,15 +32,17 @@ type jNode struct {
 	Extensions  map[string]json.RawMessage `json:"extensions"`
 }
 type jPrim struct {
-	Attributes map[string]int  `json:"attributes"`
-	Indices    *int            `json:"indices"`
-	Material   *int            `json:"material"`
-	Mode       *int            `json:"mode"`
-	Extras     json.RawMessage `json:"extras"`
+	Attributes map[string]int   `json:"attributes"`
+	Indices    *int             `json:"indices"`
+	Material   *int             `json:"material"`
+	Mode       *int             `json:"mode"`
+	Targets    []map[string]int `json:"targets"`
+	Extras     json.RawMessage  `json:"extras"`
 }
 type jMesh struct {
 	Name       string          `json:"name"`
 	Primitives []jPrim         `json:"primitives"`
+	Weights    []float64       `json:"weights"`
 	Extras     json.RawMessage `json:"extras"`
 }
 type jTexInfo struct {
@@ -55,25 +58,54 @@ type jPBR struct {
 type jMaterial struct {
 	Name       string                     `json:"name"`
 	PBR        *jPBR                      `json:"pbrMetallicRoughness"`
+	Emissive   []float64                  `json:"emissiveFactor"`
+	AlphaMode  string                     `json:"alphaMode"`
+	AlphaCut   *float64                   `json:"alphaCutoff"`
+	DoubleSide bool                       `json:"doubleSided"`
 	Extras     json.RawMessage            `json:"extras"`
 	Extensions map[string]json.RawMessage `json:"extensions"`
 }
 type jTexture struct {
-	Name    string `json:"name"`
-	Sampler *int   `json:"sampler"`
-	Source  *int   `json:"source"`
+	Name    string          `json:"name"`
+	Sampler *int            `json:"sampler"`
+	Source  *int            `json:"source"`
+	Extras  json.RawMessage `json:"extras"`
 }
 type jImage struct {
-	Name       string `json:"name"`
-	URI        string `json:"uri"`
-	MimeType   string `json:"mimeType"`
-	BufferView *int   `json:"bufferView"`
+	Name       string          `json:"name"`
+	URI        string          `json:"uri"`
+	MimeType   string          `json:"mimeType"`
+	BufferView *int            `json:"bufferView"`
+	Extras     json.RawMessage `json:"extras"`
 }
 type jSampler struct {
 	MagFilter int `json:"magFilter"`
 	MinFilter int `json:"minFilter"`
 	WrapS     int `json:"wrapS"`
 	WrapT     int `json:"wrapT"`
+}
+type jSkin struct {
+	Name                string `json:"name"`
+	Joints              []int  `json:"joints"`
+	InverseBindMatrices *int   `json:"inverseBindMatrices"`
+	Skeleton            *int   `json:"skeleton"`
+}
+type jChannel struct {
+	Sampler *int `json:"sampler"`
+	Target  *struct {
+		Node *int   `json:"node"`
+		Path string `json:"path"`
+	} `json:"target"`
+}
+type jAnimSampler struct {
+	Input         *int   `json:"input"`
+	Output        *int   `json:"output"`
+	Interpolation string `json:"interpolation"`
+}
+type jAnimation struct {
+	Name     string         `json:"name"`
+	Channels []jChannel     `json:"channels"`
+	Samplers []jAnimSampler `json:"samplers"`
 }
 type jBuffer struct {
 	URI        string `json:"uri"`
@@ -104,6 +136,8 @@ type jDoc struct {
 	Textures    []jTexture      `json:"textures"`
 	Images      []jImage        `json:"images"`
 	Samplers    []jSampler      `json:"samplers"`
+	Skins       []jSkin         `json:"skins"`
+	Animations  []jAnimation    `json:"animations"`
 	Buffers     []jBuffer       `json:"buffers"`
 	BufferViews []jView         `json:"bufferViews"`
 	Accessors   []jAccessor     `json:"accessors"`
@@ -229,6 +263,13 @@ func (d *decoder) view(path string, idx int) (*jView, []byte, error) {
 }
 
 func (d *decoder) accessor(path string, idx int, typ string, comps ...int) (*span, error) {
+	return d.accessorN(path, idx, typ, false, comps...)
+}
+
+// accessorN is accessor with a choice: when normOK is true a normalized
+// accessor is accepted (the caller scales the integers); when it is false a
+// normalized accessor is an error.
+func (d *decoder) accessorN(path string, idx int, typ string, normOK bool, comps ...int) (*span, error) {
 	if idx < 0 || idx >= len(d.j.Accessors) {
 		return nil, errf(path, "accessor %d out of range (have %d)", idx, len(d.j.Accessors))
 	}
@@ -252,7 +293,7 @@ func (d *decoder) accessor(path string, idx int, typ string, comps ...int) (*spa
 	if !allowed {
 		return nil, at(path, ap+".componentType", "%d is not allowed here (allowed %v)", a.ComponentType, comps)
 	}
-	if a.Normalized {
+	if a.Normalized && !normOK {
 		return nil, at(path, ap+".normalized", "normalized data is not supported")
 	}
 	if len(a.Sparse) > 0 && string(a.Sparse) != "null" {
@@ -323,6 +364,49 @@ func (s *span) indices(comp int) []uint32 {
 	return out
 }
 
+// uints reads VEC4 ubyte or ushort data as flat uint16 values.
+func (s *span) uints(comp int) []uint16 {
+	out := make([]uint16, 0, 4*s.count)
+	for i := 0; i < s.count; i++ {
+		el := s.data[i*s.stride:]
+		for c := 0; c < 4; c++ {
+			if comp == compUbyte {
+				out = append(out, uint16(el[c]))
+			} else {
+				out = append(out, binary.LittleEndian.Uint16(el[2*c:]))
+			}
+		}
+	}
+	return out
+}
+
+// normWeights reads VEC4 normalized ubyte or ushort weights. Each vertex is
+// scaled by its integer sum, so the weights add to 1 (up to float rounding)
+// even though the integer sum is allowed to miss the full range by a step.
+func (s *span) normWeights(comp int) []float32 {
+	maxv := float64(255)
+	if comp == compUshort {
+		maxv = 65535
+	}
+	raw := s.uints(comp)
+	out := make([]float32, len(raw))
+	for v := 0; v < s.count; v++ {
+		var sum float64
+		for c := 0; c < 4; c++ {
+			sum += float64(raw[4*v+c])
+		}
+		for c := 0; c < 4; c++ {
+			w := float64(raw[4*v+c])
+			if sum != 0 {
+				out[4*v+c] = float32(w / sum)
+			} else {
+				out[4*v+c] = float32(w / maxv)
+			}
+		}
+	}
+	return out
+}
+
 // at reports a fault found at loc (an accessor or bufferView field) while
 // reading the JSON path where it was referenced.
 func at(path, loc, format string, args ...any) *Error {
@@ -388,7 +472,7 @@ func (d *decoder) build() (*Document, error) {
 	}
 	for i, n := range j.Nodes {
 		p := fmt.Sprintf("nodes[%d]", i)
-		nd := Node{Name: n.Name, Mesh: n.Mesh, Children: nilInts(n.Children)}
+		nd := Node{Name: n.Name, Mesh: n.Mesh, Skin: n.Skin, Children: nilInts(n.Children)}
 		if nd.Extras, err = canonicalJSON(n.Extras); err != nil {
 			return nil, errf(p+".extras", "invalid JSON: %v", err)
 		}
@@ -503,7 +587,47 @@ func (d *decoder) build() (*Document, error) {
 			} else if nv%3 != 0 {
 				return nil, errf(pp+".attributes.POSITION", "non-indexed triangle list needs a multiple of 3 vertices, have %d", nv)
 			}
+			if err := d.skinAttrs(pp, pr, nv, &out); err != nil {
+				return nil, err
+			}
+			for t, tg := range pr.Targets {
+				tp := fmt.Sprintf("%s.targets[%d]", pp, t)
+				var mt MorphTarget
+				if a, ok := tg["POSITION"]; ok {
+					sp, err := d.accessor(tp+".POSITION", a, "VEC3", compFloat)
+					if err != nil {
+						return nil, err
+					}
+					if sp.count != nv {
+						return nil, errf(tp+".POSITION", "count %d differs from POSITION count %d", sp.count, nv)
+					}
+					if mt.Positions, err = sp.floats(tp+".POSITION", 3); err != nil {
+						return nil, err
+					}
+				}
+				if a, ok := tg["NORMAL"]; ok {
+					sp, err := d.accessor(tp+".NORMAL", a, "VEC3", compFloat)
+					if err != nil {
+						return nil, err
+					}
+					if sp.count != nv {
+						return nil, errf(tp+".NORMAL", "count %d differs from POSITION count %d", sp.count, nv)
+					}
+					if mt.Normals, err = sp.floats(tp+".NORMAL", 3); err != nil {
+						return nil, err
+					}
+				}
+				out.Targets = append(out.Targets, mt)
+			}
 			me.Primitives = append(me.Primitives, out)
+		}
+		if len(m.Weights) > 0 {
+			if me.Weights, err = f32s(mp+".weights", m.Weights, len(m.Weights)); err != nil {
+				return nil, err
+			}
+		}
+		if len(me.Primitives) > 0 {
+			me.Extras, me.TargetNames = splitTargetNames(me.Extras, len(me.Primitives[0].Targets))
 		}
 		doc.Meshes = append(doc.Meshes, me)
 	}
@@ -515,6 +639,28 @@ func (d *decoder) build() (*Document, error) {
 		}
 		if mt.Extensions, err = canonicalExt(m.Extensions, p+".extensions"); err != nil {
 			return nil, err
+		}
+		mt.DoubleSided = m.DoubleSide
+		if m.Emissive != nil {
+			v, err := f32s(p+".emissiveFactor", m.Emissive, 3)
+			if err != nil {
+				return nil, err
+			}
+			copy(mt.EmissiveFactor[:], v)
+		}
+		switch m.AlphaMode {
+		case "", AlphaOpaque:
+		case AlphaMask:
+			mt.AlphaMode, mt.AlphaCutoff = AlphaMask, 0.5
+			if m.AlphaCut != nil {
+				v, err := f32s(p+".alphaCutoff", []float64{*m.AlphaCut}, 1)
+				if err != nil {
+					return nil, err
+				}
+				mt.AlphaCutoff = v[0]
+			}
+		default:
+			mt.AlphaMode = m.AlphaMode // Validate reports it (BLEND is valid)
 		}
 		if m.PBR != nil {
 			pp := p + ".pbrMetallicRoughness"
@@ -543,20 +689,24 @@ func (d *decoder) build() (*Document, error) {
 				if t.Index == nil {
 					return nil, errf(pp+".baseColorTexture.index", "missing")
 				}
-				if t.TexCoord != 0 {
-					return nil, errf(pp+".baseColorTexture.texCoord", "only texCoord 0 is supported")
-				}
-				mt.BaseColorTexture = t.Index
+				mt.BaseColorTexture, mt.BaseColorTexCoord = t.Index, t.TexCoord
 			}
 		}
 		doc.Materials = append(doc.Materials, mt)
 	}
-	for _, t := range j.Textures {
-		doc.Textures = append(doc.Textures, Texture{Name: t.Name, Sampler: t.Sampler, Source: t.Source})
+	for i, t := range j.Textures {
+		tx := Texture{Name: t.Name, Sampler: t.Sampler, Source: t.Source}
+		if tx.Extras, err = canonicalJSON(t.Extras); err != nil {
+			return nil, errf(fmt.Sprintf("textures[%d].extras", i), "invalid JSON: %v", err)
+		}
+		doc.Textures = append(doc.Textures, tx)
 	}
 	for i, im := range j.Images {
 		p := fmt.Sprintf("images[%d]", i)
 		out := Image{Name: im.Name, MimeType: im.MimeType, URI: im.URI}
+		if out.Extras, err = canonicalJSON(im.Extras); err != nil {
+			return nil, errf(p+".extras", "invalid JSON: %v", err)
+		}
 		if im.BufferView != nil {
 			if im.URI != "" {
 				return nil, errf(p, "has both uri and bufferView")
@@ -572,10 +722,140 @@ func (d *decoder) build() (*Document, error) {
 	for _, s := range j.Samplers {
 		doc.Samplers = append(doc.Samplers, Sampler{MagFilter: s.MagFilter, MinFilter: s.MinFilter, WrapS: s.WrapS, WrapT: s.WrapT})
 	}
+	if err := d.rig(doc); err != nil {
+		return nil, err
+	}
 	if err := doc.Validate(); err != nil {
 		return nil, err
 	}
 	return doc, nil
+}
+
+// skinAttrs reads JOINTS_0 and WEIGHTS_0 of one primitive into out.
+func (d *decoder) skinAttrs(pp string, pr jPrim, nv int, out *Primitive) error {
+	ja, hasJ := pr.Attributes["JOINTS_0"]
+	wa, hasW := pr.Attributes["WEIGHTS_0"]
+	if !hasJ && !hasW {
+		return nil
+	}
+	if !hasJ || !hasW {
+		return errf(pp+".attributes", "JOINTS_0 and WEIGHTS_0 must both be present")
+	}
+	jp, wp := pp+".attributes.JOINTS_0", pp+".attributes.WEIGHTS_0"
+	sp, err := d.accessor(jp, ja, "VEC4", compUbyte, compUshort)
+	if err != nil {
+		return err
+	}
+	if sp.count != nv {
+		return errf(jp, "count %d differs from POSITION count %d", sp.count, nv)
+	}
+	out.Joints0 = sp.uints(d.j.Accessors[ja].ComponentType)
+	sp, err = d.accessorN(wp, wa, "VEC4", true, compFloat, compUbyte, compUshort)
+	if err != nil {
+		return err
+	}
+	if sp.count != nv {
+		return errf(wp, "count %d differs from POSITION count %d", sp.count, nv)
+	}
+	comp := d.j.Accessors[wa].ComponentType
+	if (comp == compFloat) == d.j.Accessors[wa].Normalized {
+		return errf(wp, "accessors[%d].normalized must be true for integer weights and absent for float weights", wa)
+	}
+	if comp == compFloat {
+		out.Weights0, err = sp.floats(wp, 4)
+		return err
+	}
+	out.Weights0 = sp.normWeights(comp)
+	return nil
+}
+
+// rig reads skins and animations into doc.
+func (d *decoder) rig(doc *Document) error {
+	j := &d.j
+	for i, s := range j.Skins {
+		p := fmt.Sprintf("skins[%d]", i)
+		sk := Skin{Name: s.Name, Joints: nilInts(s.Joints), Skeleton: s.Skeleton}
+		if s.InverseBindMatrices != nil {
+			ip := p + ".inverseBindMatrices"
+			sp, err := d.accessor(ip, *s.InverseBindMatrices, "MAT4", compFloat)
+			if err != nil {
+				return err
+			}
+			if sp.count < len(s.Joints) {
+				return errf(ip, "count %d is below the %d joints", sp.count, len(s.Joints))
+			}
+			sp.count = len(s.Joints) // extra matrices are ignored, as glTF allows
+			flat, err := sp.floats(ip, 16)
+			if err != nil {
+				return err
+			}
+			for k := 0; k < len(s.Joints); k++ {
+				var m [16]float32
+				copy(m[:], flat[16*k:])
+				sk.InverseBindMatrices = append(sk.InverseBindMatrices, m)
+			}
+		}
+		doc.Skins = append(doc.Skins, sk)
+	}
+	for i, a := range j.Animations {
+		p := fmt.Sprintf("animations[%d]", i)
+		an := Animation{Name: a.Name}
+		sampPath := make([]string, len(a.Samplers)) // path of the first channel using each sampler
+		for k, c := range a.Channels {
+			cp := fmt.Sprintf("%s.channels[%d]", p, k)
+			if c.Sampler == nil {
+				return errf(cp+".sampler", "missing")
+			}
+			if c.Target == nil || c.Target.Node == nil {
+				return errf(cp+".target.node", "missing (animation pointer targets are not supported)")
+			}
+			if pathComps(c.Target.Path) == 0 {
+				return errf(cp+".target.path", "%q is not translation, rotation, scale or weights", c.Target.Path)
+			}
+			if *c.Sampler < 0 || *c.Sampler >= len(a.Samplers) {
+				return errf(cp+".sampler", "index %d out of range (have %d)", *c.Sampler, len(a.Samplers))
+			}
+			if sampPath[*c.Sampler] == "" {
+				sampPath[*c.Sampler] = c.Target.Path
+			}
+			an.Channels = append(an.Channels, Channel{Node: *c.Target.Node, Path: c.Target.Path, Sampler: *c.Sampler})
+		}
+		for k, s := range a.Samplers {
+			sp := fmt.Sprintf("%s.samplers[%d]", p, k)
+			if s.Input == nil || s.Output == nil {
+				return errf(sp, "input and output are required")
+			}
+			if sampPath[k] == "" {
+				return errf(sp, "no channel uses this sampler")
+			}
+			as := AnimSampler{}
+			switch s.Interpolation {
+			case "", InterpLinear:
+				as.Interpolation = InterpLinear
+			default:
+				as.Interpolation = s.Interpolation // Validate reports an unknown name
+			}
+			in, err := d.accessor(sp+".input", *s.Input, "SCALAR", compFloat)
+			if err != nil {
+				return err
+			}
+			if as.Input, err = in.floats(sp+".input", 1); err != nil {
+				return err
+			}
+			comps := pathComps(sampPath[k])
+			typ := map[int]string{1: "SCALAR", 3: "VEC3", 4: "VEC4"}[comps]
+			out, err := d.accessor(sp+".output", *s.Output, typ, compFloat)
+			if err != nil {
+				return err
+			}
+			if as.Output, err = out.floats(sp+".output", comps); err != nil {
+				return err
+			}
+			an.Samplers = append(an.Samplers, as)
+		}
+		doc.Animations = append(doc.Animations, an)
+	}
+	return nil
 }
 
 func nilInts(v []int) []int {

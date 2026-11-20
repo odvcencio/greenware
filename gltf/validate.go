@@ -37,6 +37,12 @@ func (d *Document) Validate() error {
 		if err := opt(p+".mesh", n.Mesh, len(d.Meshes)); err != nil {
 			return err
 		}
+		if err := opt(p+".skin", n.Skin, len(d.Skins)); err != nil {
+			return err
+		}
+		if n.Skin != nil && n.Mesh == nil {
+			return errf(p+".skin", "a node with a skin needs a mesh")
+		}
 		for j, c := range n.Children {
 			cp := fmt.Sprintf("%s.children[%d]", p, j)
 			if err := idx(cp, c, len(d.Nodes)); err != nil {
@@ -119,7 +125,22 @@ func (d *Document) Validate() error {
 			if err := opt(p+".material", pr.Material, len(d.Materials)); err != nil {
 				return err
 			}
+			if err := validateSkinAttrs(p, pr, nv); err != nil {
+				return err
+			}
+			if err := validateTargets(p, pr, nv); err != nil {
+				return err
+			}
+			if len(pr.Targets) != len(m.Primitives[0].Targets) {
+				return errf(p+".targets", "have %d targets; primitive 0 has %d", len(pr.Targets), len(m.Primitives[0].Targets))
+			}
 		}
+		if err := validateMeshWeights(fmt.Sprintf("meshes[%d]", i), m); err != nil {
+			return err
+		}
+	}
+	if err := d.validateRig(); err != nil {
+		return err
 	}
 	for i, m := range d.Materials {
 		p := fmt.Sprintf("materials[%d]", i)
@@ -131,6 +152,29 @@ func (d *Document) Validate() error {
 		}
 		if err := opt(p+".pbrMetallicRoughness.baseColorTexture.index", m.BaseColorTexture, len(d.Textures)); err != nil {
 			return err
+		}
+		if m.BaseColorTexCoord < 0 {
+			return errf(p+".pbrMetallicRoughness.baseColorTexture.texCoord", "negative texCoord %d", m.BaseColorTexCoord)
+		}
+		if err := finite(p+".emissiveFactor", m.EmissiveFactor[:]); err != nil {
+			return err
+		}
+		for k, v := range m.EmissiveFactor {
+			if v < 0 {
+				return errf(fmt.Sprintf("%s.emissiveFactor[%d]", p, k), "value %v is negative", v)
+			}
+		}
+		switch m.AlphaMode {
+		case "", AlphaOpaque, AlphaBlend:
+			if m.AlphaCutoff != 0 {
+				return errf(p+".alphaCutoff", "set only with alphaMode MASK")
+			}
+		case AlphaMask:
+			if !finite32(m.AlphaCutoff) || m.AlphaCutoff < 0 {
+				return errf(p+".alphaCutoff", "value %v must be finite and not negative", m.AlphaCutoff)
+			}
+		default:
+			return errf(p+".alphaMode", "%q is not OPAQUE, MASK or BLEND", m.AlphaMode)
 		}
 	}
 	for i, t := range d.Textures {

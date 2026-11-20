@@ -454,6 +454,7 @@ func TestMalformed(t *testing.T) {
 func FuzzDecode(f *testing.F) {
 	f.Add(mustEncodeF(triangleDoc()))
 	f.Add(mustEncodeF(richDoc()))
+	f.Add(mustEncodeF(rigDoc()))
 	f.Add(mkGLB(triJSON, triBin()))
 	f.Add(mkGLB(`{"asset":{"version":"2.0"},"nodes":[{"matrix":[0,2,0,0,-3,0,0,0,0,0,4,0,5,6,7,1]}]}`, nil))
 	f.Add([]byte("glTF"))

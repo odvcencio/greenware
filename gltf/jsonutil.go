@@ -139,3 +139,84 @@ func jarr(items []string) string {
 func finite32(f float32) bool {
 	return !math.IsNaN(float64(f)) && !math.IsInf(float64(f), 0)
 }
+
+// mergeTargetNames returns extras with a "targetNames" member added. It is an
+// error when extras is not a JSON object or already has that member.
+func mergeTargetNames(extras json.RawMessage, names []string, path string) (json.RawMessage, error) {
+	if len(names) == 0 {
+		return extras, nil
+	}
+	obj := map[string]any{}
+	c, err := canonicalJSON(extras)
+	if err != nil {
+		return nil, errf(path, "invalid JSON: %v", err)
+	}
+	if c != nil {
+		dec := json.NewDecoder(bytes.NewReader(c))
+		dec.UseNumber()
+		var v any
+		if err := dec.Decode(&v); err != nil {
+			return nil, errf(path, "invalid JSON: %v", err)
+		}
+		m, ok := v.(map[string]any)
+		if !ok {
+			return nil, errf(path, "TargetNames needs extras to be a JSON object")
+		}
+		obj = m
+	}
+	if _, dup := obj["targetNames"]; dup {
+		return nil, errf(path+".targetNames", "set TargetNames or the extras member, not both")
+	}
+	list := make([]any, len(names))
+	for i, n := range names {
+		list[i] = n
+	}
+	obj["targetNames"] = list
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return nil, errf(path, "invalid JSON: %v", err)
+	}
+	return out, nil
+}
+
+// splitTargetNames takes a "targetNames" member out of canonical extras when it
+// is a non-empty list of exactly n strings. Otherwise it returns extras
+// unchanged and nil names.
+func splitTargetNames(extras json.RawMessage, n int) (json.RawMessage, []string) {
+	if n == 0 || len(extras) == 0 {
+		return extras, nil
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(extras, &obj); err != nil {
+		return extras, nil
+	}
+	raw, ok := obj["targetNames"]
+	if !ok {
+		return extras, nil
+	}
+	var list []any
+	if err := json.Unmarshal(raw, &list); err != nil || len(list) != n {
+		return extras, nil
+	}
+	names := make([]string, n)
+	for i, v := range list {
+		s, ok := v.(string)
+		if !ok {
+			return extras, nil
+		}
+		names[i] = s
+	}
+	delete(obj, "targetNames")
+	if len(obj) == 0 {
+		return nil, names
+	}
+	b, err := json.Marshal(obj)
+	if err != nil {
+		return extras, nil
+	}
+	rest, err := canonicalJSON(b)
+	if err != nil {
+		return extras, nil
+	}
+	return rest, names
+}
