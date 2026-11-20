@@ -1,0 +1,39 @@
+greenware 1
+
+// The owner's acceptance tests for the goal post (spec section 2.7). They run
+// on the decoded GLB of each named output, at every level of detail, and they
+// live where greenware.policy says, so the goal post's author cannot weaken
+// them. They measure the decoded mesh, not only the author's anchors.
+//
+// Regression fixture (must fail): goalpost-moved-upright.gw, a copy with
+// upright_r moved 2 cm outward and its sockets left in place.
+
+accept goalpost {
+  of = "goalpost.gw"
+  outputs = [stadium, practice]
+  lods = all
+
+  // Ray-cast on the decoded triangles, 7 m up, through the centre line. The
+  // tolerance grows with each level's chord error (lod_error).
+  expect (abs(gap(node(goalpost), axis = x, at = (0, 7m, 0)) - 5.64m) < 1mm + 2 * lod_error, "uprights' inside faces 18 ft 6 in apart")
+  expect (abs(distance(socket(inside_l), socket(inside_r)) - 5.64m) < 1mm, "the rule anchors agree")
+  expect (abs(position(socket(crossbar_centre)).y - 3.05m) < 1mm, "crossbar 10 ft up")
+  expect (abs(position(socket(crossbar_centre)).z) < 1mm, "crossbar centre above the end line")
+  expect (bounds().min.y > -1mm, "nothing below the turf")
+  expect (closed(node(goalpost)), "no holes in the painted frame")
+  expect (connected(node(goalpost)), "the painted frame is one piece: post, crossbar and uprights touch")
+  expect (outline(front, "ref/goalpost-{output}.png", within = 3px) >= 0.95, "front outline")
+
+  when output == stadium {
+    expect (bounds().max.y > 12m, "uprights rise about 30 ft above the bar")
+    expect (draw_calls() <= 3, "three draws or fewer")
+  }
+
+  when output == stadium && lod < 2 {
+    expect (drawn_triangles(pad) > 0, "padded up close")
+  }
+
+  when output == practice || lod == 2 {
+    expect (!has_node(pad), "no pad: the practice post, and the far level")
+  }
+}
