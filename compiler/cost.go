@@ -174,6 +174,11 @@ func ticketUnits(name string) uint64 {
 			return t.Units
 		}
 	}
+	for _, t := range ticketTableRig {
+		if t.Name == name {
+			return t.Units
+		}
+	}
 	panic("compiler: unregistered ticket " + name)
 }
 
@@ -689,8 +694,31 @@ func schedule(outs []resolvedOutput, acc []acceptLevel) []Charge {
 			addRow(TicketPaint, o.name, a.Name)
 		}
 	}
-	for _, phase := range []string{TicketSurface, TicketEncode} {
+	for _, o := range sorted {
+		if rigCountsOf(o.r).skeleton {
+			add(TicketRig, o.name, nil, nil)
+		}
+	}
+	for _, phase := range []string{TicketSurface, TicketWeights, TicketMorph, TicketClip, TicketEncode} {
+		if phase == TicketClip {
+			for _, o := range sorted {
+				if rigCountsOf(o.r).clips > 0 {
+					add(TicketClip, o.name, nil, nil)
+				}
+			}
+			continue
+		}
 		for _, o := range sorted {
+			if phase == TicketWeights || phase == TicketMorph {
+				n := rigCountsOf(o.r)
+				if !n.skeleton || (phase == TicketMorph && n.morphs == 0) {
+					continue
+				}
+				for lv := 0; lv < o.levels; lv++ {
+					add(phase, o.name, intp(lv), nil)
+				}
+				continue
+			}
 			ticket := phase
 			if phase == TicketSurface && usesBranchClass(o.r) {
 				ticket = TicketSurfaceBranches
@@ -779,6 +807,8 @@ func classBound(c Charge, outs map[string]resolvedOutput, snapshotBytes []int, a
 		if a.Ops > maxPaintOps {
 			return fmt.Sprintf("the atlas %s needs %d scalar painter operations; the class allows %d", a.Name, a.Ops, maxPaintOps)
 		}
+	case TicketRig, TicketWeights, TicketMorph, TicketClip:
+		return rigClassBound(c, outs)
 	case TicketMeasure:
 		if a := acc[accKey{c.Output, *c.Level}]; a.nonImage > maxMeasureExpects {
 			return fmt.Sprintf("output %s level %d has %d non-image expectations; the class allows %d", c.Output, *c.Level, a.nonImage, maxMeasureExpects)

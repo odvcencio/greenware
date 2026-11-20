@@ -1,0 +1,34 @@
+greenware 1
+
+// A pose that leaves a hard limit. The elbow may swing 5 degrees one way and
+// 150 the other; the pose asks for 170. The compiler reports it and writes
+// nothing: it never clamps a pose. `greenware check` does not measure poses,
+// so this fixture reports the code from `greenware build`.
+
+asset a { root = a idle = rest }
+
+skeleton s {
+  joint shoulder {
+    at = (0, 1, 0)
+    joint elbow {
+      at = (0, 0.7, 0)
+      swing_x = -150..5
+      limit { swing_x = -150..5 }
+    }
+  }
+}
+
+part a {
+  joint = shoulder
+  sphere ball { radius = 0.1m at = (0, 0.85, 0) }
+}
+
+clip rest {
+  duration = 1s
+  pose {
+    shoulder = rot(0, 0, 0)
+    elbow = rot(-170, 0, 0)
+  }
+}
+
+output demo { file = "a.glb" }

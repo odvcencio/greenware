@@ -1,0 +1,33 @@
+greenware 1
+
+// A pose that leaves a natural band. The elbow's band is -150..5 degrees and
+// the pose asks for -160. This is a warning: the pose is written as authored.
+// `greenware check` does not measure poses, so this fixture reports the code
+// from `greenware build`.
+
+asset a { root = a idle = rest }
+
+skeleton s {
+  joint shoulder {
+    at = (0, 1, 0)
+    joint elbow {
+      at = (0, 0.7, 0)
+      swing_x = -150..5
+    }
+  }
+}
+
+part a {
+  joint = shoulder
+  sphere ball { radius = 0.1m at = (0, 0.85, 0) }
+}
+
+clip rest {
+  duration = 1s
+  pose {
+    shoulder = rot(0, 0, 0)
+    elbow = rot(-160, 0, 0)
+  }
+}
+
+output demo { file = "a.glb" }

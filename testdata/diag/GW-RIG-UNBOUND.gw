@@ -1,0 +1,22 @@
+greenware 1
+
+// A skinned asset whose shape has no joint. Every shape starts rigid on one
+// joint with weight 1: write `joint = base` on the shape or on a part that
+// holds it.
+
+asset a { root = a idle = rest }
+
+skeleton s {
+  joint base { at = (0, 0, 0) }
+}
+
+part a {
+  sphere ball { radius = 0.1m }
+}
+
+clip rest {
+  duration = 1s
+  pose { base = rot(0, 0, 0) }
+}
+
+output demo { file = "a.glb" }

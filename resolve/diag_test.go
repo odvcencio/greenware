@@ -67,7 +67,7 @@ func TestDiagnosticSpansAndEdits(t *testing.T) {
 		{name: "roughness above one", src: wrap("material m = pbr { roughness = 1.5 }"), code: diag.CodeFieldRange, at: "1.5"},
 		{name: "failed require", src: wrap("param r : length = 1m in 0.5m..3m\ncheck params {\n  require (r > 2m, \"r too small\")\n}"), code: diag.CodeRequire, at: "require (r > 2m, \"r too small\")"},
 		{name: "unsupported declaration", src: wrap("texture t = file { path = \"t.png\" }"), code: diag.CodeUnsupported, at: "file"},
-		{name: "unsupported field", src: wrap("part b {\n  joint = head\n  cylinder { radius = 1m height = 1m }\n}"), code: diag.CodeUnsupported, at: "joint"},
+		{name: "unsupported field", src: wrap("part b {\n  normals = smooth\n  cylinder { radius = 1m height = 1m }\n}"), code: diag.CodeUnsupported, at: "normals"},
 		{name: "unsupported shape", src: wrap("part b {\n  torus { }\n}"), code: diag.CodeUnsupported, at: "torus"},
 		{name: "budget materials", src: prefixRoot("material r = pbr { base = #ff0000 }\nmaterial g = pbr { base = #00ff00 }\npart a {\n material = r\n cylinder { radius = 1m height = 1m }\n part b { export = on\n material = g\n cylinder { radius = 1m height = 1m } }\n}\nbudget { materials = 1 }"), code: diag.CodeBudget, at: "1"},
 		{name: "budget draws", src: prefixRoot("material r = pbr { base = #ff0000 }\npart a {\n material = r\n cylinder { radius = 1m height = 1m }\n part b { export = on\n cylinder { radius = 1m height = 1m } }\n}\nbudget { draw_calls = 1 }"), code: diag.CodeBudget, at: "1"},

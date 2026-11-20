@@ -10,7 +10,7 @@ import (
 // or compared against a golden file.
 func Reference() string {
 	var b strings.Builder
-	ctxName := map[Context]string{CtxDocument: "document", CtxPart: "part item", CtxShape: "shape block", CtxCollision: "collision item", CtxAtlas: "atlas block"}
+	ctxName := map[Context]string{CtxDocument: "document", CtxPart: "part item", CtxShape: "shape block", CtxCollision: "collision item", CtxAtlas: "atlas block", CtxRig: "rig block"}
 	for _, k := range kinds {
 		fmt.Fprintf(&b, "## %s (%s)\n\n%s\n\n", k.Name, ctxName[k.Context], k.Doc)
 		if len(k.Fields) > 0 {

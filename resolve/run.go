@@ -117,6 +117,7 @@ func evaluate(f *ast.File, output string, overrides []Override, shallowOutputs b
 	r.materials()
 	r.plugs()
 	r.parts()
+	r.rig()
 	r.checkCells()
 	r.lods()
 	r.collision()

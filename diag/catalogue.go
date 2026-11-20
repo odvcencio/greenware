@@ -24,6 +24,11 @@ const (
 	CodeLimit        = "GW-LIMIT"
 	CodeUVCell       = "GW-UV-CELL"
 	CodeMatParam     = "GW-MAT-PARAM"
+	CodeRigUnbound   = "GW-RIG-UNBOUND"
+	CodeRigStructure = "GW-RIG-STRUCTURE"
+	CodeClipKey      = "GW-CLIP-KEY"
+	CodeRigLimit     = "GW-RIG-LIMIT"
+	CodeRigBand      = "GW-RIG-BAND"
 )
 
 // Entry documents one code.
@@ -61,6 +66,11 @@ var catalogue = []Entry{
 	{CodeLimit, Error, "A build needs more logical work than the `total_work` ceiling leaves, or an operand is larger than the class its cost ticket admits (an array of more than 4096 copies, more than 4096 expanded items in an output, a level of more than 2048 triangles, a file over 96 KiB). The message names the ticket and, for a ceiling, the work it requested and the work that remained. The build stops before the ticket's operation and writes nothing; an earlier build record stays as it was. Raise `--max-work` only for a class the schedule prices; a larger operand needs a new schedule version, not a larger ceiling.", "testdata/diag/GW-LIMIT.gw", false},
 	{CodeUVCell, Error, "A shape's UVs cannot address the atlas cell it names: two atlases sampled by one material give the cell different rectangles, or the shape's own UVs leave the unit square so that the cell's inset rectangle cannot hold them. Use an aligned chart or another projection; no triangle is added to make the check pass.", "testdata/diag/GW-UV-CELL.gw", false},
 	{CodeMatParam, Error, "A material parameter does not fit its use: a palette mask used directly as a base texture (use paint(mask)), `paint(atlas)` of a palette atlas where the containing Selena material has no colour for a slot the atlas uses, or a texture argument that is not a texture.", "testdata/diag/GW-MAT-PARAM.gw", false},
+	{CodeRigUnbound, Error, "A rendered shape of a skinned asset has no joint. Bind it with `joint = name` on the shape or on a part that holds it; every shape starts rigid on one joint with weight 1.", "testdata/diag/GW-RIG-UNBOUND.gw", false},
+	{CodeRigStructure, Error, "The skeleton is malformed: no root or more than one root, a `joint_order` that does not list every joint exactly once, a joint a skin step cannot use (a `lengthen` joint that has not exactly one child, a `blend` child that is not the immediate child of its parent), or an unusable skin: a zero blend axis, a weight sum that is not 1, more influences than `max_influences`.", "testdata/diag/GW-RIG-STRUCTURE.gw", false},
+	{CodeClipKey, Error, "A clip's keys cannot be written: a key time that is negative, repeated or reversed, a key later than the clip's duration, a `key` row mixing translations and rotations, or times that float32 rounding makes equal. Nothing is sorted, merged or repaired.", "testdata/diag/GW-CLIP-KEY.gw", false},
+	{CodeRigLimit, Error, "A pose of a clip leaves a joint's hard limit (a `limit` block), or the test is undefined at the pose (a pure 180 degree swing). The compiler measures swing and twist at every key and never clamps a pose.", "testdata/diag/GW-RIG-LIMIT.gw", false},
+	{CodeRigBand, Warning, "A pose of a clip leaves a joint's natural band (the ranges written on the joint). It is a warning: the pose is written as authored.", "testdata/diag/GW-RIG-BAND.gw", false},
 }
 
 // Catalogue returns every code in a fixed order. The caller must not change

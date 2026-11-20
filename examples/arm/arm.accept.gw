@@ -1,0 +1,29 @@
+greenware 1
+
+// The owner's acceptance tests for the arm. They run on the decoded GLB and
+// measure what the file shows with no clip playing: the idle pose, the
+// joints' hierarchy and the grip socket. The numbers come from working the
+// idle pose by hand (see compiler/rig_test.go): the elbow is turned 12 degrees
+// about x, the wrist keeps its bind turn of 20 degrees about y, and the grip
+// socket keeps its model-space bind point in the wrist's frame.
+
+accept arm {
+  of = "arm.gw"
+  outputs = [arm_glb]
+  lods = all
+
+  expect (has_node(shoulder), "the root joint is a node")
+  expect (has_node(elbow) && has_node(wrist), "the elbow and wrist are nodes")
+
+  // The shoulder is at its idle key: (0, 1.4, 0).
+  expect (abs(position(node(shoulder)).y - 1.4m) < 0.1mm, "the shoulder keeps its bind height")
+  // The wrist hangs from the elbow, which the idle pose bends by 12 degrees.
+  expect (abs(position(node(wrist)).x - 0.041286m) < 0.1mm, "wrist x at the idle pose")
+  expect (abs(position(node(wrist)).y - 0.806828m) < 0.1mm, "wrist y at the idle pose")
+  expect (abs(position(node(wrist)).z - 0.058215m) < 0.1mm, "wrist z at the idle pose")
+  // The socket's bind point is carried by the wrist's frame.
+  expect (abs(position(socket(grip)).x - 0.04m) < 0.1mm, "grip x at the idle pose")
+  expect (abs(position(socket(grip)).y - 0.747446m) < 0.1mm, "grip y at the idle pose")
+  expect (abs(position(socket(grip)).z - 0.070837m) < 0.1mm, "grip z at the idle pose")
+  expect (distance(node(wrist), socket(grip)) < 70mm, "the grip is close to the wrist")
+}

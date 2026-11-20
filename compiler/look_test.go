@@ -119,9 +119,31 @@ func TestHelmetLookBuildsAtBothLevels(t *testing.T) {
 	}
 }
 
+// `blend = on` is written as alphaMode BLEND, and no note says otherwise.
+func TestBlendWritesAlphaModeBlend(t *testing.T) {
+	for _, n := range builtLook(t).Unsupported {
+		if strings.Contains(n, "blend = on is not written") {
+			t.Errorf("a stale note: %s", n)
+		}
+	}
+	d := lookFile(t, "helmet-classic.glb").Doc
+	blends := 0
+	for _, m := range d.Materials {
+		if m.AlphaMode == gltf.AlphaBlend {
+			blends++
+			if m.Name != "visor_glass" {
+				t.Errorf("the material %q is blended", m.Name)
+			}
+		}
+	}
+	if blends != 1 {
+		t.Errorf("%d blended materials, want the visor's one", blends)
+	}
+}
+
 func TestHelmetLookNotesNameWhatIsPending(t *testing.T) {
 	notes := strings.Join(builtLook(t).Unsupported, "\n")
-	for _, want := range []string{"materials/palette.sel.json is pending", "blend = on is not written"} {
+	for _, want := range []string{"materials/palette.sel.json is pending"} {
 		if !strings.Contains(notes, want) {
 			t.Errorf("no note %q in:\n%s", want, notes)
 		}

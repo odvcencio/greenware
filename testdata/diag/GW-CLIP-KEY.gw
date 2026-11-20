@@ -1,0 +1,18 @@
+greenware 1
+
+// A lookup clip whose keys run backwards. Key times increase strictly; the
+// compiler does not sort, merge or repair them.
+
+asset a { root = a wrappers = ["slide"] }
+
+part a {
+  sphere ball { radius = 0.1m }
+}
+
+clip slide {
+  node = "slide"
+  key (2s, (1, 0, 0))
+  key (1s, (0, 0, 0))
+}
+
+output demo { file = "a.glb" }

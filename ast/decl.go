@@ -32,6 +32,9 @@ type File struct {
 	Textures []*Texture
 	// Plugs are the asset's plugs, in source order.
 	Plugs []*Plug
+	// Rigs are the skeleton, skin, morph and clip declarations, in source
+	// order.
+	Rigs []*RigDecl
 	// Skipped lists the look declarations a geometry-only lowering left out,
 	// each as a sentence for a person. It is empty otherwise.
 	Skipped []string

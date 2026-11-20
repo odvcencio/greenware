@@ -51,6 +51,12 @@ const (
 	TPaint
 	// TTexture is a texture reference, or paint(atlas).
 	TTexture
+	// TLengthRange is a range of lengths written lo..hi.
+	TLengthRange
+	// TAnchor is a model-space point, written as a point or as joint(name)
+	// with an optional point added or subtracted. The joint is read at the
+	// bind the skin steps before it leave.
+	TAnchor
 )
 
 // Namespace names a set of declarations that a reference slot searches.
@@ -64,6 +70,7 @@ const (
 	NsCollider
 	NsOutput
 	NsTexture
+	NsJoint
 )
 
 func (n Namespace) String() string {
@@ -80,6 +87,8 @@ func (n Namespace) String() string {
 		return "output"
 	case NsTexture:
 		return "texture"
+	case NsJoint:
+		return "joint"
 	}
 	return "none"
 }
@@ -176,6 +185,10 @@ func (t Type) Name() string {
 		return "painter call or colour"
 	case TTexture:
 		return "texture reference or paint(atlas)"
+	case TLengthRange:
+		return "length range"
+	case TAnchor:
+		return "point, or joint(name) plus a point"
 	}
 	return "?"
 }
@@ -246,6 +259,8 @@ const (
 	CtxCollision
 	// CtxAtlas: a block inside an atlas texture.
 	CtxAtlas
+	// CtxRig: a block inside a skeleton, skin, morph, clip or mount.
+	CtxRig
 )
 
 // Kind is a declaration kind: what its body accepts.

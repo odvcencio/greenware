@@ -113,6 +113,9 @@ func (r *run) declare() *symbols {
 	if f.Collision != nil {
 		r.declareItems(s, add, f.Collision.Items, false, rootName)
 	}
+	for _, d := range f.Rigs {
+		r.declareRig(add, d.Items)
+	}
 	r.instanceCycles(s)
 	return s
 }
@@ -149,6 +152,29 @@ func (r *run) declareItems(s *symbols, add adder, items []ast.Item, top bool, ro
 		case *ast.Collider:
 			pair(registry.NsCollider, n.Name, n.Pair, &decl{})
 		}
+	}
+}
+
+// declareRig declares the joints and sockets of a skeleton.
+func (r *run) declareRig(add adder, items []ast.RigItem) {
+	for _, it := range items {
+		b, ok := it.(*ast.RigBlock)
+		if !ok {
+			continue
+		}
+		switch b.Kind {
+		case "joint":
+			add(registry.NsJoint, b.Name.Name, b.Name.Span, &decl{})
+			if b.Pair.Name != "" {
+				add(registry.NsJoint, b.Pair.Name, b.Pair.Span, &decl{})
+			}
+		case "socket":
+			add(registry.NsSocket, b.Name.Name, b.Name.Span, &decl{})
+			if b.Pair.Name != "" {
+				add(registry.NsSocket, b.Pair.Name, b.Pair.Span, &decl{})
+			}
+		}
+		r.declareRig(add, b.Items)
 	}
 }
 

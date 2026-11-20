@@ -82,6 +82,9 @@ func (e *elab) shape(n *resolve.Node, c wctx) {
 	if m, ok = e.finishUV(n, m, mat, cell); !ok {
 		return
 	}
+	if e.rigged() {
+		c.meta = e.shapeMeta(n, c, name)
+	}
 	e.emit(c, mat, m)
 }
 

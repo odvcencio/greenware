@@ -131,6 +131,9 @@ type Resolved struct {
 	Definitions []*Node `json:"definitions,omitempty"`
 	Lods        []*Node `json:"lods,omitempty"`
 	Collision   []*Node `json:"collision,omitempty"`
+	// Rig is the evaluated skeleton, skin, morphs and clips; nil when the
+	// file declares none.
+	Rig *Rig `json:"rig,omitempty"`
 	// Budget is the effective budget: the document's, with the output's
 	// fields replacing the matching ones.
 	Budget  []Field  `json:"budget,omitempty"`

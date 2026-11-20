@@ -48,6 +48,10 @@ type File struct {
 	// carries: four bytes per texel of each. Images lists them.
 	TextureBytes int
 	Images       []ImageInfo
+	// The rig, measured on the file: joints, the most influences on one
+	// vertex, morph targets, animations and their keys, and the positions
+	// the skin binds. All zero for a file without a skeleton.
+	Joints, Influences, Morphs, Animations, AnimKeys, SkinnedVertices int
 }
 
 // OutputProduct is the files of one output, level 0 first.
@@ -202,7 +206,11 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 		if op == nil || diag.HasErrors(ds) {
 			continue
 		}
-		if ref := classBoundFiles(op, usesBranchClass(ro.r), len(atlasesUsed(ro.r)) > 0); ref != nil && rc != nil {
+		ref := classBoundFiles(op, usesBranchClass(ro.r), len(atlasesUsed(ro.r)) > 0)
+		if ref == nil {
+			ref = rigClassBoundFiles(op)
+		}
+		if ref != nil && rc != nil {
 			rc.Refused = ref
 			all = append(all, limitDiag(outputSpan(file, name), ref, rc.Limit))
 			continue
@@ -416,6 +424,8 @@ func buildOutput(file *ast.File, r *resolve.Resolved, oname string) (*OutputProd
 			Triangles: l.tris, Draws: l.draws, Materials: l.mats, Vertices: l.verts, Size: len(glb),
 			TrianglesWorst: l.trisWorst, TrianglesStored: l.trisStored, DrawsWorst: l.drawsWorst, Alternates: l.alternates,
 			TextureBytes: l.texBytes, Images: l.images,
+			Joints: l.joints, Influences: l.influences, Morphs: l.morphs,
+			Animations: l.animations, AnimKeys: l.keys, SkinnedVertices: l.rigVerts,
 		})
 	}
 	e.checkBudget(op, oname)
@@ -450,8 +460,12 @@ func (e *elab) checkBudget(op *OutputProduct, oname string) {
 				got = f.Size
 			case "texture_bytes":
 				got = f.TextureBytes
-			case "bones", "influences", "morphs":
-				got = 0
+			case "bones":
+				got = f.Joints
+			case "influences":
+				got = f.Influences
+			case "morphs":
+				got = f.Morphs
 			default:
 				continue
 			}
@@ -512,6 +526,8 @@ func firHash(r *resolve.Resolved, images []string) string {
 		Definitions []*resolve.Node `json:"definitions"`
 		Lods        []*resolve.Node `json:"lods"`
 		Collision   []*resolve.Node `json:"collision"`
+		// The rig, when there is one; an asset without hashes as before.
+		Rig *resolve.Rig `json:"rig,omitempty"`
 		// Plugs and the pixel digests of the images the look uses are part of
 		// the meaning when there are any; an asset without them hashes as before.
 		Plugs  []*resolve.Node `json:"plugs,omitempty"`
@@ -525,6 +541,7 @@ func firHash(r *resolve.Resolved, images []string) string {
 		Collision:   canonAll(r.Collision, nil),
 		Plugs:       canonAll(r.Plugs, nil),
 		Images:      images,
+		Rig:         r.Rig,
 		Lods:        canonAll(r.Lods, map[string]bool{"max_error": true, "drop": true, "keep": true, "segments": true}),
 	}
 	for _, p := range r.Params {

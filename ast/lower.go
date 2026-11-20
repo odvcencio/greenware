@@ -243,9 +243,9 @@ func (l *lowerer) declaration(f *File, n *lang.Node) {
 		default:
 			f.Painters = append(f.Painters, l.painter(n))
 		}
-	case "table_decl", "mesh_decl", "view_decl",
-		"mount_decl", "skeleton_decl", "skin_decl", "morph_decl",
-		"clip_decl", "variant_decl":
+	case "skeleton_decl", "skin_decl", "morph_decl", "clip_decl":
+		f.Rigs = append(f.Rigs, l.rigDecl(n))
+	case "table_decl", "mesh_decl", "view_decl", "mount_decl", "variant_decl":
 		kw := n.Children()[0]
 		l.unsupported(kw, "`"+kw.Text()+"`")
 	default:

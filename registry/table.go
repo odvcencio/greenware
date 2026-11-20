@@ -49,10 +49,16 @@ func shapeFields(extra ...Field) []Field {
 		{Name: "material", Type: ref(NsMaterial), Doc: "Material; absent inherits from the part."},
 		{Name: "uv", Type: enum("auto", "planar", "box", "cylindrical", "spherical"), Default: dv(units.Label("auto")), Doc: "UV projection."},
 		unsupported("normals", tLabel, "normal rules"),
-		unsupported("joint", tLabel, "skeletons"),
+		jointField(),
 		cellField(),
 	}
 	return append(append([]Field(nil), extra...), common...)
+}
+
+// jointField is the rigid binding of a part or shape: a joint of the skeleton,
+// inherited from the nearest enclosing part.
+func jointField() Field {
+	return Field{Name: "joint", Type: ref(NsJoint), Doc: "Joint this shape is bound to with weight 1, before the skin steps; inherited from the part."}
 }
 
 // cellField is the atlas cell a part or shape draws from. The name resolves in
@@ -77,10 +83,10 @@ var kinds = []*Kind{
 			{Name: "angle", Type: enum(units.AngleUnits...), Default: dv(units.Label("deg")), Doc: "Unit of a bare literal in an angle slot."},
 			{Name: "up", Type: tAxis, Default: dv(units.Axis("+y")), Doc: "The up axis of the authored asset."},
 			{Name: "forward", Type: tAxis, Default: dv(units.Axis("+z")), Doc: "The forward axis; perpendicular to up."},
-			unsupported("idle", tLabel, "clips"),
+			{Name: "idle", Type: tLabel, Doc: "The clip a renderer shows before any other. Required for a skinned asset."},
 			{Name: "generator", Type: tString, Doc: "Workshop that made the file; a record field."},
 			{Name: "mesh_name", Type: tString, Doc: "Display name of the root's mesh."},
-			unsupported("wrappers", Type{Kind: TStringList}, "wrapper nodes"),
+			{Name: "wrappers", Type: Type{Kind: TStringList}, Doc: "Plain nodes above the skeleton, outermost first, that clips can drive as lookup channels."},
 			unsupported("bounds", tPoint, "declared bounds"),
 		},
 		Names: NameRequired,
@@ -140,7 +146,7 @@ var kinds = []*Kind{
 			{Name: "material", Type: ref(NsMaterial), Doc: "Material the shapes inherit."},
 			unsupported("normals", tLabel, "normal rules"),
 			cellField(),
-			unsupported("joint", tLabel, "skeletons"),
+			jointField(),
 			unsupported("uv_shared", tSwitch, "UV overlap control"),
 			unsupported("watertight", tSwitch, "watertight checks"),
 			unsupported("instancing", tSwitch, "GPU instancing"),
@@ -326,6 +332,140 @@ var kinds = []*Kind{
 		},
 		Names: NameRequired, Ns: NsSocket,
 	},
+	// Skeletons, skin, morphs and clips.
+	{
+		Name: "skeleton", Context: CtxDocument, Doc: "One joint tree. `joint_order` lists every joint once; without it the order is depth-first declaration order.",
+		Fields: []Field{
+			{Name: "joint_order", Type: refs(NsJoint), Doc: "Every joint exactly once, in the order of the written joint indices."},
+			{Name: "root_scale", Type: tLabel, Doc: "A numeric runtime parameter that scales the up component of the root's translation keys."},
+		},
+		Blocks: []string{"joint"}, Names: NameOptional,
+	},
+	{
+		Name: "joint", Context: CtxRig, Doc: "A joint. `at` is its model-space bind position, not an offset from the parent; nested joints are children.",
+		Fields: []Field{
+			{Name: "at", Type: tPoint, Required: true, Doc: "Model-space bind position."},
+			{Name: "orient", Type: tRotation, Default: dv(units.Tuple(units.Ang(0), units.Ang(0), units.Ang(0))), Doc: "Bind orientation in the model frame, rot(x, y, z)."},
+			{Name: "twist_axis", Type: enum("x", "y", "z"), Doc: "Twist axis in the joint's frame; without it, the frame axis closest to the bone."},
+			{Name: "twist", Type: Type{Kind: TAngleRange}, Doc: "Natural band of the twist angle, written lo..hi."},
+			{Name: "swing_x", Type: Type{Kind: TAngleRange}, Doc: "Natural band of the swing about x."},
+			{Name: "swing_y", Type: Type{Kind: TAngleRange}, Doc: "Natural band of the swing about y."},
+			{Name: "swing_z", Type: Type{Kind: TAngleRange}, Doc: "Natural band of the swing about z."},
+		},
+		Blocks: []string{"joint", "socket", "limit", "mirror"}, Names: NameRequired, Ns: NsJoint,
+	},
+	{
+		Name: "socket", Context: CtxRig, Doc: "A named frame on a joint. An explicit `at` is a model-space bind point; without it the socket sits at the joint origin.",
+		Fields: []Field{
+			{Name: "kind", Type: tLabel, Required: true, Doc: "What the socket is for, such as hand or helmet."},
+			{Name: "at", Type: tPoint, Doc: "Model-space bind point."},
+			{Name: "rot", Type: tRotation, Default: dv(units.Tuple(units.Ang(0), units.Ang(0), units.Ang(0))), Doc: "Rotation relative to the joint's axes."},
+		},
+		Names: NameRequired, Ns: NsSocket,
+	},
+	{
+		Name: "limit", Context: CtxRig, Doc: "Hard limits of a joint: a pose outside them always fails.",
+		Fields: []Field{
+			{Name: "twist", Type: Type{Kind: TAngleRange}, Doc: "Hard limit of the twist angle."},
+			{Name: "swing_x", Type: Type{Kind: TAngleRange}, Doc: "Hard limit of the swing about x."},
+			{Name: "swing_y", Type: Type{Kind: TAngleRange}, Doc: "Hard limit of the swing about y."},
+			{Name: "swing_z", Type: Type{Kind: TAngleRange}, Doc: "Hard limit of the swing about z."},
+		},
+	},
+	{
+		Name: "mirror", Context: CtxRig, Doc: "Keeps its contents and adds one reflected copy. Inside `pose` it also holds joint rotations and lets.",
+		Fields:   []Field{{Name: "plane", Type: enum("x", "y", "z"), Required: true, Doc: "Plane through the origin, perpendicular to this axis."}},
+		Contains: true, Open: true,
+	},
+	{
+		Name: "skin", Context: CtxDocument, Doc: "Ordered skin steps run on the geometry bound rigidly to its joints.",
+		Fields: []Field{
+			{Name: "max_influences", Type: tInteger, Default: dv(units.Num(4)), Min: fp(1), Max: fp(4), Doc: "Most active joint weights on one vertex."},
+		},
+		Blocks: []string{"lengthen", "blend", "mirror"},
+	},
+	{
+		Name: "lengthen", Context: CtxRig, Doc: "Sets a bone to a new length and carries its subtree.",
+		Fields: []Field{
+			{Name: "joint", Type: ref(NsJoint), Required: true, Doc: "The joint whose bone, to its one child, changes."},
+			{Name: "to", Type: tLength, Required: true, Positive: true, Doc: "The new bone length."},
+			{Name: "anchor", Type: tNumber, Default: dv(units.Num(0)), Min: fp(0), Doc: "Share of the original bone that does not stretch, from 0 up to but not including 1."},
+			{Name: "rigid", Type: refs(NsGeometry), Doc: "Shapes carried without stretching."},
+		},
+	},
+	{
+		Name: "blend", Context: CtxRig, Doc: "A smooth weight band between a parent joint and its child.",
+		Fields: []Field{
+			{Name: "parent", Type: ref(NsJoint), Required: true, Doc: "The joint whose weight falls."},
+			{Name: "child", Type: ref(NsJoint), Required: true, Doc: "The immediate child whose weight rises."},
+			{Name: "centre", Type: Type{Kind: TAnchor}, Required: true, Doc: "Where the band is half way: a point, or joint(name) plus a point."},
+			{Name: "axis", Type: tPoint, Required: true, Doc: "Direction of increasing child weight."},
+			{Name: "width", Type: tLength, Required: true, Positive: true, Doc: "Half-width of the band."},
+			{Name: "bias", Type: tNumber, Default: dv(units.Num(0)), Doc: "Shift of the blend fraction."},
+			{Name: "fade_x", Type: Type{Kind: TLengthRange}, Doc: "Ramps the band in across model X, written lo..hi."},
+			{Name: "only", Type: refs(NsGeometry), Doc: "Shapes the band works on; absent means every shape."},
+		},
+		Names: NameOptional,
+	},
+	{
+		Name: "morph", Context: CtxDocument, Doc: "A morph target built on the finished bind mesh.",
+		Fields: []Field{
+			{Name: "name", Type: tString, Doc: "Exported target name; defaults to the declaration name."},
+			{Name: "weight", Type: Type{Kind: TExpr}, Required: true, Doc: "A constant, or a function of one runtime parameter that is a finite table."},
+			{Name: "joints", Type: enum("fixed", "follow"), Default: dv(units.Label("fixed")), Doc: "follow also moves the joints' rest translations with an axial stretch."},
+		},
+		Blocks: []string{"inflate", "stretch", "reshape", "offset", "mirror"}, Names: NameRequired,
+	},
+	{
+		Name: "inflate", Context: CtxRig, Doc: "Grows shapes about their centre line.",
+		Fields: []Field{
+			{Name: "parts", Type: refs(NsGeometry), Required: true, Doc: "Shapes to grow."},
+			{Name: "by", Type: tNumber, Required: true, Doc: "Fractional increase of the radius."},
+		},
+	},
+	{
+		Name: "stretch", Context: CtxRig, Doc: "Stretches the finished mesh along an axis between two coordinates and moves what lies past them.",
+		Fields: []Field{
+			{Name: "axis", Type: tAxis, Required: true, Doc: "The positive axis the coordinates run along."},
+			{Name: "from", Type: tLength, Required: true, Doc: "Start of the stretched interval."},
+			{Name: "to", Type: tLength, Required: true, Doc: "End of the stretched interval; above `from`."},
+			{Name: "by", Type: tNumber, Required: true, Doc: "Fractional stretch of the interval."},
+		},
+	},
+	{
+		Name: "reshape", Context: CtxRig, Doc: "Scales shapes about a point, componentwise.",
+		Fields: []Field{
+			{Name: "parts", Type: refs(NsGeometry), Required: true, Doc: "Shapes to scale."},
+			{Name: "about", Type: Type{Kind: TAnchor}, Required: true, Doc: "The point that stays fixed."},
+			{Name: "scale", Type: Type{Kind: TScale}, Required: true, Doc: "Positive scale factors."},
+		},
+	},
+	{
+		Name: "offset", Context: CtxRig, Doc: "Translates shapes.",
+		Fields: []Field{
+			{Name: "parts", Type: refs(NsGeometry), Required: true, Doc: "Shapes to move."},
+			{Name: "by", Type: tPoint, Required: true, Doc: "The translation."},
+		},
+	},
+	{
+		Name: "clip", Context: CtxDocument, Doc: "An animation: sampled from a pose, or keyed on a wrapper node.",
+		Fields: []Field{
+			{Name: "name", Type: Type{Kind: TString}, Doc: "Exported animation name; defaults to the declaration name."},
+			{Name: "duration", Type: Type{Kind: TDuration}, Positive: true, Doc: "Length of the clip. Required for a sampled clip."},
+			{Name: "keys", Type: tInteger, Default: dv(units.Num(2)), Min: fp(2), Doc: "Sampled key count, evenly spaced from the start to the end of the clip."},
+			{Name: "loop", Type: tSwitch, Default: dv(units.Switch(false)), Doc: "Request wraparound."},
+			{Name: "interpolation", Type: enum("linear", "step"), Default: dv(units.Label("linear")), Doc: "How keys blend."},
+			{Name: "airborne", Type: tSwitch, Default: dv(units.Switch(false)), Doc: "Exempts the clip from the ground-band test."},
+			{Name: "node", Type: tString, Doc: "A wrapper node the `key` rows drive."},
+			unsupported("ground", tLabel, "ground constraints"),
+		},
+		Rows:   []RowSpec{{Name: "key", MinRows: 1, Columns: []Column{{"time", Type{Kind: TDuration}, true}, {"value", tPoint, false}}}},
+		Blocks: []string{"pose"}, Names: NameRequired,
+	},
+	{
+		Name: "pose", Context: CtxRig, Doc: "The sampled pose of a clip: one rotation per joint, written `joint = rot(x, y, z)`, and `root = (x, y, z)`.",
+		Open: true, Contains: true,
+	},
 	// Levels of detail, collision, budget, outputs.
 	{
 		Name: "lod", Context: CtxDocument, Doc: "A level of detail. Level 0 is the source and is not declared.",
@@ -350,7 +490,7 @@ var kinds = []*Kind{
 			{Name: "from", Type: tPoint, Required: true, Doc: "One cap centre."},
 			{Name: "to", Type: tPoint, Required: true, Doc: "The other cap centre."},
 			{Name: "radius", Type: tLength, Required: true, Positive: true, Doc: "Radius."},
-			unsupported("joint", tLabel, "skeletons"),
+			jointField(),
 		},
 		Names: NameRequired, Ns: NsCollider,
 	},
@@ -360,7 +500,7 @@ var kinds = []*Kind{
 			{Name: "size", Type: tExtent, Required: true, Doc: "Full size."},
 			{Name: "at", Type: tPoint, Default: origin(), Doc: "Centre."},
 			{Name: "rot", Type: tRotation, Default: dv(units.Tuple(units.Ang(0), units.Ang(0), units.Ang(0))), Doc: "Rotation."},
-			unsupported("joint", tLabel, "skeletons"),
+			jointField(),
 		},
 		Names: NameRequired, Ns: NsCollider,
 	},
@@ -369,7 +509,7 @@ var kinds = []*Kind{
 		Fields: []Field{
 			{Name: "at", Type: tPoint, Default: origin(), Doc: "Centre."},
 			{Name: "radius", Type: tLength, Required: true, Positive: true, Doc: "Radius."},
-			unsupported("joint", tLabel, "skeletons"),
+			jointField(),
 		},
 		Names: NameRequired, Ns: NsCollider,
 	},

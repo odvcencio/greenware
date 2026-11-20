@@ -14,8 +14,21 @@ import (
 // piece is one shape's mesh, in the frame of the node it will merge into,
 // with the name of the material it draws with ("" for none).
 type piece struct {
-	mat string
-	m   *mesh.Mesh
+	mat  string
+	m    *mesh.Mesh
+	meta pieceMeta
+	// rig carries the skin influences and morph deltas of a piece of a rigged
+	// asset; it is nil otherwise.
+	rig *pieceRig
+}
+
+// pieceMeta says what a piece is: the names it answers to (its shape and the
+// parts that hold it), the joint it starts rigid on, and the centre line of
+// its shape in the piece's frame (nil when the shape has none).
+type pieceMeta struct {
+	names []string
+	joint string
+	line  []mesh.Vec3
 }
 
 // socketOut is a socket placed in its node's frame.
@@ -50,6 +63,9 @@ type wctx struct {
 	refl    bool        // in the reflected copy of a mirror
 	mirror  bool        // inside a mirror
 	depth   int
+	joint   string   // the joint shapes start rigid on, inherited from the parts
+	chain   []string // the names of the parts that hold the current item
+	meta    pieceMeta
 }
 
 // elab holds the state of building one output.
@@ -268,10 +284,18 @@ func (e *elab) emit(c wctx, mat string, m *mesh.Mesh) {
 	if c.dropped || m == nil || m.TriangleCount() == 0 {
 		return
 	}
+	meta := c.meta
 	if !c.identity() {
 		m = m.Transform(c.a)
+		if meta.line != nil {
+			line := make([]mesh.Vec3, len(meta.line))
+			for i, q := range meta.line {
+				line[i] = mesh.Add(c.a.M.MulVec(q), c.a.T)
+			}
+			meta.line = line
+		}
 	}
-	p := piece{mat: mat, m: m}
+	p := piece{mat: mat, m: m, meta: meta}
 	if c.collect != nil {
 		*c.collect = append(*c.collect, p)
 		return
@@ -320,6 +344,10 @@ func (e *elab) part(n *resolve.Node, c wctx, isRoot bool) {
 		c.dropped = true
 	}
 	c.a = placeAt(c.a, at)
+	if f, ok := n.Get("joint"); ok && f.Valid() && f.Kind == unitsRef {
+		c.joint = e.jointName(f.Str, c.refl)
+	}
+	c.chain = append(append([]string(nil), c.chain...), name)
 	vis := resolve.VisibilityWhen(n)
 	if vis != nil && isRoot {
 		e.unsupported(n.Name, "the root part cannot be shown or hidden by a runtime `when`")
@@ -476,8 +504,12 @@ func (e *elab) array(n *resolve.Node, c wctx) {
 			return
 		}
 		// The collected mesh is already in the array's frame, which is the
-		// current frame, so it goes through the current placement once.
-		e.emit(c, p.mat, out)
+		// current frame, so it goes through the current placement once. Its
+		// shape has no centre line any more.
+		cc := c
+		cc.meta = p.meta
+		cc.meta.line = nil
+		e.emit(cc, p.mat, out)
 	}
 }
 

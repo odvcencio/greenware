@@ -33,6 +33,14 @@ func TestCatalogueFixtures(t *testing.T) {
 			if e.Code == diag.CodeAccept || e.Code == diag.CodeLimit {
 				return
 			}
+			// GW-RIG-LIMIT and GW-RIG-BAND measure poses, which only the
+			// compiler does; compiler/rig_test.go checks their fixtures.
+			if e.Code == diag.CodeRigLimit || e.Code == diag.CodeRigBand {
+				if _, err := os.Stat(filepath.Join("..", e.Fixture)); err != nil {
+					t.Fatalf("fixture: %v", err)
+				}
+				return
+			}
 			src, err := os.ReadFile(filepath.Join("..", e.Fixture))
 			if err != nil {
 				t.Fatalf("fixture: %v", err)

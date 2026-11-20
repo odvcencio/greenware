@@ -31,6 +31,13 @@ type recordFile struct {
 	// describes each. Both are absent for a file without images.
 	TextureBytes int         `json:"texture_bytes,omitempty"`
 	Images       []ImageInfo `json:"images,omitempty"`
+	// The rig: joints, most influences on one vertex, morph targets,
+	// animations and their keys. Absent for a file without a skeleton.
+	Joints     int `json:"joints,omitempty"`
+	Influences int `json:"influences,omitempty"`
+	Morphs     int `json:"morphs,omitempty"`
+	Animations int `json:"animations,omitempty"`
+	AnimKeys   int `json:"animation_keys,omitempty"`
 }
 
 type recordOutput struct {
@@ -82,6 +89,7 @@ func (p *Product) Record() []byte {
 				rf.TrianglesWorst, rf.TrianglesStored, rf.DrawsWorst, rf.Alternates = f.TrianglesWorst, f.TrianglesStored, f.DrawsWorst, f.Alternates
 			}
 			rf.TextureBytes, rf.Images = f.TextureBytes, f.Images
+			rf.Joints, rf.Influences, rf.Morphs, rf.Animations, rf.AnimKeys = f.Joints, f.Influences, f.Morphs, f.Animations, f.AnimKeys
 			ro.Files = append(ro.Files, rf)
 		}
 		rec.Outputs = append(rec.Outputs, ro)

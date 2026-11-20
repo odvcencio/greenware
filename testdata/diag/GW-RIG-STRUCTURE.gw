@@ -1,0 +1,23 @@
+greenware 1
+
+// A skeleton with two joints that have no parent. A skeleton has exactly one
+// root: nest `side` under `base`.
+
+asset a { root = a idle = rest }
+
+skeleton s {
+  joint base { at = (0, 0, 0) }
+  joint side { at = (1, 0, 0) }
+}
+
+part a {
+  joint = base
+  sphere ball { radius = 0.1m }
+}
+
+clip rest {
+  duration = 1s
+  pose { base = rot(0, 0, 0) }
+}
+
+output demo { file = "a.glb" }

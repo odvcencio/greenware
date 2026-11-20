@@ -34,6 +34,9 @@ type binding struct {
 	scene       string
 	visible     bool // the node's own state at the defaults
 	cond        resolve.Cond
+	// extra is the finished binding entry of a rig binding (kind "morph",
+	// "joint_offset" or "root_scale"); node names it for ordering.
+	extra map[string]any
 }
 
 // matOut is a material as written, with the runtime bindings it carries.
@@ -136,6 +139,7 @@ func (e *elab) material(name string) (*matOut, bool) {
 	base := units.Col(units.Color{R: 255, G: 255, B: 255, A: 255})
 	rough, metal, alpha := 1.0, 0.0, 1.0
 	coat, coatRough := 0.0, 0.0
+	doubleSided, alphaBlend := false, false
 	out.filter, out.wrap = "trilinear", "repeat"
 	ok = true
 	for _, f := range src.Fields {
@@ -156,12 +160,12 @@ func (e *elab) material(name string) (*matOut, bool) {
 			out.filter = f.Value.Str
 		case "wrap":
 			out.wrap = f.Value.Str
+		case "double_sided":
+			doubleSided = f.Value.Bool
 		case "name", "base_texture":
 			// The artifact name is unused; the base texture is in ml.
 		case "blend":
-			if f.Value.Bool {
-				e.notes = appendUnique(e.notes, fmt.Sprintf("material %s: blend = on is not written: the glTF writer has no alphaMode field, so the material keeps its alpha factor in an opaque-mode material", name))
-			}
+			alphaBlend = f.Value.Bool
 		default:
 			if !f.Default && !fieldIsInert(f) {
 				e.unsupported(name, "the material field `%s` is not supported yet", f.Name)
@@ -183,8 +187,14 @@ func (e *elab) material(name string) (*matOut, bool) {
 			det.Round32(srgbToLinear(c.R)), det.Round32(srgbToLinear(c.G)), det.Round32(srgbToLinear(c.B)),
 			det.Round32(float64(float64(c.A) / 255 * alpha)),
 		},
-		Metallic:  det.Round32(metal),
-		Roughness: det.Round32(rough),
+		Metallic:    det.Round32(metal),
+		Roughness:   det.Round32(rough),
+		DoubleSided: doubleSided,
+	}
+	if alphaBlend {
+		// `blend = on` is the glTF alpha mode BLEND; the alpha factor is in the
+		// base colour factor's fourth component.
+		out.m.AlphaMode = gltf.AlphaBlend
 	}
 	if coat > 0 || coatRough > 0 {
 		// KHR_materials_clearcoat carries both coat factors whenever a coat is used.

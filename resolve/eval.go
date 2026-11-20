@@ -259,21 +259,29 @@ func (r *run) ifExpr(n *ast.If, sc *scope) units.Value {
 		r.dry(n.Else, sc)
 		return units.Bad()
 	}
-	var taken, other units.Value
+	// Both branches are checked; the condition picks the value. thenV and
+	// elseV are the two branches evaluated, one of them dry.
+	var thenV, elseV units.Value
 	if c.Bool {
-		taken, other = r.eval(n.Then, sc), r.dry(n.Else, sc)
+		thenV, elseV = r.eval(n.Then, sc), r.dry(n.Else, sc)
 	} else {
-		taken, other = r.dry(n.Then, sc), r.eval(n.Else, sc)
+		thenV, elseV = r.dry(n.Then, sc), r.eval(n.Else, sc)
 	}
-	if !taken.Valid() || !other.Valid() {
+	if !thenV.Valid() || !elseV.Valid() {
 		return units.Bad()
 	}
-	unified, ok := units.Unify(taken, other, r.d)
-	if !ok {
-		r.report(diag.New(diag.CodeUnit, n.Span(), "the two branches of `if` have different types: %s and %s", describe(taken), describe(other)))
+	// Each branch takes the dimension of its peer, so the result has the type
+	// of both whichever is taken (spec 2.3 rule 1).
+	unifiedThen, ok := units.Unify(thenV, elseV, r.d)
+	unifiedElse, ok2 := units.Unify(elseV, thenV, r.d)
+	if !ok || !ok2 {
+		r.report(diag.New(diag.CodeUnit, n.Span(), "the two branches of `if` have different types: %s and %s", describe(thenV), describe(elseV)))
 		return units.Bad()
 	}
-	// Both branches share one type whichever is taken (spec 2.3 rule 1).
+	unified, taken := unifiedElse, elseV
+	if c.Bool {
+		unified, taken = unifiedThen, thenV
+	}
 	unified.Runtime = taken.DependsOnRuntime() || c.DependsOnRuntime()
 	return unified
 }

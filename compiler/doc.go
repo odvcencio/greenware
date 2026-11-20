@@ -51,6 +51,13 @@
 //     to the level's max_error and remove the geometry its `drop` list names
 //     (and the lists of earlier levels) before merging.
 //   - Sockets and colliders as meshless nodes, with their data in node extras.
+//   - Rigging (milestone M4, docs/reference/rig.md): a skeleton with model-frame
+//     binds and mirrors, rigid binding and ordered skin steps (lengthen, blend),
+//     morph targets with table weights and `joints = follow`, sampled and
+//     keyed clips, wrapper nodes and an idle pose. They are written as glTF
+//     joints, a skin with inverse binds, JOINTS_0 and WEIGHTS_0, morph targets
+//     with names, and animations. Package kernel/rig does the math. Targets are
+//     written dense: package gltf has no sparse accessors.
 //   - Budgets, measured on the encoded files, at the output's effective budget.
 //
 // Cost: BuildWith reserves a fixed price for every operation of the planned
@@ -68,8 +75,6 @@
 //     not define its layout. Product.Unsupported says so.
 //   - The Selena artifact is neither read nor pinned; only the fallback
 //     material is written, and the build notes record the artifact as pending.
-//   - `blend = on` is not written: package gltf has no alphaMode field. The
-//     build notes say so.
 //   - The look's tickets (`paint`, `encode_images`) are this compiler's
 //     assumption, as are `select` and `surface_branches`; see cost.go.
 package compiler

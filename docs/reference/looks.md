@@ -105,7 +105,7 @@ In the GLB:
 - The material's `extras.greenware` (`greenware.selena/1`) records the source, name, artifact status (`pending`), the descriptor values, and the palette (grid, cell size, inset, each cell's index and slot, the mask texture index and the fallback texture index).
 - Runtime colours: `shell_color` and the other slot colours are bindings in the runtime table on the palette field (`slot0`, `target: palette`, map `srgb_to_linear`). A runtime `alpha` such as `visor_tint` binds `baseColorFactor.alpha` with the identity map.
 
-`blend = on` is not written: the glTF writer has no `alphaMode` field. The build notes say so.
+`blend = on` is written as the glTF alpha mode `BLEND`; `alpha` is the fourth component of `baseColorFactor`. `double_sided = on` is written as `doubleSided`.
 
 ## Plugs
 

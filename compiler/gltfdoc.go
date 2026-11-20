@@ -55,6 +55,9 @@ type level struct {
 	// carries; images describes them.
 	texBytes int
 	images   []ImageInfo
+	// The rig: joints, most influences on one vertex, morph targets,
+	// animations, animation keys and bound positions. Zero without a rig.
+	joints, influences, morphs, animations, keys, rigVerts int
 }
 
 // vertexKey identifies a written vertex.
@@ -151,6 +154,16 @@ const maxBranches = 16
 
 // assemble builds the glTF document of one level from its node tree.
 func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*level, bool) {
+	// A skinned asset gets its weights, targets and joints first: the skin
+	// steps move the geometry the pieces hold.
+	var rl *rigLevel
+	if e.rigged() {
+		var ok bool
+		if rl, ok = e.buildRigLevel(root); !ok {
+			return nil, false
+		}
+		root.pieces = rl.pieces
+	}
 	// The materials this level draws, by name.
 	var names []string
 	seen := map[string]bool{} // lookup only
@@ -233,8 +246,25 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 			// One primitive per material, in the order the materials first appear.
 			order, groups := groupPieces(n.pieces)
 			m := gltf.Mesh{Name: n.name}
+			skinned := rl != nil && n == root
+			if skinned {
+				if v, ok := fieldOf(e.r.Asset, "mesh_name"); ok && v.Valid() && v.Str != "" {
+					m.Name = v.Str
+				}
+				for _, mo := range rl.morphs {
+					m.TargetNames = append(m.TargetNames, mo.name)
+				}
+				for _, w := range rl.weights {
+					m.Weights = append(m.Weights, det.Round32(w))
+				}
+			}
 			for _, mat := range order {
-				prim := primitiveOf(groups[mat])
+				var prim gltf.Primitive
+				if skinned {
+					prim = primitiveRig(groups[mat])
+				} else {
+					prim = primitiveOf(groups[mat])
+				}
 				if mat != "" {
 					prim.Material = gltf.Int(matIndex[mat])
 				}
@@ -273,6 +303,23 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 		return idx, alternate
 	}
 	rootIdx, _ := addNode(root, "", false)
+	top := rootIdx
+	var cds []*clipData
+	if rl != nil {
+		rn, c, ok := e.attachRig(doc, rl, rootIdx)
+		if !ok {
+			return nil, false
+		}
+		top, cds = rn.top, c
+		lv.joints, lv.influences, lv.morphs = len(rl.sk.Joints), rl.maxInfl, len(rl.morphs)
+		for _, an := range doc.Animations {
+			for _, sm := range an.Samplers {
+				lv.keys += len(sm.Input)
+			}
+		}
+		lv.animations = len(doc.Animations)
+		lv.rigVerts = rl.verts
+	}
 	// Colliders hang off the root, after its sockets.
 	for _, c := range cols {
 		data := map[string]any{"format": "greenware.collider/1", "name": c.name, "shape": c.shape}
@@ -282,7 +329,7 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 		doc.Nodes = append(doc.Nodes, gltf.Node{Name: "collider." + c.name, Extras: mustJSON(map[string]any{"greenware": data})})
 		doc.Nodes[rootIdx].Children = append(doc.Nodes[rootIdx].Children, len(doc.Nodes)-1)
 	}
-	doc.Scenes = []gltf.Scene{{Nodes: []int{rootIdx}}}
+	doc.Scenes = []gltf.Scene{{Nodes: []int{top}}}
 	if len(alts) > 0 {
 		doc.Scenes = append(doc.Scenes, gltf.Scene{Name: "alternates", Nodes: alts})
 	}
@@ -338,6 +385,9 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 			plugs = append(plugs, map[string]any{"name": p.Name, "kind": label(p, "kind"), "at": vecJSON(vec3(p, "at"))})
 		}
 		asset["plugs"] = plugs
+	}
+	if rl != nil {
+		e.rigExtras(asset, rl, cds, &bindings)
 	}
 	if rt := e.runtimeTable(bindings); rt != nil {
 		asset["runtime"] = rt
@@ -398,7 +448,7 @@ func (e *elab) runtimeTable(bs []binding) map[string]any {
 			if bl[i].kind != bl[j].kind {
 				return bl[i].kind < bl[j].kind
 			}
-			if bl[i].kind == "visibility" {
+			if bl[i].kind == "visibility" || bl[i].extra != nil {
 				return bl[i].node < bl[j].node
 			}
 			if bl[i].material != bl[j].material {
@@ -408,6 +458,10 @@ func (e *elab) runtimeTable(bs []binding) map[string]any {
 		})
 		var bj []any
 		for _, b := range bl {
+			if b.extra != nil {
+				bj = append(bj, b.extra)
+				continue
+			}
 			if b.kind == "visibility" {
 				test := map[string]any{"op": b.cond.Op}
 				if b.cond.Value != "" {
@@ -492,6 +546,10 @@ func (e *elab) collider(n *resolve.Node, refl bool, plane mesh.Plane) collider {
 		return v
 	}
 	c := collider{name: effName(n, refl), shape: n.Kind, data: map[string]any{}}
+	if f, ok := n.Get("joint"); ok && f.Valid() && f.Kind == unitsRef {
+		// The shape stays in model space; the joint says what it follows.
+		c.data["joint"] = e.jointName(f.Str, refl)
+	}
 	switch n.Kind {
 	case "capsule":
 		c.data["from"] = vecJSON(pt("from"))

@@ -231,13 +231,17 @@ func (r *run) slot(sc *scope, f *registry.Field, s *ast.Setting) units.Value {
 	if s.Value != nil {
 		vsp = s.Value.Span()
 	}
-	if t.Kind == registry.TAngleRange {
+	if t.Kind == registry.TAngleRange || t.Kind == registry.TLengthRange {
 		if s.Range == nil {
 			r.report(diag.New(diag.CodeType, vsp, "`%s` takes a range written lo..hi", f.Name))
 			return units.Bad()
 		}
-		lo := r.scalar(r.eval(s.Range.Lo, sc), units.Angle, s.Range.Lo.Span())
-		hi := r.scalar(r.eval(s.Range.Hi, sc), units.Angle, s.Range.Hi.Span())
+		dim := units.Angle
+		if t.Kind == registry.TLengthRange {
+			dim = units.Length
+		}
+		lo := r.scalar(r.eval(s.Range.Lo, sc), dim, s.Range.Lo.Span())
+		hi := r.scalar(r.eval(s.Range.Hi, sc), dim, s.Range.Hi.Span())
 		if !lo.Valid() || !hi.Valid() {
 			return units.Bad()
 		}
@@ -311,6 +315,8 @@ func (r *run) slot(sc *scope, f *registry.Field, s *ast.Setting) units.Value {
 		return units.List(out...)
 	case registry.TTexture:
 		return r.textureValue(e)
+	case registry.TAnchor:
+		v = r.anchor(e, sc)
 	case registry.TProfile:
 		v = r.profile(e, sc)
 	case registry.TNames:
