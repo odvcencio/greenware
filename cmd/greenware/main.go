@@ -1,10 +1,11 @@
 // Command greenware compiles Greenware sources (.gw files).
 //
-//	greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]
+//	greenware build <file> [--output NAME] [--out-dir DIR | -o DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]
 //	greenware check <file> [--project DIR] [--geometry-only] [--json]
 //	greenware fmt <file> [--check] [--write] [--json]
 //	greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
 //	greenware print <file> [--output NAME] [--level N] [--scale S] [--out FILE] [--force] [--project DIR] [--json]
+//	greenware version [--json]   (also --version and -v)
 //	greenware fix | diff | describe | ir | init | lock | explain | search | trace (package tools; see docs/reference/commands.md)
 //
 // With --json the command writes exactly one JSON value to standard output.
@@ -32,11 +33,11 @@ import (
 )
 
 const usage = `usage:
-  greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]
+  greenware build <file> [--output NAME] [--out-dir DIR | -o DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]
   greenware check <file> [--project DIR] [--geometry-only] [--json]
   greenware fmt <file> [--check] [--write] [--json]
   greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
-` + printUsage + lspUsage + toolsUsage
+` + printUsage + lspUsage + toolsUsage + versionUsage
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -68,6 +69,41 @@ type options struct {
 
 var errUsage = errors.New("usage")
 
+// unknownFlag is the error for a flag a command does not take. It is one line,
+// not the whole usage: the list of every command would bury it.
+type unknownFlag struct{ flag string }
+
+func (e *unknownFlag) Error() string { return "unknown flag " + e.flag }
+
+// usageFailure writes a command's usage error and returns the exit status 2.
+// An unknown flag gets one line that points at `greenware help <cmd>`; any
+// other error keeps the full usage.
+func usageFailure(stderr io.Writer, cmd string, err error, fullUsage string) int {
+	var uf *unknownFlag
+	if errors.As(err, &uf) {
+		fmt.Fprintf(stderr, "greenware %s: %v (see greenware help %s)\n", cmd, err, cmd)
+		return 2
+	}
+	fmt.Fprintf(stderr, "greenware %s: %v\n%s", cmd, err, fullUsage)
+	return 2
+}
+
+// helpFor prints the usage lines of one command.
+func helpFor(cmd string, stdout, stderr io.Writer) int {
+	var lines []string
+	for _, ln := range strings.SplitAfter(usage, "\n") {
+		if strings.HasPrefix(ln, "  greenware "+cmd+" ") || ln == "  greenware "+cmd+"\n" {
+			lines = append(lines, ln)
+		}
+	}
+	if len(lines) == 0 {
+		fmt.Fprintf(stderr, "greenware help: unknown command %q\n", cmd)
+		return 2
+	}
+	fmt.Fprint(stdout, "usage:\n"+strings.Join(lines, ""))
+	return 0
+}
+
 // parse reads flags in any position. A flag that takes a value accepts
 // "--name value" and "--name=value".
 func parse(args []string, allowed map[string]bool) (options, error) {
@@ -83,7 +119,8 @@ func parse(args []string, allowed map[string]bool) (options, error) {
 		}
 		name, val, hasVal := strings.Cut(strings.TrimLeft(a, "-"), "=")
 		if !allowed[name] {
-			return o, fmt.Errorf("unknown flag %q", a)
+			flag, _, _ := strings.Cut(a, "=")
+			return o, &unknownFlag{flag}
 		}
 		takes := func() (string, error) {
 			if hasVal {
@@ -108,7 +145,7 @@ func parse(args []string, allowed map[string]bool) (options, error) {
 		case "output":
 			o.output, err = takes()
 			o.hasName = true
-		case "out-dir":
+		case "out-dir", "o":
 			o.outDir, err = takes()
 			o.hasOut = true
 		case "max-work":
@@ -156,7 +193,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	var allowed map[string]bool
 	switch cmd {
 	case "build":
-		allowed = map[string]bool{"output": true, "out-dir": true, "json": true, "max-work": true, "accept": true, "geometry-only": true, "project": true, "runtime-points": true}
+		allowed = map[string]bool{"output": true, "out-dir": true, "o": true, "json": true, "max-work": true, "accept": true, "geometry-only": true, "project": true, "runtime-points": true}
 	case "check":
 		allowed = map[string]bool{"json": true, "geometry-only": true, "project": true}
 	case "fmt":
@@ -167,7 +204,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runLSP(rest, stdout, stderr)
 	case "accept":
 		return accept.Command(rest, stdout, stderr)
+	case "version", "--version", "-v":
+		return runVersion(rest, stdout, stderr)
 	case "help", "-h", "--help":
+		if cmd == "help" && len(rest) > 0 {
+			return helpFor(rest[0], stdout, stderr)
+		}
 		fmt.Fprint(stdout, usage)
 		return 0
 	default:
@@ -176,8 +218,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	o, err := parse(rest, allowed)
 	if err != nil {
-		fmt.Fprintf(stderr, "greenware %s: %v\n%s", cmd, err, usage)
-		return 2
+		return usageFailure(stderr, cmd, err, usage)
 	}
 	src, err := os.ReadFile(o.file)
 	if err != nil {
@@ -345,6 +386,8 @@ type buildOutput struct {
 	Name      string      `json:"name"`
 	FirSHA256 string      `json:"fir_sha256"`
 	Files     []buildFile `json:"files"`
+	// Levels carries each level's declared switch distance, as the record does.
+	Levels []compiler.LevelInfo `json:"levels"`
 }
 
 type buildReport struct {
@@ -402,7 +445,7 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 			rep.Unsupported = append(rep.Unsupported, "geometry only: skipped "+sk)
 		}
 		for _, op := range p.Outputs {
-			bo := buildOutput{Name: op.Name, FirSHA256: op.FirSHA256, Files: []buildFile{}}
+			bo := buildOutput{Name: op.Name, FirSHA256: op.FirSHA256, Files: []buildFile{}, Levels: op.Levels()}
 			for _, fl := range op.Files {
 				bf := buildFile{Name: fl.Name, Level: fl.Level, Bytes: fl.Size, SHA256: fl.SHA256, Triangles: fl.Triangles, Draws: fl.Draws, Materials: fl.Materials, Vertices: fl.Vertices}
 				if fl.TrianglesWorst != fl.Triangles || fl.DrawsWorst != fl.Draws || fl.TrianglesStored != fl.Triangles {

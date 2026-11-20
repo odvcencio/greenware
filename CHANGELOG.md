@@ -11,6 +11,16 @@ What works now, as of this list:
 - `greenware print` writes one level of one output as a 3MF file of solids, and refuses a shape that is not a closed manifold with `GW-PRINT` (`docs/reference/print.md`). It does not check wall thickness or intersections.
 - The cost ledger: a build reserves cost tickets and refuses a build over its limits.
 
+- `box` shape: flat faces with `segments` divisions, UVs by the box projection, and a `bevel` of all twelve edges (`docs/reference/box.md`). Edges other than `all` on a box bevel are `GW-UNSUPPORTED`.
+
+- `rot` on shapes, and `rot`, `scale` and `pivot` on parts and instances (`docs/reference/transforms.md`): intrinsic X, Y, Z turns, exact for multiples of 45 degrees, normals by the inverse transpose. A socket's `rot` stays `GW-UNSUPPORTED`.
+
+- Inch unit: `4in`, `18.5in` (0.0254 m exactly) when `in` touches its number; a spaced `in` stays the range word, and `4 in` as a syntax error now says `write the inch unit without a space: 4in` (`docs/reference/units.md`, decision 0019). The grammar blob `lang/greenware.bin` and `docs/reference/grammar.ebnf` are regenerated.
+
+- The build record and `greenware build --json` list each output's `levels` with `distance_m` (null for level 0), `max_error_m`, `triangles` and `draws`, so a game can read the level distances instead of repeating them (`docs/reference/build-record.md`). No GLB byte changes. `manifest = on` still writes no GoSX manifest entry; the note now says where the distances are.
+
+- `greenware version [--json]` (also `--version`, `-v`): the generator version, Go version, platform and VCS revision of the binary, schema `greenware.version/1`. An unknown flag now prints one line (`greenware build: unknown flag --foo (see greenware help build)`) instead of the whole usage, `greenware help <command>` prints one command's usage, and `build` accepts `-o` for `--out-dir` (`docs/reference/commands.md`).
+
 - Renamed from Facet to Greenware (`.gw`, module `m31labs.dev/greenware`).
 - Geometry kernel (`kernel/`), neutral GLB codec (`gltf/`), deterministic math (`det/`) and an independent checker (`conformance/`).
 

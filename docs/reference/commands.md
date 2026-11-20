@@ -293,4 +293,30 @@ goalpost/post/sweep  316 triangles, closed true, 124821.601 cm3, bounds (-100.00
 
 ## Other commands
 
-`greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]` writes the GLB files and a build record. `greenware fmt <file> [--check] [--write] [--json]` formats a file. `greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]` runs an acceptance file on built files; it exits 3 when no check failed but some could not be measured. Their exit status is 0 success, 1 an error diagnostic (or an unformatted file under `fmt --check`), 2 a usage or read error.
+`greenware build <file> [--output NAME] [--out-dir DIR | -o DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]` writes the GLB files and a build record. `greenware fmt <file> [--check] [--write] [--json]` formats a file. `greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]` runs an acceptance file on built files; it exits 3 when no check failed but some could not be measured. Their exit status is 0 success, 1 an error diagnostic (or an unformatted file under `fmt --check`), 2 a usage or read error.
+
+## greenware version
+
+`greenware version [--json]`, also `greenware --version` and `greenware -v`, says which build of the tool this is. A game that pins the tool in its `go.mod` can print it, so a log says which compiler wrote a file. Exit 0.
+
+Plain mode prints `greenware <version> (<go version>, <os>/<arch>)`. When the binary carries a version control stamp it prints a second line with the revision, and `(modified)` if the tree had uncommitted changes. `<version>` is the generator string that every GLB carries in `asset.generator`.
+
+JSON (`greenware.version/1`): `schema, name, version, vcs_revision, vcs_modified, go, os, arch, module`. `vcs_revision` and `vcs_modified` are `null` when the binary has no stamp (built outside a checkout, or with `-buildvcs=false`). `module` is `{path, version}` of the main module as Go recorded it: `(devel)` for a build in the tree, a pseudo-version or a tag for a binary built through `go tool` or `go install`.
+
+The output changes with the build, so this example is shown without the `$ ` prefix and the test that runs the other examples does not run it. `cmd/greenware/version_test.go` runs the command instead.
+
+```text
+greenware version
+greenware 0.1 (go1.25.1, linux/amd64)
+revision 0de72e7b450f507034099d2c07c2d6e790d97176 (modified)
+```
+
+## Flags and usage errors
+
+`greenware help` prints every command's usage. `greenware help <command>` prints that command's lines. A flag that a command does not take stops it with exit status 2 and one line on standard error that names the flag and the help command:
+
+```text
+greenware build: unknown flag --foo (see greenware help build)
+```
+
+`build` also takes `-o DIR`, the short form of `--out-dir DIR`.

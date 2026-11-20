@@ -10,7 +10,7 @@
 //
 // What the first compiler reads (milestone M2-S):
 //
-//   - Shapes: cylinder (caps, bevel), sphere, sweep (circle profile, path
+//   - Shapes: box (segments, bevel), cylinder (caps, bevel), sphere, sweep (circle profile, path
 //     rows, caps), lathe (rows, closed), and, for the helmet (milestone M3,
 //     geometry), loft (rows, columns, an author's vertex rule, arc, caps),
 //     ellipsoid and tube (open or closed). Other shapes are GW-UNSUPPORTED.
@@ -26,8 +26,9 @@
 //     assignment of the tested parameters; TrianglesStored every branch.
 //   - Composition: parts and nested parts, mirror (planes x, y, z; names
 //     given as pairs), array (linear, grid, radial), instance, bake `when`.
-//     A part's `at` is a translation. `rot`, `scale` and `pivot` on parts,
-//     shapes, sockets and instances must be the identity.
+//     Parts are placed by `at`, `pivot`, `rot` and `scale`, instances by `at`,
+//     `rot` and `scale`, shapes by `at` and `rot` (frame.go); a socket's `rot`
+//     must be the identity.
 //   - Materials: pbr, and selena through its pbr fallback. A runtime colour
 //     or number parameter is written as its default value and recorded as a
 //     binding in the runtime table.
@@ -78,7 +79,9 @@
 //     top-level glTF `extras` member under the key "greenware", not in
 //     `asset.extras`, because package gltf has no asset extras.
 //   - `manifest = on` writes no GoSX manifest entry: the specification does
-//     not define its layout. Product.Unsupported says so.
+//     not define its layout. Product.Unsupported says so. The build record
+//     carries each output's levels with their `distance` and `max_error` in
+//     metres (OutputProduct.Levels), so a game need not repeat them.
 //   - The Selena artifact is neither read nor pinned; only the fallback
 //     material is written, and the build notes record the artifact as pending.
 //   - The look's tickets (`paint`, `encode_images`) are this compiler's

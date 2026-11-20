@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"m31labs.dev/greenware/lang"
 	"m31labs.dev/greenware/lsp"
@@ -38,7 +39,10 @@ func runLSP(args []string, stdout, stderr io.Writer) int {
 		case "--json":
 			check, asJSON = true, true
 		default:
-			fmt.Fprintf(stderr, "greenware lsp: unknown argument %q\n%s", a, usage)
+			if strings.HasPrefix(a, "-") {
+				return usageFailure(stderr, "lsp", &unknownFlag{a}, lspUsage)
+			}
+			fmt.Fprintf(stderr, "greenware lsp: unknown argument %q\n%s", a, lspUsage)
 			return 2
 		}
 	}

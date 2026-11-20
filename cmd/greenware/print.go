@@ -77,7 +77,8 @@ func parsePrint(args []string) (printOptions, error) {
 				o.scale = s
 			}
 		default:
-			return o, fmt.Errorf("unknown flag %q", a)
+			flag, _, _ := strings.Cut(a, "=")
+			return o, &unknownFlag{flag}
 		}
 		if err != nil {
 			return o, err
@@ -117,8 +118,7 @@ type printReport struct {
 func runPrint(args []string, stdout, stderr io.Writer) int {
 	o, err := parsePrint(args)
 	if err != nil {
-		fmt.Fprintf(stderr, "greenware print: %v\n%s", err, printUsage)
-		return 2
+		return usageFailure(stderr, "print", err, printUsage)
 	}
 	src, err := os.ReadFile(o.file)
 	if err != nil {
