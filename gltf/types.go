@@ -30,6 +30,9 @@ type Document struct {
 type Asset struct {
 	Generator string
 	Copyright string
+	// Extras is raw JSON for "asset.extras", or nil. Any JSON value is
+	// accepted, as glTF allows. Encode writes it after "version".
+	Extras json.RawMessage
 }
 
 // Scene lists the root nodes of one scene.

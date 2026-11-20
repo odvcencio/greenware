@@ -10,9 +10,10 @@ import (
 )
 
 type jAsset struct {
-	Version   string `json:"version"`
-	Generator string `json:"generator"`
-	Copyright string `json:"copyright"`
+	Version   string          `json:"version"`
+	Generator string          `json:"generator"`
+	Copyright string          `json:"copyright"`
+	Extras    json.RawMessage `json:"extras"`
 }
 type jScene struct {
 	Name   string          `json:"name"`
@@ -473,6 +474,9 @@ func (d *decoder) build() (*Document, error) {
 
 	doc := &Document{Asset: Asset{Generator: j.Asset.Generator, Copyright: j.Asset.Copyright}, Scene: j.Scene}
 	var err error
+	if doc.Asset.Extras, err = canonicalJSON(j.Asset.Extras); err != nil {
+		return nil, errf("asset.extras", "invalid JSON: %v", err)
+	}
 	if doc.Extras, err = canonicalJSON(j.Extras); err != nil {
 		return nil, errf("extras", "invalid JSON: %v", err)
 	}

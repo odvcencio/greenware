@@ -24,7 +24,8 @@ back, err := gltf.Decode(glb)
 
 - Nodes (translation, rotation, scale, children, mesh), meshes with POSITION, NORMAL,
   TEXCOORD_0 and indices, metallic-roughness materials, textures, images, samplers,
-  and raw-JSON extras and extensions.
+  and raw-JSON extras and extensions. `Asset.Extras` carries `asset.extras` (any JSON
+  value); Encode writes it after `version`.
 - Decode reads indices as ubyte, ushort or uint, and strided bufferViews. It turns a
   node `matrix` into translation, rotation and scale.
 - Skins (JOINTS_0, WEIGHTS_0, inverse bind matrices), morph targets (POSITION and
@@ -51,7 +52,7 @@ rejected. The writer does not merge duplicate vertices.
     go test -run xxx -fuzz FuzzDecode -fuzztime 30s .
     go test -update -run TestGolden .   # only after an intended format change
 
-`testdata/triangle.glb`, `testdata/rigged.glb` and `testdata/rigged-sparse.glb` are the
-golden files. Their SHA-256 values are in `gltf_test.go`, `rig_test.go` and
+`testdata/triangle.glb`, `testdata/rigged.glb`, `testdata/rigged-sparse.glb` and
+`testdata/asset-extras.glb` are the golden files. Their SHA-256 values are in `gltf_test.go`, `rig_test.go` and
 `sparse_test.go`. Rewrite them with
-`go test -update -run 'TestGolden|TestRigGolden|TestSparseGolden' .`.
+`go test -update -run 'TestGolden|TestRigGolden|TestSparseGolden|TestAssetExtrasGolden' .`.

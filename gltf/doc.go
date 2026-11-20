@@ -25,6 +25,8 @@
 //     nodes, meshes, materials, textures, images, samplers, skins, animations,
 //     buffers, bufferViews, accessors, extras. Fields inside each object also have a
 //     fixed order. Map keys (node and material extensions) are sorted.
+//   - The asset object writes copyright, generator, version, then extras
+//     (Asset.Extras, any JSON value) when set.
 //   - Extras are re-written as compact JSON with sorted object keys. Numbers
 //     keep their written form.
 //   - One binary buffer. Per primitive the data comes in this order, each in

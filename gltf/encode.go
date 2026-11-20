@@ -251,6 +251,9 @@ func Encode(doc *Document) ([]byte, error) {
 		af.add("generator", jstr(doc.Asset.Generator))
 	}
 	af.add("version", jstr("2.0"))
+	if err := addExtras(&af, doc.Asset.Extras, "asset.extras"); err != nil {
+		return nil, err
+	}
 	root.add("asset", af.String())
 
 	used := map[string]bool{}

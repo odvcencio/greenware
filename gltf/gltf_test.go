@@ -456,6 +456,7 @@ func FuzzDecode(f *testing.F) {
 	f.Add(mustEncodeF(richDoc()))
 	f.Add(mustEncodeF(rigDoc()))
 	f.Add(mustEncodeF(sparseRigDoc()))
+	f.Add(mustEncodeF(assetExtrasDoc()))
 	f.Add(mkGLB(sparseJSONText, sparseBin()))
 	f.Add(mkGLB(triJSON, triBin()))
 	f.Add(mkGLB(`{"asset":{"version":"2.0"},"nodes":[{"matrix":[0,2,0,0,-3,0,0,0,0,0,4,0,5,6,7,1]}]}`, nil))
@@ -518,3 +519,69 @@ func TestNoUnwrappedMultiply(t *testing.T) {
 }
 
 var _ = fmt.Sprint
+
+const assetExtrasSHA256 = "942d486e0200a73b2fc848ac8e638c2ed2104586710da33cbf969ffe9ae0f1fa"
+
+func assetExtrasDoc() *Document {
+	d := triangleDoc()
+	d.Asset.Extras = json.RawMessage(`{"greenware":{"inputs":[{"sha256":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f","profile":"demo","contract":"example/world@1"}]}}`)
+	return d
+}
+
+func TestAssetExtrasGolden(t *testing.T) {
+	b := mustEncode(t, assetExtrasDoc())
+	path := "testdata/asset-extras.glb"
+	if *update {
+		if err := os.WriteFile(path, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(b, want) {
+		t.Fatalf("encoding differs from %s", path)
+	}
+	sum := sha256.Sum256(b)
+	if got := hex.EncodeToString(sum[:]); got != assetExtrasSHA256 {
+		t.Fatalf("sha256 %s, want %s", got, assetExtrasSHA256)
+	}
+}
+
+func TestAssetExtrasRoundTrip(t *testing.T) {
+	for _, raw := range []string{
+		`{"b":1.50,"a":[true,null]}`, `[1,2]`, `"text"`, `12.0`, `true`, `null`,
+	} {
+		d := triangleDoc()
+		d.Asset.Extras = json.RawMessage(raw)
+		e1 := mustEncode(t, d)
+		d2, err := Decode(e1)
+		if err != nil {
+			t.Fatalf("%s: %v", raw, err)
+		}
+		if raw != `null` && len(d2.Asset.Extras) == 0 {
+			t.Fatalf("%s: extras lost", raw)
+		}
+		if e2 := mustEncode(t, d2); !bytes.Equal(e1, e2) {
+			t.Fatalf("%s: encoding not stable", raw)
+		}
+	}
+	d, _ := Decode(mustEncode(t, assetExtrasDoc()))
+	if string(d.Asset.Extras) != `{"greenware":{"inputs":[{"contract":"example/world@1","profile":"demo","sha256":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"}]}}` {
+		t.Fatalf("decoded extras %s", d.Asset.Extras)
+	}
+	// Unset extras leave the triangle bytes unchanged.
+	if bytes.Contains(mustEncode(t, triangleDoc()), []byte(`"extras"`)) {
+		t.Fatal("unset Asset.Extras wrote an extras member")
+	}
+}
+
+func TestAssetExtrasMalformed(t *testing.T) {
+	d := triangleDoc()
+	d.Asset.Extras = json.RawMessage(`{"a":`)
+	_, err := Encode(d)
+	if err == nil || !strings.Contains(err.Error(), "asset.extras") {
+		t.Fatalf("want error naming asset.extras, got %v", err)
+	}
+}
