@@ -2,11 +2,14 @@ package compiler
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -222,5 +225,42 @@ func TestExampleBuildIsRepeatable(t *testing.T) {
 	b, _ := buildInto(t, examplePath)
 	if exampleGoldenText(a) != exampleGoldenText(b) {
 		t.Error("two builds of the example differ")
+	}
+}
+
+// TestProvisionalBaseline compares a fresh build with the digests a
+// reviewer approved as a provisional guard. There is no update flag: a
+// change in output bytes needs a new review.
+func TestProvisionalBaseline(t *testing.T) {
+	want, err := os.ReadFile("../testdata/compiler/approved/examples-goalpost.provisional.sha256")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, dir := buildInto(t, examplePath)
+	got := map[string]string{}
+	for _, f := range []string{"goalpost.glb", "goalpost-lod1.glb", "goalpost-lod2.glb", "goalpost-practice.glb", "goalpost-practice-lod1.glb", "goalpost-practice-lod2.glb"} {
+		b, err := os.ReadFile(filepath.Join(dir, f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256(b)
+		got[f] = hex.EncodeToString(sum[:]) + " " + strconv.Itoa(len(b))
+	}
+	n := 0
+	for _, line := range strings.Split(string(want), "\n") {
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fs := strings.Fields(line)
+		if len(fs) != 3 {
+			t.Fatalf("bad baseline line %q", line)
+		}
+		n++
+		if g := got[fs[2]]; g != fs[0]+" "+fs[1] {
+			t.Errorf("%s: built %s, approved %s %s", fs[2], g, fs[0], fs[1])
+		}
+	}
+	if n != 6 {
+		t.Fatalf("baseline lists %d files, want 6", n)
 	}
 }
