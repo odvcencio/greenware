@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"errors"
+	"math"
 
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/kernel/build"
@@ -9,6 +10,8 @@ import (
 	"m31labs.dev/greenware/resolve"
 	"m31labs.dev/greenware/units"
 )
+
+const twoPi = 2 * math.Pi
 
 // radial repeats m around an axis; a kernel error becomes a diagnostic.
 func radial(m *mesh.Mesh, count int, axis rune, centre mesh.Vec3, radius float64, e *elab, n *resolve.Node) *mesh.Mesh {
@@ -112,7 +115,9 @@ func (e *elab) cylinder(n *resolve.Node) (*mesh.Mesh, error) {
 		}
 		p.Bevel = bv
 	}
-	return build.Cylinder(build.RetessellateCylinder(p, e.maxErr))
+	p = build.RetessellateCylinder(p, e.maxErr)
+	e.noteChord(p.Radius, twoPi, p.Segments)
+	return build.Cylinder(p)
 }
 
 func (e *elab) sphere(n *resolve.Node) (*mesh.Mesh, error) {
@@ -120,7 +125,10 @@ func (e *elab) sphere(n *resolve.Node) (*mesh.Mesh, error) {
 		Centre: vec3(n, "at"), Radius: num(n, "radius"),
 		Segments: int(num(n, "segments")), Rings: int(num(n, "rings")),
 	}
-	return build.Sphere(build.RetessellateSphere(p, e.maxErr))
+	p = build.RetessellateSphere(p, e.maxErr)
+	e.noteChord(p.Radius, twoPi, p.Segments)
+	e.noteChord(p.Radius, math.Pi, p.Rings)
+	return build.Sphere(p)
 }
 
 func (e *elab) sweep(n *resolve.Node) (*mesh.Mesh, error) {
@@ -161,7 +169,9 @@ func (e *elab) sweep(n *resolve.Node) (*mesh.Mesh, error) {
 		Radius: prof.Elems[0].Num, Segments: int(prof.Elems[1].Num),
 		Path: pts, Caps: caps, Frame: frame,
 	}
-	return build.Sweep(build.RetessellateSweep(p, e.maxErr))
+	p = build.RetessellateSweep(p, e.maxErr)
+	e.noteChord(p.Radius, twoPi, p.Segments)
+	return build.Sweep(p)
 }
 
 func isTuple1(n *resolve.Node, name string, want float64) bool {
@@ -190,5 +200,11 @@ func (e *elab) lathe(n *resolve.Node) (*mesh.Mesh, error) {
 		Centre: vec3(n, "at"), Axis: buildAxis(ax), Rows: rows,
 		Segments: int(num(n, "segments")), Closed: flag(n, "closed"),
 	}
-	return build.Lathe(build.RetessellateLathe(p, e.maxErr))
+	p = build.RetessellateLathe(p, e.maxErr)
+	widest := 0.0 // the radius RetessellateLathe measured
+	for _, r := range p.Rows {
+		widest = max(widest, r[0])
+	}
+	e.noteChord(widest, twoPi, p.Segments)
+	return build.Lathe(p)
 }

@@ -3,11 +3,12 @@
 //	greenware build <file> [--output NAME] [--out-dir DIR] [--json]
 //	greenware check <file> [--json]
 //	greenware fmt <file> [--check] [--write] [--json]
-//	greenware accept ...   (not built yet)
+//	greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
 //
 // With --json the command writes exactly one JSON value to standard output.
 // Exit status: 0 on success, 1 when the diagnostics hold an error (or fmt
-// --check finds a file that is not formatted), 2 on a usage or read error.
+// --check finds a file that is not formatted), 2 on a usage or read error. accept exits 0 when every expect passes, 1 when
+// one fails or is refused, 3 when none failed but some could not be measured.
 package main
 
 import (
@@ -19,6 +20,7 @@ import (
 	"os"
 	"strings"
 
+	"m31labs.dev/greenware/accept"
 	"m31labs.dev/greenware/ast"
 	"m31labs.dev/greenware/compiler"
 	"m31labs.dev/greenware/diag"
@@ -30,6 +32,7 @@ const usage = `usage:
   greenware build <file> [--output NAME] [--out-dir DIR] [--json]
   greenware check <file> [--json]
   greenware fmt <file> [--check] [--write] [--json]
+  greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
 `
 
 func main() {
@@ -117,9 +120,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "fmt":
 		allowed = map[string]bool{"check": true, "write": true, "json": true}
 	case "accept":
-		// The acceptance evaluator is wired here later.
-		fmt.Fprintln(stderr, "greenware accept: not built yet")
-		return 2
+		return accept.Command(rest, stdout, stderr)
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)
 		return 0

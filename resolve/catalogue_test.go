@@ -28,6 +28,11 @@ func TestCatalogueFixtures(t *testing.T) {
 			if strings.TrimSpace(e.Doc) == "" {
 				t.Fatal("no doc line")
 			}
+			// GW-ACCEPT comes from running an acceptance file on built
+			// files, not from the front end; accept/fixture_test.go checks it.
+			if e.Code == diag.CodeAccept {
+				return
+			}
 			src, err := os.ReadFile(filepath.Join("..", e.Fixture))
 			if err != nil {
 				t.Fatalf("fixture: %v", err)

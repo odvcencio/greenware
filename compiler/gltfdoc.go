@@ -186,7 +186,7 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 	doc.Scenes = []gltf.Scene{{Nodes: []int{rootIdx}}}
 	doc.Scene = gltf.Int(0)
 
-	asset := map[string]any{"format": "greenware.asset/1", "fir_sha256": fir, "lod": lvl}
+	asset := map[string]any{"format": "greenware.asset/1", "fir_sha256": fir, "lod": lvl, "lod_error": e.lodErr}
 	if rt := e.runtimeTable(bindings); rt != nil {
 		asset["runtime"] = rt
 	}

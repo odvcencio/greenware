@@ -11,9 +11,8 @@ import (
 const Schema = "greenware.accept/1"
 
 // CodeAccept is the diagnostic code of a failed, refused or unavailable
-// expectation. It is not in package diag's catalogue yet, so this package
-// builds its diagnostics as values and does not call diag.New.
-const CodeAccept = "GW-ACCEPT"
+// expectation. The catalogue in package diag holds it.
+const CodeAccept = diag.CodeAccept
 
 // Verdict is the result of one expect at one output and level.
 type Verdict string
@@ -136,7 +135,9 @@ func (r *Report) JSON() ([]byte, error) {
 }
 
 func newDiag(sev diag.Severity, sp Span, msg string) diag.Diagnostic {
-	return diag.Diagnostic{Code: CodeAccept, Severity: sev, Message: msg, Span: diag.Span{Start: sp.Start, End: sp.End}}
+	d := diag.New(CodeAccept, diag.Span{Start: sp.Start, End: sp.End}, "%s", msg)
+	d.Severity = sev // the code is an error; an expect that cannot be measured is a warning
+	return d
 }
 
 func jsonNum(x float64) json.Number { return json.Number(fmtNum(x)) }

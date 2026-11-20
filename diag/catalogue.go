@@ -20,6 +20,7 @@ const (
 	CodeDomain       = "GW-DOMAIN"
 	CodeRuntime      = "GW-RUNTIME"
 	CodeMirrorName   = "GW-MIRROR-NAME"
+	CodeAccept       = "GW-ACCEPT"
 )
 
 // Entry documents one code.
@@ -53,6 +54,7 @@ var catalogue = []Entry{
 	{CodeDomain, Error, "An operation is undefined for its operands: division by zero, the square root of a negative number, an index out of range, a non-finite result.", "testdata/diag/GW-DOMAIN.gw", false},
 	{CodeRuntime, Error, "A value that depends on a runtime parameter reaches a slot that must be known when the file compiles: a length, a count, a require, a range bound.", "testdata/diag/GW-RUNTIME.gw", false},
 	{CodeMirrorName, Error, "A named declaration inside a mirror is not a pair `(left, right)`, or a pair is written outside a mirror.", "testdata/diag/GW-MIRROR-NAME.gw", false},
+	{CodeAccept, Error, "An `expect` of an acceptance file failed or was refused on a decoded GLB at one output and level. The message names the expect, the output, the level and the measured values. An expect that cannot be measured (for example `outline`, which needs a rendered image) is reported with the same code as a warning and does not fail the run. Only `greenware accept` reports this code; the front end never does.", "testdata/diag/GW-ACCEPT.gw", false},
 }
 
 // Catalogue returns every code in a fixed order. The caller must not change

@@ -5,6 +5,7 @@ import (
 
 	"m31labs.dev/greenware/ast"
 	"m31labs.dev/greenware/diag"
+	"m31labs.dev/greenware/kernel/build"
 	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/resolve"
 	"m31labs.dev/greenware/units"
@@ -56,6 +57,9 @@ type elab struct {
 
 	// per level
 	maxErr float64
+	// lodErr is the largest chord error over the shapes this level draws, in
+	// metres: the kernel's ChordError of each shape's retessellated counts.
+	lodErr float64
 	drop   map[string]bool // lookup only
 }
 
@@ -454,4 +458,16 @@ func unitsField(n *resolve.Node, name string) units.Value {
 // fail formats a kernel error as a diagnostic on a named declaration.
 func (e *elab) fail(name string, err error) {
 	e.report(diag.CodeFieldRange, e.spanOf(name), "%s", fmt.Sprint(err))
+}
+
+// noteChord records the chord error of one drawn shape, after retessellation.
+// Bevel segments and authored sweep or lathe rows are not tessellation and do
+// not count (language.md section 6.1).
+func (e *elab) noteChord(radius, span float64, n int) {
+	if n < 1 {
+		return
+	}
+	if c := build.ChordError(radius, span, n); c > e.lodErr {
+		e.lodErr = c
+	}
 }

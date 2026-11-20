@@ -1,0 +1,19 @@
+greenware 1
+
+// A tiny asset and an acceptance block in one file. `greenware accept` run on
+// this file's own GLB reports GW-ACCEPT: the pipe is 1 m tall, the expect says 100 m.
+// The front end alone reports nothing for it; accept/fixture_test.go runs it.
+
+asset a { root = a }
+
+output demo { file = "a.glb" }
+
+part a {
+  cylinder { radius = 0.1m height = 1m }
+}
+
+accept demo {
+  of = "GW-ACCEPT.gw"
+  outputs = [demo]
+  expect (bounds().max.y > 100m, "the pipe is taller than 100 m")
+}

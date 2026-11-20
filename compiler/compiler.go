@@ -234,6 +234,7 @@ func buildOutput(file *ast.File, r *resolve.Resolved, oname string) (*OutputProd
 	dropped := map[string]bool{}
 	for lv := 0; lv <= len(specs); lv++ {
 		e.maxErr = 0
+		e.lodErr = 0
 		if lv > 0 {
 			s := specs[lv-1]
 			e.maxErr = s.maxErr
