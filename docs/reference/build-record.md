@@ -2,6 +2,10 @@
 
 `greenware build` writes one `<asset>.build.json` next to the GLB files, schema `greenware.build/1`. It holds no time, path or host detail, so the same build gives the same bytes anywhere. `greenware build --json` writes the same per-output data to standard output. Fields are only ever added to this schema, never renamed or removed.
 
+## `inputs`
+
+An asset that imports a data package has an `inputs` object after `input_sha256`; an asset that imports none has no `inputs` key. `inputs.data` lists each package, sorted by contract: `{ "contract": "example/world@1", "profile": "standard", "sha256": "<digest>" }`. The digest is the pin of the package (`docs/reference/data-package.md`). The same list is in each GLB's `asset.extras.greenware.inputs`, and it is part of `input_sha256` and `fir_sha256`.
+
 ## `levels`
 
 Every output has a `levels` array, sorted by `level`, one entry per file:

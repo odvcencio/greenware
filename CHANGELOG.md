@@ -21,6 +21,8 @@ What works now, as of this list:
 
 - `greenware version [--json]` (also `--version`, `-v`): the generator version, Go version, platform and VCS revision of the binary, schema `greenware.version/1`. An unknown flag now prints one line (`greenware build: unknown flag --foo (see greenware help build)`) instead of the whole usage, `greenware help <command>` prints one command's usage, and `build` accepts `-o` for `--out-dir` (`docs/reference/commands.md`).
 
+- Typed data packages (decision 0020): `import "football/world@1" as world` reads a project-local lock, schema and data file, and `world.goal_post.inside_width` evaluates to a dimensioned value (length in metres, angle in radians, ratio, number). The lock pins the files by SHA-256 of their canonical JSON; a stale or missing pin is `GW-LOCK` and nothing is written. New codes `GW-IMPORT-DATA`, `GW-IMPORT-CONTRACT`, `GW-LOCK`; new package `datapkg` (`Load`, `Digest`, `Verify`, `NewLock`, `WriteLock`, exact `*big.Rat` values); `greenware lock --data <name@N>` repins one package and `greenware lock` records `data` lines; `describe` and the language server show each field's meaning. A GLB of an asset that imports a package carries `asset.extras.greenware.inputs`, and the build record carries `inputs.data`; an asset that imports none is byte-identical to before (`docs/reference/data-package.md`). Needs `gltf` v0.4.0 (`Asset.Extras`).
+
 - Renamed from Facet to Greenware (`.gw`, module `m31labs.dev/greenware`).
 - Geometry kernel (`kernel/`), neutral GLB codec (`gltf/`), deterministic math (`det/`) and an independent checker (`conformance/`).
 

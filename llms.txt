@@ -18,6 +18,7 @@ The README says much of the language is still unbuilt. `CHANGELOG.md` lists what
 
 - [Command-line tool](cmd/greenware/main.go): the commands are `build <file>` (writes GLB files), `check <file>` (lists diagnostics), `fmt <file>` (formats source), `accept <source.gw> <accept.gw> --glb-dir DIR` (runs acceptance tests), `print <file>` (writes a 3MF file), and the authoring commands `fix`, `diff`, `describe`, `ir`, `init`, `lock`, `explain`, `search` and `trace`. Each command takes `--json`.
 - [Command reference](docs/reference/commands.md): every command, its flags and its exit status.
+- [Data packages](docs/reference/data-package.md): `import "football/world@1" as world`, the lock, the digest with test vectors, and the `GW-IMPORT-DATA`, `GW-IMPORT-CONTRACT` and `GW-LOCK` codes.
 - [Printing](docs/reference/print.md): the 3MF backend and the `GW-PRINT` gate.
 - Exit status: 0 means success. 1 means an error diagnostic, or a file that `fmt --check` finds unformatted. 2 means a usage or read error. `accept` exits 3 when no check failed but some could not be measured.
 
@@ -27,6 +28,7 @@ The README says much of the language is still unbuilt. `CHANGELOG.md` lists what
 - [language/](language/): the names that identify the language, and the grammar source in `language/grammar`.
 - [ast/](ast/): the typed declaration model. Lowers a parsed tree into a file.
 - [resolve/](resolve/): binds names, orders `let` declarations and evaluates constants.
+- [datapkg/](datapkg/): reads, checks and pins a typed data package (lock, schema, data, digest, exact values). The game's generator imports it too.
 - [units/](units/): values, dimensions and arithmetic. Lengths are metres and angles are radians.
 - [registry/](registry/): the fields, child blocks and rows that each declaration accepts.
 - [diag/](diag/): diagnostics, with their codes and severities.

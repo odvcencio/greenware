@@ -116,7 +116,7 @@ $ greenware diff testdata/tools/post_a.gw testdata/tools/post_b.gw --fail-on bre
 
 `greenware describe <file> [--project DIR] [--json]`
 
-Prints a structured summary: the asset block, parameters (type, unit, default as written and evaluated, range, `bake` or `runtime`), outputs with their levels, the part tree, materials, sockets, plugs, mounts, colliders, rig declarations (skeletons, clips, morphs), tables, budgets and the imports. Values come from the source and the evaluated defaults; no geometry is built. Exit 1 when the file has an error diagnostic (the summary is still printed), 2 on a read error.
+Prints a structured summary: the asset block, parameters (type, unit, default as written and evaluated, range, `bake` or `runtime`), outputs with their levels, the part tree, materials, sockets, plugs, mounts, colliders, rig declarations (skeletons, clips, morphs), tables, budgets and the imports. For each imported data package it lists the contract, the profile and the pin, and each field the source reads with its dimension, its value as written and the meaning the schema gives it (`data` in the JSON). Values come from the source and the evaluated defaults; no geometry is built. Exit 1 when the file has an error diagnostic (the summary is still printed), 2 on a read error.
 
 JSON (`greenware.describe/1`): `schema, file, ok`, then `asset, meta, imports, params, outputs, levels, parts, materials, sockets, plugs, mounts, colliders, rigs, tables, templates, painters, textures, budget, evaluated, unresolved`, then `diagnostics`. Setting values are the source text with layout and comments removed. A part has `body`, the first 12 hex digits of the SHA-256 of its own text.
 
@@ -194,6 +194,8 @@ would create testdata/tools/new_project/greenware.sum
 
 `greenware lock [<dir>] [--check] [--dry-run] [--json]`
 
+`greenware lock --data <name@N> [<dir>] [--schema-file F --data-file F] [--check] [--dry-run] [--json]`
+
 Writes `greenware.sum` in the project at `<dir>` (default `.`, which needs a `greenware.mod`). The file pins every input by SHA-256, one line per pin, sorted by kind and then name:
 
 ```text
@@ -207,10 +209,20 @@ source goalpost.gw project sha256:<64 hex digits> CC0-1.0
 2. `lib <import> std sha256:<digest> <license>`: each embedded standard library file a source imports.
 3. `source <path> project sha256:<digest> <license>`: every `.gw` file under the directory (directories that start with `.` are skipped). This includes project imports. The licence is the file's `meta` licence, or `-`.
 4. `table <path> project ...` and `selena <path> project ...`: each file that a `table` path or a Selena material `source` names. A missing file, or a path that leaves the project, stops the command with status 1.
+5. `data <name@N> contract <id> sha256:<digest>`: each data package a source imports (`import "football/world@1" as world`), with the digest of its canonical schema and data (`docs/reference/data-package.md`). A package that does not load, or whose lock file is missing or stale, stops the command with status 1; repin it first with `greenware lock --data`. After a repin, `greenware lock --check` shows the `data` line as drifted until the project lock is written again.
 
 Fields that hold white space are quoted. The write goes through a temporary file and a rename. `--check` writes nothing and exits 1 when the file is missing or differs; `--dry-run` shows the changes without writing. Changes print as `+` (new pin), `-` (gone) and `~` (changed digest). The format follows the pin lines of the language reference, section 7.2; `solver` lines and the library closure digest are not written yet.
 
 JSON (`greenware.lock/1`): `schema, dir, mode, before_sha256, after_sha256, changes, drift, written, ok`; each change has `kind, name, old, new`.
+
+### lock --data
+
+`greenware lock --data <name@N> [<dir>]` checks one data package and rewrites its lock file, `<dir>/<name>.lock` (`football/world@1` is `football/world.lock`). `<dir>` is the project root and needs a `greenware.mod`. It reads the schema and data file names from the existing lock; `--schema-file` and `--data-file` (project-relative, slash-separated) name them for the first lock of a package or to point it at another data file. It parses both files strictly and checks the data against the schema first, and writes nothing (status 1) when they do not hold together. Then it writes the lock with the new `sha256` pin. This is the only command that changes a pin: a build never does, and never fetches anything. `--check` writes nothing and exits 1 when the lock is missing or its pin is out of date; `--dry-run` shows the change. Changes print as `+` (new lock) or `~` (changed pin). The JSON report has the same fields as the project lock, with one change of kind `data`.
+
+```text
+$ greenware lock --data example/world@1 testdata/world --check
+testdata/world/example/world.lock: up to date
+```
 
 ```text
 $ greenware lock testdata/tools/proj --dry-run
