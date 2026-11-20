@@ -1,0 +1,30 @@
+{"steps": [
+  {"send": {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}},
+   "expect": [
+     {"jsonrpc":"2.0","id":1,"result":{"capabilities":{"codeActionProvider":{"codeActionKinds":["quickfix"]},"completionProvider":{"resolveProvider":false},"definitionProvider":true,"documentFormattingProvider":true,"documentSymbolProvider":true,"hoverProvider":true,"positionEncoding":"utf-16","referencesProvider":true,"textDocumentSync":{"change":2,"openClose":true}},"serverInfo":{"name":"greenware"}}}
+   ]},
+  {"send": {"jsonrpc":"2.0","method":"initialized","params":{}},
+   "expect": []},
+  {"send": {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///work/format.gw","languageId":"greenware","version":1,"text":"greenware 1\nasset a{root=a}\n\n\n\npart a {\n sphere {radius=1m}   // ball\n}\n"}}},
+   "expect": [
+     {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"diagnostics":[],"uri":"file:///work/format.gw","version":1}}
+   ]},
+  {"send": {"jsonrpc":"2.0","id":2,"method":"textDocument/formatting","params":{"textDocument":{"uri":"file:///work/format.gw"},"options":{"tabSize":2,"insertSpaces":true}}},
+   "expect": [
+     {"jsonrpc":"2.0","id":2,"result":[{"range":{"start":{"line":1,"character":0},"end":{"line":7,"character":0}},"newText":"asset a { root = a }\n\npart a {\n  sphere { radius = 1m }  // ball\n"}]}
+   ]},
+  {"send": {"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///work/format.gw","version":2},"contentChanges":[{"text":"greenware 1\nasset a { root = a\n"}]}},
+   "expect": [
+     {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"diagnostics":[{"range":{"start":{"line":1,"character":18},"end":{"line":2,"character":0}},"severity":1,"code":"GW-SYNTAX","source":"greenware","message":"missing \"}\""}],"uri":"file:///work/format.gw","version":2}}
+   ]},
+  {"send": {"jsonrpc":"2.0","id":3,"method":"textDocument/formatting","params":{"textDocument":{"uri":"file:///work/format.gw"},"options":{"tabSize":2,"insertSpaces":true}}},
+   "expect": [
+     {"jsonrpc":"2.0","id":3,"error":{"code":-32803,"message":"cannot format: 1 syntax error(s); first: 2:19: GW-SYNTAX: missing \"}\""}}
+   ]},
+  {"send": {"jsonrpc":"2.0","id":90,"method":"shutdown","params":null},
+   "expect": [
+     {"jsonrpc":"2.0","id":90,"result":null}
+   ]},
+  {"send": {"jsonrpc":"2.0","method":"exit","params":null},
+   "expect": []}
+]}

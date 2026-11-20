@@ -36,7 +36,7 @@ const usage = `usage:
   greenware check <file> [--project DIR] [--geometry-only] [--json]
   greenware fmt <file> [--check] [--write] [--json]
   greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
-` + printUsage + toolsUsage
+` + printUsage + lspUsage + toolsUsage
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -163,6 +163,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		allowed = map[string]bool{"check": true, "write": true, "json": true}
 	case "print":
 		return runPrint(rest, stdout, stderr)
+	case "lsp":
+		return runLSP(rest, stdout, stderr)
 	case "accept":
 		return accept.Command(rest, stdout, stderr)
 	case "help", "-h", "--help":

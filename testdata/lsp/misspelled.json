@@ -1,0 +1,34 @@
+{"steps": [
+  {"send": {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}},
+   "expect": [
+     {"jsonrpc":"2.0","id":1,"result":{"capabilities":{"codeActionProvider":{"codeActionKinds":["quickfix"]},"completionProvider":{"resolveProvider":false},"definitionProvider":true,"documentFormattingProvider":true,"documentSymbolProvider":true,"hoverProvider":true,"positionEncoding":"utf-16","referencesProvider":true,"textDocumentSync":{"change":2,"openClose":true}},"serverInfo":{"name":"greenware"}}}
+   ]},
+  {"send": {"jsonrpc":"2.0","method":"initialized","params":{}},
+   "expect": []},
+  {"send": {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///work/misspelled.gw","languageId":"greenware","version":1,"text":"greenware 1\n\nasset a { root = a }\n\npart a {\n  cylinder {\n    radius = 0.1m\n    raduis = 0.1m\n    height = 1m\n  }\n}\n"}}},
+   "expect": [
+     {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"diagnostics":[{"range":{"start":{"line":7,"character":4},"end":{"line":7,"character":10}},"severity":1,"code":"GW-UNKNOWN-FIELD","source":"greenware","message":"`cylinder` has no field `raduis`"}],"uri":"file:///work/misspelled.gw","version":1}}
+   ]},
+  {"send": {"jsonrpc":"2.0","id":2,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"file:///work/misspelled.gw"},"range":{"start":{"line":7,"character":6},"end":{"line":7,"character":6}},"context":{"diagnostics":[]}}},
+   "expect": [
+     {"jsonrpc":"2.0","id":2,"result":[{"title":"write radius","kind":"quickfix","diagnostics":[{"range":{"start":{"line":7,"character":4},"end":{"line":7,"character":10}},"severity":1,"code":"GW-UNKNOWN-FIELD","source":"greenware","message":"`cylinder` has no field `raduis`"}],"isPreferred":true,"edit":{"changes":{"file:///work/misspelled.gw":[{"range":{"start":{"line":7,"character":4},"end":{"line":7,"character":10}},"newText":"radius"}]}}}]}
+   ]},
+  {"send": {"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///work/misspelled.gw"},"position":{"line":7,"character":6}}},
+   "expect": [
+     {"jsonrpc":"2.0","id":3,"result":{"contents":{"kind":"markdown","value":"**GW-UNKNOWN-FIELD** (error)\n\nA field, row or block is not part of the kind that holds it. The fix offers the nearest field the kind accepts."},"range":{"start":{"line":7,"character":4},"end":{"line":7,"character":10}}}}
+   ]},
+  {"send": {"jsonrpc":"2.0","id":4,"method":"textDocument/foldingRange","params":{"textDocument":{"uri":"file:///work/misspelled.gw"}}},
+   "expect": [
+     {"jsonrpc":"2.0","id":4,"error":{"code":-32601,"message":"method not supported: textDocument/foldingRange"}}
+   ]},
+  {"send": {"jsonrpc":"2.0","id":5,"method":"textDocument/semanticTokens/full","params":{"textDocument":{"uri":"file:///work/misspelled.gw"}}},
+   "expect": [
+     {"jsonrpc":"2.0","id":5,"error":{"code":-32601,"message":"method not supported: textDocument/semanticTokens/full"}}
+   ]},
+  {"send": {"jsonrpc":"2.0","id":90,"method":"shutdown","params":null},
+   "expect": [
+     {"jsonrpc":"2.0","id":90,"result":null}
+   ]},
+  {"send": {"jsonrpc":"2.0","method":"exit","params":null},
+   "expect": []}
+]}

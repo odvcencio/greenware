@@ -1,0 +1,26 @@
+{"steps": [
+  {"send": {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}},
+   "expect": [
+     {"jsonrpc":"2.0","id":1,"result":{"capabilities":{"codeActionProvider":{"codeActionKinds":["quickfix"]},"completionProvider":{"resolveProvider":false},"definitionProvider":true,"documentFormattingProvider":true,"documentSymbolProvider":true,"hoverProvider":true,"positionEncoding":"utf-16","referencesProvider":true,"textDocumentSync":{"change":2,"openClose":true}},"serverInfo":{"name":"greenware"}}}
+   ]},
+  {"send": {"jsonrpc":"2.0","method":"initialized","params":{}},
+   "expect": []},
+  {"send": {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///work/utf16.gw","languageId":"greenware","version":1,"text":"greenware 1\n\n// gr\u00f6\u00dfe \ud83d\ude00 p\u00e2t\u00e9\nasset a { title = \"\ud83d\ude00\u00e9\" root = a bogus = 1 }\n\npart a {\n  sphere { radius = 1m }\n}\n"}}},
+   "expect": [
+     {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"diagnostics":[{"range":{"start":{"line":3,"character":33},"end":{"line":3,"character":38}},"severity":1,"code":"GW-UNKNOWN-FIELD","source":"greenware","message":"`asset` has no field `bogus`"}],"uri":"file:///work/utf16.gw","version":1}}
+   ]},
+  {"send": {"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///work/utf16.gw","version":2},"contentChanges":[{"range":{"start":{"line":3,"character":33},"end":{"line":3,"character":42}},"text":"up = y"}]}},
+   "expect": [
+     {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"diagnostics":[],"uri":"file:///work/utf16.gw","version":2}}
+   ]},
+  {"send": {"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///work/utf16.gw"},"position":{"line":3,"character":12}}},
+   "expect": [
+     {"jsonrpc":"2.0","id":2,"result":{"contents":{"kind":"markdown","value":"**asset.title**: string\n\nName for people."},"range":{"start":{"line":3,"character":10},"end":{"line":3,"character":15}}}}
+   ]},
+  {"send": {"jsonrpc":"2.0","id":90,"method":"shutdown","params":null},
+   "expect": [
+     {"jsonrpc":"2.0","id":90,"result":null}
+   ]},
+  {"send": {"jsonrpc":"2.0","method":"exit","params":null},
+   "expect": []}
+]}
