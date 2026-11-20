@@ -1,0 +1,66 @@
+greenware 1
+
+// A shipping crate whose size comes from the data package example/world@1
+// (example/world.lock, schema and data beside it). The fixtures of the
+// data-package tests build it, measure the decoded file and change one value.
+// Nothing here is football data: the package is invented.
+
+import "example/world@1" as world
+
+asset crate {
+  title = "Crate"
+  root = crate
+  length = m
+  angle = deg
+  up = y
+  forward = -z
+}
+
+let width = world.crate.width
+let depth = world.crate.depth
+let height = world.crate.height
+let pitch = depth / world.crate.slat_count
+
+// The body: a box on the floor with its outer faces at the packaged size.
+part crate {
+  material = pine
+
+  part body {
+    export = on
+    box {
+      at = (0, height / 2, 0)
+      size = (width, height, depth)
+    }
+  }
+
+  // The slats lie across the top, one per pitch along z. The gap is a share
+  // of the pitch. Each slat is as wide as the body.
+  part slats {
+    export = on
+    array slat_row {
+      mode = linear
+      count = world.crate.slat_count
+      step = (0, 0, pitch)
+      box {
+        at = (0, height + 0.005m, -depth / 2 + pitch / 2)
+        size = (width, 0.01m, pitch * (1 - world.crate.slat_gap))
+      }
+    }
+  }
+
+  // The lid stands open at the packaged tilt about the x axis.
+  part lid {
+    export = on
+    box {
+      at = (0, height + 0.3m, -depth / 2)
+      size = (width, 0.02m, 0.5m)
+      rot = (world.crate.tilt, 0, 0)
+    }
+  }
+}
+
+material pine = pbr { base = #c9a46b roughness = 0.8 metallic = 0 }
+
+output crate {
+  file = "crate.glb"
+}

@@ -1,0 +1,31 @@
+{
+  "contract": "example/world@1",
+  "fields": {
+    "crate": {
+      "width": {
+        "dimension": "length",
+        "meaning": "distance between the two outer side faces of the crate, along x"
+      },
+      "depth": {
+        "dimension": "length",
+        "meaning": "distance between the front and back outer faces of the crate, along z"
+      },
+      "height": {
+        "dimension": "length",
+        "meaning": "height of the crate from the floor to the top face"
+      },
+      "slat_count": {
+        "dimension": "number",
+        "meaning": "number of slats across the top, counted along z"
+      },
+      "slat_gap": {
+        "dimension": "ratio",
+        "meaning": "share of each slat pitch left open between neighbouring slats"
+      },
+      "tilt": {
+        "dimension": "angle",
+        "meaning": "angle of the lid about the x axis when the crate is open"
+      }
+    }
+  }
+}

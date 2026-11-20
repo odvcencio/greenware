@@ -1,0 +1,14 @@
+{
+  "contract": "example/world@1",
+  "profile": "standard",
+  "values": {
+    "crate": {
+      "width": { "value": "24", "unit": "in" },
+      "depth": { "value": "18", "unit": "in" },
+      "height": { "value": "2", "unit": "ft" },
+      "slat_count": { "value": "6" },
+      "slat_gap": { "value": "12.5", "unit": "%" },
+      "tilt": { "value": "15", "unit": "deg" }
+    }
+  }
+}

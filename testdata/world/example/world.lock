@@ -1,0 +1,7 @@
+{
+  "schema": "greenware.datalock/1",
+  "contract": "example/world@1",
+  "schema_file": "example/world/schema-v1.json",
+  "data_file": "example/world/standard.json",
+  "sha256": "6a972715adc467fefb3e4c892958ee75a1cdb752a407b817fbd2af606e9beab5"
+}
