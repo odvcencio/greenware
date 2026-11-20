@@ -273,13 +273,16 @@ func TestCompatibleChecksShape(t *testing.T) {
 }
 
 func TestNonSpecUnitsAreRejected(t *testing.T) {
-	for _, s := range []string{"1in", "0.25turn"} {
+	// The inch was added for the game's rule book (decision 0019); `turn` is
+	// still not in the language. `in` is a literal suffix only, never an asset
+	// unit, because it is also the range word.
+	for _, s := range []string{"0.25turn"} {
 		if _, err := units.ParseNumber(s); err == nil {
-			t.Errorf("%s accepted; the spec lists neither in nor turn", s)
+			t.Errorf("%s accepted; the spec lists no turn unit", s)
 		}
 	}
 	if _, ok := units.LengthUnit("in"); ok {
-		t.Error("in is a length unit")
+		t.Error("in is an asset length unit")
 	}
 	if _, ok := units.AngleUnit("turn"); ok {
 		t.Error("turn is an angle unit")

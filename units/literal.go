@@ -28,8 +28,13 @@ var (
 	AngleUnits  = []string{"deg", "rad"}
 )
 
-// LengthUnit returns the metres in one unit of name.
+// LengthUnit returns the metres in one unit of name, for the units an asset
+// may name as its default. The inch is a literal suffix only (`4in`): `in` is
+// also the range word, so it is not a name.
 func LengthUnit(name string) (float64, bool) {
+	if name == "in" {
+		return 0, false
+	}
 	r, ok := rationalUnit(name, Length)
 	if !ok {
 		return 0, false
@@ -59,6 +64,7 @@ type unitDef struct {
 var unitDefs = []unitDef{
 	{"mm", Length, 1, 1000}, {"cm", Length, 1, 100}, {"km", Length, 1000, 1},
 	{"yd", Length, 9144, 10000}, {"ft", Length, 3048, 10000},
+	{"in", Length, 254, 10000}, // 0.0254 m exactly; only a literal written with no space (4in) is an inch
 	{"m", Length, 1, 1},
 	{"ms", Duration, 1, 1000}, {"s", Duration, 1, 1},
 	{"px", Pixels, 1, 1},

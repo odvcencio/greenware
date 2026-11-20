@@ -159,6 +159,9 @@ func (t *Tree) collectDiagnostics(hasError bool) {
 }
 
 func (t *Tree) errorDiagnostic(n *Node) Diagnostic {
+	if in, num, ok := t.inchHint(n); ok {
+		return t.diagnostic(in, inchMessage(num))
+	}
 	span := n.span
 	// An error node can swallow the rest of the file. Point at its first
 	// token, which is where the parser gave up.

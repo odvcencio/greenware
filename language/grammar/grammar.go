@@ -189,7 +189,7 @@ func Greenware() *grammargen.Grammar {
 	// no space, so "finish.gloss" never competes with member access.
 	g.Define("_name", choice(sym("identifier"), sym("qualified_name")))
 	g.Define("qualified_name", token(pat(`[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)+`)))
-	g.Define("number", token(pat(`[0-9]+(\.[0-9]+)?(mm|cm|km|m|yd|ft|deg|rad|ms|s|px|%|KiB|MiB|GiB|B)?`)))
+	g.Define("number", token(pat(`[0-9]+(\.[0-9]+)?(mm|cm|km|m|yd|ft|in|deg|rad|ms|s|px|%|KiB|MiB|GiB|B)?`)))
 	g.Define("integer", token(pat(`[0-9]+`)))
 	g.Define("color", token(pat(`#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?`)))
 	g.Define("string", token(pat(`"([^"\\]|\\.)*"`)))
