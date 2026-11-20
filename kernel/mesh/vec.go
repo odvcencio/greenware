@@ -1,6 +1,6 @@
 package mesh
 
-import "m31labs.dev/det"
+import "m31labs.dev/greenware/det"
 
 // Every floating-point multiply in this package is wrapped in float64(...).
 // The wrapper forbids fused multiply-add on arm64, so amd64 and arm64 produce

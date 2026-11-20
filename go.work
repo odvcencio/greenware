@@ -1,0 +1,11 @@
+go 1.25
+
+use (
+	.
+	./det
+	./gltf
+)
+
+replace m31labs.dev/greenware/det v0.1.0 => ./det
+
+replace m31labs.dev/greenware/gltf v0.1.0 => ./gltf

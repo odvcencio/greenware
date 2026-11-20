@@ -1,6 +1,6 @@
 # gltf
 
-A small glTF 2.0 binary (GLB) codec in Go, standard library plus `m31labs.dev/det`.
+A small glTF 2.0 binary (GLB) codec in Go, standard library plus `m31labs.dev/greenware/det`.
 `Encode` writes one canonical byte sequence for a document. `Decode` checks a file
 and names the JSON path of the first fault.
 

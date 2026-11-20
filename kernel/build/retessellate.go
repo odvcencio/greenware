@@ -1,7 +1,7 @@
 package build
 
 import (
-	"m31labs.dev/det"
+	"m31labs.dev/greenware/det"
 )
 
 // chordTie is the relative slack on the error bound, so a shape whose error

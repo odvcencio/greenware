@@ -1,5 +1,5 @@
 // Package gltf reads and writes glTF 2.0 binary (GLB) files. It knows nothing
-// about Greenware, GoSX or Kiln, and it imports only m31labs.dev/det.
+// about Greenware, GoSX or Kiln, and it imports only m31labs.dev/greenware/det.
 //
 // The package is a codec. Encode turns a Document into canonical GLB bytes;
 // Decode checks GLB bytes and returns the Document.

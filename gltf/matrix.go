@@ -1,7 +1,7 @@
 package gltf
 
 import (
-	"m31labs.dev/det"
+	"m31labs.dev/greenware/det"
 )
 
 // decomposeMatrix splits a column-major 4x4 matrix into translation, rotation

@@ -36,8 +36,8 @@ Status: early. The grammar, the geometry kernel, the GLB codec and an independen
 
 | Path | Job |
 |---|---|
-| `det/` | Deterministic scalar math (own module, `m31labs.dev/det`) |
-| `gltf/` | Neutral GLB reader and writer (own module, `m31labs.dev/gltf`) |
+| `det/` | Deterministic scalar math (own module, `m31labs.dev/greenware/det`) |
+| `gltf/` | Neutral GLB reader and writer (own module, `m31labs.dev/greenware/gltf`) |
 | `language/`, `lang/` | The tree-sitter grammar, parser and formatter |
 | `kernel/` | The geometry kernel |
 | `cmd/greenware` | The command-line tool |

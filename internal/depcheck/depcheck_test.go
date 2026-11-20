@@ -8,12 +8,12 @@ import (
 
 // The negative control: a closure with forbidden imports must be caught.
 func TestViolationsCatchesForbidden(t *testing.T) {
-	deps := []string{"fmt", "github.com/odvcencio/gosx/scene", "C", "m31labs.dev/det", "github.com/odvcencio/gotreesitter/grammars/go"}
+	deps := []string{"fmt", "github.com/odvcencio/gosx/scene", "C", "m31labs.dev/greenware/det", "github.com/odvcencio/gotreesitter/grammars/go"}
 	got := Violations(deps)
 	if len(got) != 3 {
 		t.Fatalf("want 3 violations, got %v", got)
 	}
-	if v := Violations([]string{"fmt", "github.com/odvcencio/gotreesitter", "m31labs.dev/gltf"}); len(v) != 0 {
+	if v := Violations([]string{"fmt", "github.com/odvcencio/gotreesitter", "m31labs.dev/greenware/gltf"}); len(v) != 0 {
 		t.Fatalf("clean closure flagged: %v", v)
 	}
 }
