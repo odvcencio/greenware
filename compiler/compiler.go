@@ -1,0 +1,405 @@
+package compiler
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"m31labs.dev/greenware/ast"
+	"m31labs.dev/greenware/diag"
+	"m31labs.dev/greenware/gltf"
+	"m31labs.dev/greenware/kernel/mesh"
+	"m31labs.dev/greenware/resolve"
+	"m31labs.dev/greenware/units"
+)
+
+// Generator is written to asset.generator of every file.
+const Generator = "greenware 0.1"
+
+// File is one built GLB: one level of one output.
+type File struct {
+	Name   string         // base file name, e.g. goalpost-lod1.glb
+	Level  int            // 0 is the source level
+	Doc    *gltf.Document // the document that was encoded
+	GLB    []byte         // the encoded bytes
+	SHA256 string         // hex SHA-256 of GLB
+
+	// Measured on the encoded file.
+	Triangles int // triangles drawn in the default look (all stored: no alternates yet)
+	Draws     int // primitives
+	Materials int // distinct materials written
+	Vertices  int // written glTF vertices
+	Size      int // len(GLB)
+}
+
+// OutputProduct is the files of one output, level 0 first.
+type OutputProduct struct {
+	Name      string
+	FirSHA256 string // the meaning hash written into every file of the output
+	Files     []*File
+}
+
+// Product is the result of Build.
+type Product struct {
+	Asset        string // the asset's name, which names the record file
+	SourceSHA256 string // hex SHA-256 of the source bytes
+	InputSHA256  string // hex SHA-256 of the input record: source, selection, compiler
+	Outputs      []*OutputProduct
+	// Unsupported lists what the source asked for and the compiler did not
+	// write, such as the GoSX manifest entry. None of it stops a build.
+	Unsupported []string
+}
+
+// Build compiles one output, or every output when outputName is empty. It
+// returns a nil product when any diagnostic is an error: nothing is
+// published. The diagnostics include those of the front end for the chosen
+// outputs.
+func Build(file *ast.File, outputName string) (*Product, []diag.Diagnostic) {
+	if file == nil || file.Broken {
+		return nil, []diag.Diagnostic{diag.New(diag.CodeSyntax, diag.Span{}, "the file has syntax errors; nothing was built")}
+	}
+	var names []string
+	for _, o := range file.Outputs {
+		if outputName == "" || o.Name.Name == outputName {
+			names = append(names, o.Name.Name)
+		}
+	}
+	if len(names) == 0 {
+		if outputName != "" {
+			return nil, []diag.Diagnostic{diag.New(diag.CodeUnknownName, diag.Span{}, "the file has no output named %q", outputName)}
+		}
+		return nil, []diag.Diagnostic{diag.New(diag.CodeMissing, diag.Span{}, "the file declares no output to build")}
+	}
+	srcSum := sha256.Sum256(file.Source)
+	p := &Product{SourceSHA256: hex.EncodeToString(srcSum[:])}
+	in := sha256.New()
+	fmt.Fprintf(in, "greenware.input/1\n%s\nsource %s\noutput %s\n", Generator, p.SourceSHA256, outputName)
+	p.InputSHA256 = hex.EncodeToString(in.Sum(nil))
+	if file.Asset != nil {
+		p.Asset = file.Asset.Name.Name
+	}
+
+	var all []diag.Diagnostic
+	files := map[string]string{} // output file name -> output name; lookup only
+	for _, name := range names {
+		r, ds := resolve.EvaluateOutput(file, name)
+		all = append(all, ds...)
+		if diag.HasErrors(ds) || r == nil {
+			continue
+		}
+		op, ds, notes := buildOutput(file, r, name)
+		all = append(all, ds...)
+		if op == nil || diag.HasErrors(ds) {
+			continue
+		}
+		for _, f := range op.Files {
+			if prev, dup := files[f.Name]; dup {
+				all = append(all, diag.New(diag.CodeDuplicate, outputSpan(file, name), "the file name %q is written by outputs %s and %s", f.Name, prev, name))
+			}
+			files[f.Name] = name
+		}
+		p.Outputs = append(p.Outputs, op)
+		p.Unsupported = appendUnique(p.Unsupported, notes...)
+	}
+	all = diag.Dedup(all)
+	if diag.HasErrors(all) {
+		return nil, all
+	}
+	return p, all
+}
+
+func appendUnique(dst []string, add ...string) []string {
+	for _, a := range add {
+		found := false
+		for _, d := range dst {
+			if d == a {
+				found = true
+			}
+		}
+		if !found {
+			dst = append(dst, a)
+		}
+	}
+	return dst
+}
+
+func outputSpan(f *ast.File, name string) diag.Span {
+	for _, o := range f.Outputs {
+		if o.Name.Name == name {
+			return o.Name.Span
+		}
+	}
+	return diag.Span{}
+}
+
+// levelSpec is one level of detail as the compiler reads it.
+type levelSpec struct {
+	n      int
+	maxErr float64
+	drop   []string
+}
+
+func (e *elab) levelSpecs() []levelSpec {
+	var out []levelSpec
+	for _, l := range e.r.Lods {
+		spec := levelSpec{}
+		fmt.Sscan(l.Name, &spec.n)
+		for _, f := range l.Fields {
+			switch f.Name {
+			case "max_error":
+				spec.maxErr = f.Value.Num
+			case "drop":
+				for _, d := range f.Value.Elems {
+					spec.drop = append(spec.drop, d.Str)
+				}
+			case "keep":
+				if !f.Default && len(f.Value.Elems) > 0 {
+					e.report(diag.CodeUnsupported, lodSpan(e.file, spec.n), "`keep` on level %d is not supported yet", spec.n)
+				}
+			case "segments":
+				if !f.Default {
+					e.report(diag.CodeUnsupported, lodSpan(e.file, spec.n), "`segments` on level %d is not supported yet", spec.n)
+				}
+			}
+		}
+		out = append(out, spec)
+	}
+	return out
+}
+
+func lodSpan(f *ast.File, n int) diag.Span {
+	for _, l := range f.Lods {
+		if l.Level == n {
+			return l.LevelSpan
+		}
+	}
+	return diag.Span{}
+}
+
+// splitFile checks an output's file name and returns its stem and extension.
+func splitFile(name string) (stem, ext string, ok bool) {
+	if name == "" || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") || !strings.HasSuffix(name, ".glb") {
+		return "", "", false
+	}
+	return strings.TrimSuffix(name, ".glb"), ".glb", true
+}
+
+func buildOutput(file *ast.File, r *resolve.Resolved, oname string) (*OutputProduct, []diag.Diagnostic, []string) {
+	e := &elab{file: file, r: r, defs: map[string]*resolve.Node{}}
+	var notes []string
+	var out resolve.Output
+	for _, o := range r.Outputs {
+		if o.Name == oname {
+			out = o
+		}
+	}
+	osp := outputSpan(file, oname)
+	stem, ext, ok := splitFile(out.File)
+	if !ok {
+		e.report(diag.CodeUnsupported, osp, "the output file %q must be a plain name ending in .glb", out.File)
+		return nil, e.diags, nil
+	}
+	if out.LODs != "files" {
+		e.report(diag.CodeUnsupported, osp, "`lods = %s` is not supported yet; the compiler writes one file per level", out.LODs)
+	}
+	if out.Profile != "source" {
+		e.report(diag.CodeUnsupported, osp, "`profile = %s` is not supported yet", out.Profile)
+	}
+	if out.Manifest {
+		notes = append(notes, fmt.Sprintf("output %s: manifest = on writes no GoSX manifest entry; the specification does not define its layout", oname))
+	}
+	if r.Root == nil {
+		e.report(diag.CodeMissing, osp, "the asset has no root part to build")
+		return nil, e.diags, nil
+	}
+	for _, d := range r.Definitions {
+		e.defs[d.Name] = d
+	}
+	specs := e.levelSpecs()
+	for _, m := range r.Materials {
+		if m.Kind == "selena" {
+			notes = appendUnique(notes, "selena materials: the artifact is not read or pinned; the pbr fallback is written")
+		}
+	}
+	if e.failed() {
+		return nil, e.diags, nil
+	}
+	fir := firHash(r)
+	cols := e.colliders()
+	op := &OutputProduct{Name: oname, FirSHA256: fir}
+
+	dropped := map[string]bool{}
+	for lv := 0; lv <= len(specs); lv++ {
+		e.maxErr = 0
+		if lv > 0 {
+			s := specs[lv-1]
+			e.maxErr = s.maxErr
+			for _, d := range s.drop {
+				dropped[d] = true
+			}
+		}
+		e.drop = dropped
+		root := &snode{name: r.Root.Name}
+		e.part(r.Root, wctx{node: root, a: mesh.IdentityAffine}, true)
+		if e.failed() {
+			return nil, diag.Dedup(e.diags), nil
+		}
+		l, ok := e.assemble(root, cols, lv, fir)
+		if !ok || e.failed() {
+			return nil, diag.Dedup(e.diags), nil
+		}
+		glb, err := gltf.Encode(l.doc)
+		if err != nil {
+			e.report(diag.CodeDomain, osp, "level %d could not be written as glTF: %v", lv, err)
+			return nil, e.diags, nil
+		}
+		sum := sha256.Sum256(glb)
+		name := out.File
+		if lv > 0 {
+			name = stem + "-lod" + strconv.Itoa(lv) + ext
+		}
+		op.Files = append(op.Files, &File{
+			Name: name, Level: lv, Doc: l.doc, GLB: glb, SHA256: hex.EncodeToString(sum[:]),
+			Triangles: l.tris, Draws: l.draws, Materials: l.mats, Vertices: l.verts, Size: len(glb),
+		})
+	}
+	e.checkBudget(op, oname)
+	if e.failed() {
+		return nil, diag.Dedup(e.diags), nil
+	}
+	return op, diag.Dedup(e.diags), notes
+}
+
+// checkBudget compares each file with the output's effective budget.
+func (e *elab) checkBudget(op *OutputProduct, oname string) {
+	for _, bf := range e.r.Budget {
+		for _, f := range op.Files {
+			var got int
+			switch bf.Name {
+			case "triangles", "triangles_worst", "triangles_stored":
+				got = f.Triangles
+			case "draw_calls", "draw_calls_worst":
+				got = f.Draws
+			case "vertices":
+				got = f.Vertices
+			case "materials":
+				got = f.Materials
+			case "file_size":
+				got = f.Size
+			case "bones", "influences", "morphs", "texture_bytes":
+				got = 0
+			default:
+				continue
+			}
+			if float64(got) > bf.Value.Num {
+				unit := ""
+				if bf.Value.Dim == units.Bytes {
+					unit = " bytes"
+				}
+				e.report(diag.CodeBudget, e.budgetSpan(oname, bf.Name),
+					"output %s, level %d (%s): `%s` measures %d%s but the budget allows %s",
+					oname, f.Level, f.Name, bf.Name, got, unit, bf.Value.Format())
+			}
+		}
+	}
+}
+
+// budgetSpan finds the source of an effective budget limit: the output's own
+// budget block first, then the document's.
+func (e *elab) budgetSpan(oname, field string) diag.Span {
+	for _, o := range e.file.Outputs {
+		if o.Name.Name == oname && o.Budget != nil {
+			if s := ast.FindSetting(o.Budget.Settings, field); s != nil {
+				return s.Value.Span()
+			}
+		}
+	}
+	if e.file.Budget != nil {
+		if s := ast.FindSetting(e.file.Budget.Settings, field); s != nil {
+			return s.Value.Span()
+		}
+	}
+	return outputSpan(e.file, oname)
+}
+
+// ---- the meaning hash --------------------------------------------------------
+
+// firHash hashes the product-bearing part of a resolved output: the part
+// tree, the templates, the materials, the runtime parameters, the level
+// settings that change geometry, the collision shapes and the rights holder.
+// It leaves out record fields (budgets, meta text, level distances, doc
+// strings) and the Default flags, so spelling a default does not change it.
+func firHash(r *resolve.Resolved) string {
+	type param struct {
+		Name  string       `json:"name"`
+		Type  string       `json:"type"`
+		Value units.Value  `json:"value"`
+		Lo    *units.Value `json:"lo,omitempty"`
+		Hi    *units.Value `json:"hi,omitempty"`
+	}
+	doc := struct {
+		Format      string          `json:"format"`
+		Copyright   string          `json:"copyright"`
+		Runtime     []param         `json:"runtime"`
+		Materials   []*resolve.Node `json:"materials"`
+		Root        *resolve.Node   `json:"root"`
+		Definitions []*resolve.Node `json:"definitions"`
+		Lods        []*resolve.Node `json:"lods"`
+		Collision   []*resolve.Node `json:"collision"`
+	}{
+		Format:      "greenware.fir.product/1",
+		Copyright:   metaString(r, "author"),
+		Root:        canon(r.Root, nil),
+		Definitions: canonAll(r.Definitions, nil),
+		Materials:   canonAll(r.Materials, nil),
+		Collision:   canonAll(r.Collision, nil),
+		Lods:        canonAll(r.Lods, map[string]bool{"max_error": true, "drop": true, "keep": true, "segments": true}),
+	}
+	for _, p := range r.Params {
+		if p.Runtime {
+			doc.Runtime = append(doc.Runtime, param{Name: p.Name, Type: p.Type, Value: p.Value, Lo: p.Lo, Hi: p.Hi})
+		}
+	}
+	b, err := json.Marshal(doc)
+	if err != nil {
+		panic("compiler: " + err.Error())
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+func canonAll(ns []*resolve.Node, only map[string]bool) []*resolve.Node {
+	out := make([]*resolve.Node, 0, len(ns))
+	for _, n := range ns {
+		out = append(out, canon(n, only))
+	}
+	return out
+}
+
+// canon copies a node without the Default flags. With only set, it keeps just
+// the named fields.
+func canon(n *resolve.Node, only map[string]bool) *resolve.Node {
+	if n == nil {
+		return nil
+	}
+	c := &resolve.Node{Kind: n.Kind, Name: n.Name, Pair: n.Pair, Rows: n.Rows, Condition: n.Condition}
+	for _, f := range n.Fields {
+		if only != nil && !only[f.Name] {
+			continue
+		}
+		c.Fields = append(c.Fields, resolve.Field{Name: f.Name, Value: f.Value})
+	}
+	if n.Kind == "lod" {
+		c.Name = n.Name
+	}
+	for _, ch := range n.Children {
+		c.Children = append(c.Children, canon(ch, only))
+	}
+	for _, ch := range n.Else {
+		c.Else = append(c.Else, canon(ch, only))
+	}
+	return c
+}
