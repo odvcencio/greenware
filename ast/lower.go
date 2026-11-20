@@ -6,11 +6,25 @@ import (
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/lang"
 	"m31labs.dev/greenware/registry"
+	"m31labs.dev/greenware/units"
 )
 
 type lowerer struct {
 	tree  *lang.Tree
 	diags []diag.Diagnostic
+	// geom is true for a geometry-only lowering; skipped holds what it left out.
+	geom    bool
+	skipped []string
+}
+
+// Options choose how Lower reads a file.
+type Options struct {
+	// GeometryOnly leaves out the look declarations that this compiler does not
+	// yet read: `import`, `plug` and `texture` declarations and the `cell`
+	// settings of shapes. Every material becomes a plain grey pbr material of
+	// the same name. File.Skipped says what was left out. The shapes, the
+	// parameters and the outputs are read in full.
+	GeometryOnly bool
 }
 
 // Lower turns a parsed tree into a File and the diagnostics found on the way:
@@ -18,7 +32,12 @@ type lowerer struct {
 // blocks, duplicate settings and declarations of single-use kinds, and name
 // pairs that are not allowed. It always returns a File.
 func Lower(tree *lang.Tree) (*File, []diag.Diagnostic) {
-	l := &lowerer{tree: tree}
+	return LowerWith(tree, Options{})
+}
+
+// LowerWith is Lower with options.
+func LowerWith(tree *lang.Tree, opts Options) (*File, []diag.Diagnostic) {
+	l := &lowerer{tree: tree, geom: opts.GeometryOnly}
 	f := &File{Source: tree.Source(), Broken: tree.HasErrors()}
 	for _, d := range tree.Diagnostics() {
 		l.report(diag.New(diag.CodeSyntax, diag.Span{Start: d.Span.Start, End: d.Span.End}, "%s", d.Message))
@@ -31,6 +50,7 @@ func Lower(tree *lang.Tree) (*File, []diag.Diagnostic) {
 		}
 		l.declaration(f, n)
 	}
+	f.Skipped = l.skipped
 	if f.Asset == nil && len(f.Accepts) == 0 && !f.Broken {
 		sp := diag.Span{}
 		if len(f.Source) > 0 {
@@ -103,6 +123,20 @@ func (l *lowerer) edition(f *File, root *lang.Node) {
 	l.diags = kept
 }
 
+// skip records a look declaration that a geometry-only lowering left out.
+func (l *lowerer) skip(what string) {
+	for _, s := range l.skipped {
+		if s == what {
+			return
+		}
+	}
+	l.skipped = append(l.skipped, what)
+}
+
+// lookField reports whether an unsupported field belongs to the look of a
+// shape or material (cells and textures), which a geometry-only lowering drops.
+func lookField(why string) bool { return why == "atlas cells" || why == "textures" }
+
 func (l *lowerer) unsupported(n *lang.Node, what string) {
 	l.report(diag.New(diag.CodeUnsupported, span(n), "%s is valid in the language but outside this compiler's subset", what))
 }
@@ -142,9 +176,17 @@ func (l *lowerer) declaration(f *File, n *lang.Node) {
 	case "check_decl":
 		f.Checks = append(f.Checks, l.check(n))
 	case "material_decl":
+		if l.geom {
+			name := ident(n.Field("name"))
+			f.Materials = append(f.Materials, plainGrey(name, span(n)))
+			l.skip("material " + name.Name + ": drawn as a plain grey pbr material")
+			return
+		}
 		if m := l.material(n.Field("name"), n.Field("value"), span(n)); m != nil {
 			f.Materials = append(f.Materials, m)
 		}
+	case "template_decl":
+		f.Templates = append(f.Templates, l.template(n))
 	case "part_decl":
 		f.Parts = append(f.Parts, l.part(n, false, true))
 	case "lod_decl":
@@ -173,8 +215,19 @@ func (l *lowerer) declaration(f *File, n *lang.Node) {
 		f.Outputs = append(f.Outputs, l.output(n))
 	case "accept_decl":
 		f.Accepts = append(f.Accepts, l.accept(n))
-	case "import_decl", "table_decl", "texture_decl", "mesh_decl", "view_decl", "painter_decl",
-		"template_decl", "plug_decl", "mount_decl", "skeleton_decl", "skin_decl", "morph_decl",
+	case "import_decl", "texture_decl", "plug_decl":
+		kw := n.Children()[0]
+		if l.geom {
+			what := kw.Text()
+			if nm := n.Field("name"); nm != nil {
+				what += " " + nm.Text()
+			}
+			l.skip(what)
+			return
+		}
+		l.unsupported(kw, "`"+kw.Text()+"`")
+	case "table_decl", "mesh_decl", "view_decl", "painter_decl",
+		"mount_decl", "skeleton_decl", "skin_decl", "morph_decl",
 		"clip_decl", "variant_decl":
 		kw := n.Children()[0]
 		l.unsupported(kw, "`"+kw.Text()+"`")
@@ -311,6 +364,10 @@ func (l *lowerer) settings(items []*lang.Node, k *registry.Kind) ([]*Setting, []
 				continue
 			}
 			if f.Unsupported != "" {
+				if l.geom && lookField(f.Unsupported) {
+					l.skip("`" + s.Name + "` settings (" + f.Unsupported + ")")
+					continue
+				}
 				l.report(diag.New(diag.CodeUnsupported, s.NameSpan, "`%s` (%s) is valid in the language but outside this compiler's subset", s.Name, f.Unsupported))
 				continue
 			}
@@ -325,18 +382,56 @@ func (l *lowerer) settings(items []*lang.Node, k *registry.Kind) ([]*Setting, []
 	return out, rest
 }
 
+// paramType lowers a param_type node: `length` or `enum(a, b)`.
+func paramType(t *lang.Node) ParamType {
+	var out ParamType
+	if t == nil {
+		return out
+	}
+	out.Span = span(t)
+	if nm := t.Field("name"); nm != nil {
+		out.Name = nm.Text()
+	}
+	for _, a := range t.Children() {
+		if a.FieldName() == "argument" && a.Kind() == "identifier" {
+			out.Enum = append(out.Enum, ident(a))
+		}
+	}
+	return out
+}
+
+// template lowers `template name(formals) { items }`.
+func (l *lowerer) template(n *lang.Node) *Template {
+	t := &Template{Name: ident(n.Field("name")), Span: span(n)}
+	for _, c := range n.Children() {
+		if c.Kind() != "typed_param" {
+			continue
+		}
+		p := TemplateParam{Name: ident(c.Field("name")), Type: paramType(c.Field("type"))}
+		if d := c.Field("default"); d != nil {
+			p.Default = l.expr(d)
+		}
+		t.Params = append(t.Params, p)
+	}
+	_, t.Items = l.container(n.Field("body"), nil, registry.CtxPart, false)
+	return t
+}
+
+// plainGrey is the material a geometry-only lowering writes for every material.
+func plainGrey(name Ident, sp diag.Span) *Material {
+	set := func(field string, v Expr) *Setting {
+		return &Setting{Name: field, NameSpan: sp, Span: sp, Value: v}
+	}
+	return &Material{Name: name, Span: sp, Kind: "pbr", KindSpan: sp, Settings: []*Setting{
+		set("base", &ColorLit{base{sp}, units.Color{R: 0x80, G: 0x80, B: 0x80, A: 255}}),
+		set("roughness", &NumberLit{base{sp}, "0.5", units.Num(0.5)}),
+	}}
+}
+
 func (l *lowerer) param(n *lang.Node) *Param {
 	p := &Param{Name: ident(n.Field("name")), Span: span(n), Default: l.expr(n.Field("default"))}
 	if t := n.Field("type"); t != nil {
-		p.Type.Span = span(t)
-		if nm := t.Field("name"); nm != nil {
-			p.Type.Name = nm.Text()
-		}
-		for _, a := range t.Children() {
-			if a.FieldName() == "argument" && a.Kind() == "identifier" {
-				p.Type.Enum = append(p.Type.Enum, ident(a))
-			}
-		}
+		p.Type = paramType(t)
 	}
 	if r := n.Field("range"); r != nil {
 		p.Range = l.rng(r)

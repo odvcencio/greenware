@@ -24,7 +24,7 @@ const (
 	ExitUnavailable = 3
 )
 
-const usage = `usage: greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--lod0-error LEN]
+const usage = `usage: greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--lod0-error LEN] [--geometry-only]
 
 Runs the acceptance file on the decoded GLB files that the source's output
 blocks name, in DIR, at every level. It compiles nothing.
@@ -32,6 +32,7 @@ blocks name, in DIR, at every level. It compiles nothing.
   --glb-dir DIR      folder holding the GLB files (required)
   --json             write the report as JSON on stdout
   --lod0-error LEN   level 0's lod_error, such as 2.99mm, when the GLB does not record it
+  --geometry-only    read the source as greenware build --geometry-only does
 
 exit status: 0 all pass, 1 any fail or refused, 2 usage or unreadable input,
 3 none failed but some could not be measured (for example outline)
@@ -41,7 +42,7 @@ exit status: 0 all pass, 1 any fail or refused, 2 usage or unreadable input,
 func Command(args []string, stdout, stderr io.Writer) int {
 	var pos []string
 	var glbDir, lod0 string
-	var asJSON, haveDir bool
+	var asJSON, haveDir, geomOnly bool
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		value := func(name string) (string, bool) {
@@ -57,6 +58,8 @@ func Command(args []string, stdout, stderr io.Writer) int {
 		switch {
 		case a == "--json":
 			asJSON = true
+		case a == "--geometry-only":
+			geomOnly = true
 		case a == "-h" || a == "--help":
 			fmt.Fprint(stdout, usage)
 			return ExitPass
@@ -105,7 +108,7 @@ func Command(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return ExitUsage
 	}
-	srcAST, srcDiags := ast.Lower(lang.Parse(srcText))
+	srcAST, srcDiags := ast.LowerWith(lang.Parse(srcText), ast.Options{GeometryOnly: geomOnly})
 	if srcAST.Broken || diag.HasErrors(srcDiags) {
 		printDiags(stderr, srcPath, srcText, srcDiags)
 		return ExitUsage

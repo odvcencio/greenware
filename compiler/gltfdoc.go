@@ -2,10 +2,12 @@ package compiler
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strconv"
 
 	"m31labs.dev/greenware/det"
+	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/gltf"
 	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/resolve"
@@ -38,11 +40,17 @@ type collider struct {
 type level struct {
 	n     int
 	doc   *gltf.Document
-	tris  int
-	draws int
-	verts int
+	tris  int // triangles drawn in the default look
+	draws int // draws in the default look
+	verts int // written vertices, every branch
 	mats  int
 	nodes int
+	// The worst look is the largest count over every reachable assignment of
+	// the runtime parameters; stored counts every branch.
+	trisWorst  int
+	drawsWorst int
+	trisStored int
+	alternates int // roots of the alternates scene
 }
 
 // vertexKey identifies a written vertex.
@@ -82,6 +90,61 @@ func primitiveOf(ps []piece) gltf.Primitive {
 	return prim
 }
 
+// groupPieces splits a node's pieces by material, in the order the materials
+// first appear.
+func groupPieces(ps []piece) (order []string, groups map[string][]piece) {
+	groups = map[string][]piece{} // lookup only
+	for _, p := range ps {
+		if _, ok := groups[p.mat]; !ok {
+			order = append(order, p.mat)
+		}
+		groups[p.mat] = append(groups[p.mat], p)
+	}
+	return order, groups
+}
+
+func piecesTris(ps []piece) int {
+	n := 0
+	for _, p := range ps {
+		n += p.m.TriangleCount()
+	}
+	return n
+}
+
+// condNames lists the parameters the node tree's conditions test.
+func condNames(n *snode, set map[string]bool) {
+	if n.cond != nil {
+		set[n.cond.Param] = true
+	}
+	for _, k := range n.kids {
+		condNames(k, set)
+	}
+}
+
+// look counts the triangles and draws the tree shows under an assignment of
+// the runtime parameters. A node whose condition fails hides its whole subtree.
+func look(n *snode, assign map[string]string) (tris, draws int) {
+	if n.cond != nil && !n.cond.Holds(assign) {
+		return 0, 0
+	}
+	order, groups := groupPieces(n.pieces)
+	for _, mat := range order {
+		tris += piecesTris(groups[mat])
+		draws++
+	}
+	for _, k := range n.kids {
+		if len(k.pieces) == 0 && len(k.kids) == 0 && len(k.sockets) == 0 {
+			continue
+		}
+		t, d := look(k, assign)
+		tris, draws = tris+t, draws+d
+	}
+	return tris, draws
+}
+
+// maxBranches is the most nodes one level may let a runtime `when` control.
+const maxBranches = 16
+
 // assemble builds the glTF document of one level from its node tree.
 func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*level, bool) {
 	// The materials this level draws, by name.
@@ -117,35 +180,45 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 		bindings = append(bindings, m.bindings...)
 	}
 
+	defaults := resolve.Defaults(e.r.Params)
 	lv := &level{n: lvl}
-	var addNode func(n *snode) int
-	addNode = func(n *snode) int {
+	var alts []int // roots of the alternates scene
+	var addNode func(n *snode, parent string, hiddenAbove bool) (idx int, alternate bool)
+	addNode = func(n *snode, parent string, hiddenAbove bool) (int, bool) {
 		idx := len(doc.Nodes)
 		node := gltf.Node{Name: n.name}
 		if n.t != (mesh.Vec3{}) {
 			t := n.t.F32()
 			node.Translation = &t
 		}
+		// A node a runtime `when` controls carries its own visibility state, and
+		// the outermost hidden one is a root of the alternates scene: a stock
+		// viewer draws the default scene and never sees it.
+		alternate := false
+		if n.cond != nil {
+			visible := n.cond.Holds(defaults)
+			node.Extensions = map[string]json.RawMessage{"KHR_node_visibility": json.RawMessage(fmt.Sprintf(`{"visible":%t}`, visible))}
+			scene := "default"
+			if !visible || hiddenAbove {
+				scene = "alternates"
+			}
+			alternate = !visible && !hiddenAbove
+			bindings = append(bindings, binding{kind: "visibility", param: n.cond.Param, node: n.name, parent: parent,
+				translation: n.t, scene: scene, visible: visible, cond: *n.cond})
+		}
+		hidden := hiddenAbove || alternate
 		doc.Nodes = append(doc.Nodes, node)
 		if len(n.pieces) > 0 {
 			// One primitive per material, in the order the materials first appear.
-			var order []string
-			groups := map[string][]piece{} // lookup only
-			for _, p := range n.pieces {
-				if _, ok := groups[p.mat]; !ok {
-					order = append(order, p.mat)
-				}
-				groups[p.mat] = append(groups[p.mat], p)
-			}
+			order, groups := groupPieces(n.pieces)
 			m := gltf.Mesh{Name: n.name}
 			for _, mat := range order {
 				prim := primitiveOf(groups[mat])
 				if mat != "" {
 					prim.Material = gltf.Int(matIndex[mat])
 				}
-				lv.tris += len(prim.Indices) / 3
+				lv.trisStored += len(prim.Indices) / 3
 				lv.verts += len(prim.Positions) / 3
-				lv.draws++
 				m.Primitives = append(m.Primitives, prim)
 			}
 			doc.Meshes = append(doc.Meshes, m)
@@ -156,7 +229,12 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 			if len(k.pieces) == 0 && len(k.kids) == 0 && len(k.sockets) == 0 {
 				continue // a part that the level emptied adds no node
 			}
-			kids = append(kids, addNode(k))
+			ki, alt := addNode(k, n.name, hidden)
+			if alt {
+				alts = append(alts, ki)
+				continue
+			}
+			kids = append(kids, ki)
 		}
 		for _, s := range n.sockets {
 			sn := gltf.Node{Name: "socket." + s.name}
@@ -171,9 +249,9 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 			kids = append(kids, len(doc.Nodes)-1)
 		}
 		doc.Nodes[idx].Children = kids
-		return idx
+		return idx, alternate
 	}
-	rootIdx := addNode(root)
+	rootIdx, _ := addNode(root, "", false)
 	// Colliders hang off the root, after its sockets.
 	for _, c := range cols {
 		data := map[string]any{"format": "greenware.collider/1", "name": c.name, "shape": c.shape}
@@ -184,7 +262,40 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 		doc.Nodes[rootIdx].Children = append(doc.Nodes[rootIdx].Children, len(doc.Nodes)-1)
 	}
 	doc.Scenes = []gltf.Scene{{Nodes: []int{rootIdx}}}
+	if len(alts) > 0 {
+		doc.Scenes = append(doc.Scenes, gltf.Scene{Name: "alternates", Nodes: alts})
+	}
 	doc.Scene = gltf.Int(0)
+	lv.alternates = len(alts)
+
+	// What the file stores and what each look draws.
+	lv.tris, lv.draws = look(root, defaults)
+	lv.trisWorst, lv.drawsWorst = lv.tris, lv.draws
+	set := map[string]bool{}
+	condNames(root, set)
+	if len(set) > 0 {
+		var params []string
+		for p := range set {
+			params = append(params, p)
+		}
+		all, ok := resolve.Assignments(e.r.Params, params)
+		if !ok {
+			e.report(diag.CodeLimit, e.spanOf(""), "the runtime conditions have more than %d assignments to count the worst look over", maxAssignments)
+			return nil, false
+		}
+		for _, a := range all {
+			merged := resolve.Defaults(e.r.Params)
+			for k, v := range a {
+				merged[k] = v
+			}
+			t, d := look(root, merged)
+			lv.trisWorst, lv.drawsWorst = max(lv.trisWorst, t), max(lv.drawsWorst, d)
+		}
+		if n := len(bindingsOfKind(bindings, "visibility")); n > maxBranches {
+			e.report(diag.CodeLimit, e.spanOf(""), "a level has %d selectable branches; the class allows %d", n, maxBranches)
+			return nil, false
+		}
+	}
 
 	asset := map[string]any{"format": "greenware.asset/1", "fir_sha256": fir, "lod": lvl, "lod_error": e.lodErr}
 	if rt := e.runtimeTable(bindings); rt != nil {
@@ -195,6 +306,19 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 	lv.mats = len(names)
 	lv.nodes = len(doc.Nodes)
 	return lv, true
+}
+
+// maxAssignments mirrors the resolver's bound on listed assignments.
+const maxAssignments = 4096
+
+func bindingsOfKind(bs []binding, kind string) []binding {
+	var out []binding
+	for _, b := range bs {
+		if b.kind == kind {
+			out = append(out, b)
+		}
+	}
+	return out
 }
 
 // runtimeTable writes greenware.runtime/1: each runtime parameter that has a
@@ -224,8 +348,17 @@ func (e *elab) runtimeTable(bs []binding) map[string]any {
 		if p.Lo != nil && p.Hi != nil && p.Value.IsNumber() {
 			ent["range"] = []f32{f32(det.Round32(p.Lo.Num)), f32(det.Round32(p.Hi.Num))}
 		}
+		if len(p.Members) > 0 {
+			ent["values"] = p.Members
+		}
 		bl := by[nm]
 		sort.SliceStable(bl, func(i, j int) bool {
+			if bl[i].kind != bl[j].kind {
+				return bl[i].kind < bl[j].kind
+			}
+			if bl[i].kind == "visibility" {
+				return bl[i].node < bl[j].node
+			}
 			if bl[i].material != bl[j].material {
 				return bl[i].material < bl[j].material
 			}
@@ -233,6 +366,17 @@ func (e *elab) runtimeTable(bs []binding) map[string]any {
 		})
 		var bj []any
 		for _, b := range bl {
+			if b.kind == "visibility" {
+				test := map[string]any{"op": b.cond.Op}
+				if b.cond.Value != "" {
+					test["value"] = b.cond.Value
+				}
+				bj = append(bj, map[string]any{
+					"kind": "visibility", "node": b.node, "parent": b.parent,
+					"translation": vecJSON(b.translation), "scene": b.scene, "visible": b.visible, "test": test,
+				})
+				continue
+			}
 			bj = append(bj, map[string]any{"kind": "material", "material": b.material, "field": b.field, "map": b.mapping})
 		}
 		ent["bindings"] = bj

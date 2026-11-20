@@ -91,3 +91,31 @@ func RetessellateLathe(p LatheParams, maxError float64) LatheParams {
 	p.Segments = CircleSegments(r, p.Segments, maxError)
 	return p
 }
+
+// RetessellateEllipsoid returns p with segments and latitude rows reduced.
+// Segments use the larger horizontal radius; the latitude rows, which are
+// Rings-1 intervals, use the largest radius. The least a level keeps is 3
+// segments and 3 rows (two latitude intervals, as for a sphere), unless the
+// source already has fewer.
+func RetessellateEllipsoid(p EllipsoidParams, maxError float64) EllipsoidParams {
+	p.Segments = CircleSegments(max(p.Radii[0], p.Radii[2]), p.Segments, maxError)
+	p.Rings = LatitudeRings(max(p.Radii[0], p.Radii[1], p.Radii[2]), p.Rings-1, maxError) + 1
+	return p
+}
+
+// RetessellateTube returns p with the ring's segments reduced. The path rows
+// are author rows and are kept.
+func RetessellateTube(p TubeParams, maxError float64) TubeParams {
+	p.Segments = CircleSegments(p.Radius, p.Segments, maxError)
+	return p
+}
+
+// LoftSegments returns the fewest segments (or arc intervals) of a loft whose
+// chord error, for the placed radius r, stays within maxError. A full turn
+// has the floor of 3; an arc of angular span span has the floor of 1.
+func LoftSegments(r float64, arc bool, span float64, source int, maxError float64) int {
+	if arc {
+		return Fewest(r, span, source, 1, maxError)
+	}
+	return CircleSegments(r, source, maxError)
+}

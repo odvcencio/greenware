@@ -219,6 +219,11 @@ func (r *run) binary(n *ast.Binary, sc *scope) units.Value {
 		out.Runtime = l.DependsOnRuntime() || rv.DependsOnRuntime()
 		return out
 	}
+	if n.Op == "==" || n.Op == "!=" {
+		if v, ok := r.enumCompare(n, sc); ok {
+			return v
+		}
+	}
 	l, rv := r.eval(n.L, sc), r.eval(n.R, sc)
 	if !l.Valid() || !rv.Valid() {
 		return units.Bad()
@@ -326,4 +331,77 @@ func (r *run) call(n *ast.Call, sc *scope) units.Value {
 		return units.Bad()
 	}
 	return v
+}
+
+// unboundName returns the identifier an operand is when no value of that name
+// is in scope: a candidate enum member.
+func unboundName(e ast.Expr, sc *scope) (string, diag.Span, bool) {
+	for {
+		p, ok := e.(*ast.Paren)
+		if !ok {
+			break
+		}
+		e = p.X
+	}
+	if nm, ok := e.(*ast.Name); ok && sc.lookup(nm.Name) == nil {
+		return nm.Name, nm.Span(), true
+	}
+	return "", diag.Span{}, false
+}
+
+// enumCompare reads `param == member`. A member of an enum is a name of the
+// enum, not a value in scope, so the side that names no value is the member
+// (spec 2.2). When the other side is a parameter, the member must belong to
+// its enum. It reports false when the comparison is not of this shape.
+func (r *run) enumCompare(n *ast.Binary, sc *scope) (units.Value, bool) {
+	ln, lsp, lu := unboundName(n.L, sc)
+	rn, rsp, ru := unboundName(n.R, sc)
+	if lu == ru {
+		return units.Value{}, false
+	}
+	name, sp, other := ln, lsp, n.R
+	if ru {
+		name, sp, other = rn, rsp, n.L
+	}
+	ov := r.eval(other, sc)
+	if !ov.Valid() {
+		return units.Bad(), true
+	}
+	if ov.Kind != units.KLabel {
+		return units.Value{}, false
+	}
+	if nm, _, ok := nameOf(unparen(other)); ok {
+		if b := sc.lookup(nm); b != nil && b.param != nil && len(b.param.Type.Enum) > 0 {
+			members := make([]string, len(b.param.Type.Enum))
+			found := false
+			for i, m := range b.param.Type.Enum {
+				members[i] = m.Name
+				found = found || m.Name == name
+			}
+			if !found {
+				d := diag.New(diag.CodeType, sp, "`%s` is not a member of `%s` (%s)", name, nm, strings.Join(members, ", "))
+				if s, ok := registry.Suggest(name, members); ok {
+					d = d.WithEdit("write "+s, sp, s)
+				}
+				r.report(d)
+				return units.Bad(), true
+			}
+		}
+	}
+	out, err := units.Compare(n.Op, ov, units.Label(name), r.d)
+	if err != nil {
+		r.opError(err, n.Span())
+		return units.Bad(), true
+	}
+	return out, true
+}
+
+func unparen(e ast.Expr) ast.Expr {
+	for {
+		p, ok := e.(*ast.Paren)
+		if !ok {
+			return e
+		}
+		e = p.X
+	}
 }

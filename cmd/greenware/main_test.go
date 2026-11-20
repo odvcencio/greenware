@@ -301,3 +301,67 @@ func TestBuildMaxWorkUsage(t *testing.T) {
 		t.Errorf("a missing acceptance file: exit %d", code)
 	}
 }
+
+const helmet = "../../examples/helmet/helmet.gw"
+const helmetAccept = "../../examples/helmet/helmet.accept.gw"
+
+// TestBuildHelmetGeometryOnly builds the helmet's geometry with the new flag,
+// checks it with the same flag, and accepts the files.
+func TestBuildHelmetGeometryOnly(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "out")
+	code, out, errOut := exec(t, "build", helmet, "--geometry-only", "--out-dir", dir, "--json")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s\n%s", code, out, errOut)
+	}
+	rep := oneJSON(t, out)
+	if rep["ok"] != true || rep["written"] != true {
+		t.Fatalf("report: %v", rep)
+	}
+	outs := rep["outputs"].([]any)
+	if len(outs) != 2 {
+		t.Fatalf("outputs: %v", outs)
+	}
+	f0 := outs[0].(map[string]any)["files"].([]any)[0].(map[string]any)
+	if f0["name"] != "helmet-classic.glb" || f0["triangles"] != float64(1766) || f0["triangles_worst"] != float64(1830) ||
+		f0["triangles_stored"] != float64(2110) || f0["draws"] != float64(3) || f0["draws_worst"] != float64(4) {
+		t.Errorf("classic level 0: %v", f0)
+	}
+	// What was left out is said in the report.
+	notes := ""
+	for _, n := range rep["unsupported"].([]any) {
+		notes += n.(string) + "\n"
+	}
+	for _, want := range []string{"skipped import", "skipped plug head_gear", "skipped texture helmet_mask", "skipped material helmet_paint", "skipped `cell` settings"} {
+		if !strings.Contains(notes, want) {
+			t.Errorf("no note %q in:\n%s", want, notes)
+		}
+	}
+	for _, name := range []string{"helmet-classic.glb", "helmet-classic-lod1.glb", "helmet-aero.glb", "helmet-aero-lod1.glb", "helmet.build.json"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("missing %s", name)
+		}
+	}
+	// Text mode prints the worst look and the notes.
+	dir2 := filepath.Join(t.TempDir(), "out")
+	code, out, errOut = exec(t, "build", helmet, "--geometry-only", "--out-dir", dir2, "--output", "aero")
+	if code != 0 || !strings.Contains(out, "worst look 1830 triangles, 4 draws; stored 2110 triangles") || !strings.Contains(errOut, "note: geometry only: skipped import") {
+		t.Errorf("text output: exit %d\n%s\n%s", code, out, errOut)
+	}
+	if code, out, errOut = exec(t, "check", helmet, "--geometry-only"); code != 0 || !strings.Contains(out, "ok") || !strings.Contains(errOut, "note: geometry only") {
+		t.Errorf("check: exit %d\n%s\n%s", code, out, errOut)
+	}
+	// The files pass the helmet's acceptance file.
+	var o, e bytes.Buffer
+	if code := run([]string{"accept", helmet, helmetAccept, "--glb-dir", dir, "--geometry-only"}, &o, &e); code != 0 || !strings.Contains(o.String(), "pass 42, fail 0") {
+		t.Errorf("accept: exit %d\n%s\n%s", code, o.String(), e.String())
+	}
+	// Without the flag the look declarations are refused, and nothing is built.
+	dir3 := filepath.Join(t.TempDir(), "out")
+	code, _, errOut = exec(t, "build", helmet, "--out-dir", dir3)
+	if code != 1 || !strings.Contains(errOut, "GW-UNSUPPORTED") {
+		t.Errorf("full build: exit %d\n%s", code, errOut)
+	}
+	if _, err := os.Stat(dir3); err == nil {
+		t.Error("a refused build wrote a folder")
+	}
+}

@@ -14,8 +14,11 @@ type lookState struct {
 	draws  map[[2]string]bool
 	mats   map[string]bool
 	nodeID int
-	worst  bool
-	depth  int
+	// assign is the assignment of runtime parameters the look is counted at.
+	assign map[string]string
+	// all counts both branches of every runtime `when`.
+	all   bool
+	depth int
 }
 
 func isShapeKind(kind string) bool {
@@ -38,7 +41,7 @@ func (ls *lookState) walk(n *Node, node int, inherited string) {
 		if f, ok := n.Get("material"); ok && f.Valid() {
 			mat = f.Str
 		}
-		if e, ok := n.Get("export"); ok && e.Bool {
+		if e, ok := n.Get("export"); ok && e.Bool || VisibilityWhen(n) != nil {
 			ls.nodeID++
 			node = ls.nodeID
 		}
@@ -63,10 +66,15 @@ func (ls *lookState) walk(n *Node, node int, inherited string) {
 		}
 	case n.Kind == "when":
 		take := n.Children
-		if n.Condition != nil && !n.Condition.Bool {
+		switch {
+		case n.Cond != nil:
+			if !n.Cond.Holds(ls.assign) {
+				take = n.Else
+			}
+		case n.Condition != nil && !n.Condition.Bool:
 			take = n.Else
 		}
-		if ls.worst {
+		if ls.all {
 			take = append(append([]*Node(nil), n.Children...), n.Else...)
 		}
 		for _, c := range take {
@@ -86,18 +94,45 @@ func (r *run) look() Look {
 	for _, d := range r.resolved.Definitions {
 		defs[d.Name] = d
 	}
-	count := func(worst bool) (*lookState, int) {
-		ls := &lookState{defs: defs, draws: map[[2]string]bool{}, mats: map[string]bool{}, worst: worst}
+	count := func(assign map[string]string) (*lookState, int) {
+		ls := &lookState{defs: defs, draws: map[[2]string]bool{}, mats: map[string]bool{}, assign: assign}
 		if r.resolved.Root != nil {
 			ls.walk(r.resolved.Root, 0, "")
 		}
 		return ls, len(ls.draws)
 	}
-	_, def := count(false)
-	ls, worst := count(true)
+	_, def := count(Defaults(r.resolved.Params))
+	// The worst look is the largest count over every assignment of the
+	// parameters the conditions test: mutually exclusive branches never draw
+	// together (language.md section 7.7).
+	mats := map[string]bool{}
+	worst := 0
+	all, ok := Assignments(r.resolved.Params, CondParams(r.resolved.Root, r.resolved.Definitions))
+	if !ok {
+		// Too many to list: count every branch, which can only overstate.
+		all = nil
+		ls := &lookState{defs: defs, draws: map[[2]string]bool{}, mats: map[string]bool{}, all: true}
+		ls.walk(r.resolved.Root, 0, "")
+		worst = len(ls.draws)
+		for m := range ls.mats {
+			mats[m] = true
+		}
+	}
+	for _, a := range all {
+		merged := Defaults(r.resolved.Params)
+		for k, v := range a {
+			merged[k] = v
+		}
+		ls, n := count(merged)
+		worst = max(worst, n)
+		for m := range ls.mats {
+			mats[m] = true
+		}
+	}
+	worst = max(worst, def)
 	out := Look{DrawCalls: def, DrawCallsWorst: worst, Materials: []string{}}
 	for _, m := range r.f.Materials {
-		if ls.mats[m.Name.Name] {
+		if mats[m.Name.Name] {
 			out.Materials = append(out.Materials, m.Name.Name)
 		}
 	}

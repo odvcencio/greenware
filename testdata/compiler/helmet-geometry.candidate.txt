@@ -1,0 +1,7 @@
+# CANDIDATE, not approved: counts and digests of the helmet's geometry, built from examples/helmet/helmet.gw with the geometry-only lowering
+# (grey pbr materials, no cells, no import, plug or texture). A reviewer approves it; no test flag does.
+# columns: output file level triangles draws triangles_worst draws_worst triangles_stored vertices bytes sha256
+classic helmet-classic.glb 0 1766 3 1830 4 2110 1439 64324 5f1d746b412de2fb489dec62eac428c94f0ac165db3b465f5431d96a783e9dd1
+classic helmet-classic-lod1.glb 1 528 3 556 4 676 491 25368 61c4c71b5525a9f94dbc781043d44750d79550f9beb52cd99dc513f69dffb8cc
+aero helmet-aero.glb 0 1766 3 1830 4 2110 1439 64324 445b37dea5ae78a0ab52585a00962e1d534a03e2927c0f5a7e64bb831b38c016
+aero helmet-aero-lod1.glb 1 540 3 568 4 688 498 25668 27dddc44bf3ff4d671bec7f7b405c240b473a8e5834a65820fd47ed205fa1743

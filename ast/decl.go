@@ -23,6 +23,11 @@ type File struct {
 	Budget    *Budget
 	Outputs   []*Output
 	Accepts   []*Accept
+	// Templates are the row templates, in source order.
+	Templates []*Template
+	// Skipped lists the look declarations a geometry-only lowering left out,
+	// each as a sentence for a person. It is empty otherwise.
+	Skipped []string
 
 	// Broken is true when the file had syntax errors. Evaluation of a broken
 	// file reports nothing further, so a syntax error does not cascade.
@@ -211,6 +216,31 @@ type When struct {
 	Else []Item
 }
 
+// TemplateParam is one typed formal of a template: `name: type [= default]`.
+type TemplateParam struct {
+	Name    Ident
+	Type    ParamType
+	Default Expr
+}
+
+// Template is `template name(formals) { items }`: a reusable block that
+// expands where a row calls it and makes no node of its own.
+type Template struct {
+	Name   Ident
+	Span   diag.Span
+	Params []TemplateParam
+	Items  []Item
+}
+
+// TemplateCall is a row in a part body that calls a template:
+// `rail (1.785, 0.198)`.
+type TemplateCall struct {
+	Name     string
+	NameSpan diag.Span
+	Span     diag.Span
+	Args     []Arg
+}
+
 // Collider is a capsule, box or sphere in collision.
 type Collider struct {
 	Kind     string
@@ -221,15 +251,16 @@ type Collider struct {
 	Settings []*Setting
 }
 
-func (i *Part) ItemSpan() diag.Span     { return i.Span }
-func (i *Shape) ItemSpan() diag.Span    { return i.Span }
-func (i *Array) ItemSpan() diag.Span    { return i.Span }
-func (i *Instance) ItemSpan() diag.Span { return i.Span }
-func (i *Mirror) ItemSpan() diag.Span   { return i.Span }
-func (i *Socket) ItemSpan() diag.Span   { return i.Span }
-func (i *When) ItemSpan() diag.Span     { return i.Span }
-func (i *Let) ItemSpan() diag.Span      { return i.Span }
-func (i *Collider) ItemSpan() diag.Span { return i.Span }
+func (i *Part) ItemSpan() diag.Span         { return i.Span }
+func (i *Shape) ItemSpan() diag.Span        { return i.Span }
+func (i *Array) ItemSpan() diag.Span        { return i.Span }
+func (i *Instance) ItemSpan() diag.Span     { return i.Span }
+func (i *Mirror) ItemSpan() diag.Span       { return i.Span }
+func (i *Socket) ItemSpan() diag.Span       { return i.Span }
+func (i *When) ItemSpan() diag.Span         { return i.Span }
+func (i *Let) ItemSpan() diag.Span          { return i.Span }
+func (i *TemplateCall) ItemSpan() diag.Span { return i.Span }
+func (i *Collider) ItemSpan() diag.Span     { return i.Span }
 
 // Lod is a level of detail.
 type Lod struct {

@@ -21,6 +21,12 @@ type recordFile struct {
 	Draws     int    `json:"draws"`
 	Materials int    `json:"materials"`
 	Vertices  int    `json:"vertices"`
+	// The worst look and the stored counts, written only when a runtime branch
+	// makes them differ from the default look.
+	TrianglesWorst  int `json:"triangles_worst,omitempty"`
+	TrianglesStored int `json:"triangles_stored,omitempty"`
+	DrawsWorst      int `json:"draws_worst,omitempty"`
+	Alternates      int `json:"alternates,omitempty"`
 }
 
 type recordOutput struct {
@@ -64,10 +70,14 @@ func (p *Product) Record() []byte {
 	for _, o := range p.Outputs {
 		ro := recordOutput{Name: o.Name, FirSHA256: o.FirSHA256, Files: []recordFile{}}
 		for _, f := range o.Files {
-			ro.Files = append(ro.Files, recordFile{
+			rf := recordFile{
 				Name: f.Name, Level: f.Level, Bytes: f.Size, SHA256: f.SHA256,
 				Triangles: f.Triangles, Draws: f.Draws, Materials: f.Materials, Vertices: f.Vertices,
-			})
+			}
+			if f.TrianglesWorst != f.Triangles || f.DrawsWorst != f.Draws || f.TrianglesStored != f.Triangles || f.Alternates > 0 {
+				rf.TrianglesWorst, rf.TrianglesStored, rf.DrawsWorst, rf.Alternates = f.TrianglesWorst, f.TrianglesStored, f.DrawsWorst, f.Alternates
+			}
+			ro.Files = append(ro.Files, rf)
 		}
 		rec.Outputs = append(rec.Outputs, ro)
 	}

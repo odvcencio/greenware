@@ -38,6 +38,11 @@ const (
 	TProfile  // circle(r, n)
 	TAngleRange
 	TCount // positive integer, or three of them as a tuple
+	// TNames is a tuple of distinct names, such as a loft's columns.
+	TNames
+	// TExpr is an expression kept as written and evaluated later, once for
+	// each place it applies (a loft's vertex rule).
+	TExpr
 )
 
 // Namespace names a set of declarations that a reference slot searches.
@@ -146,6 +151,10 @@ func (t Type) Name() string {
 		return "angle range"
 	case TCount:
 		return "count (integer, or three for a grid)"
+	case TNames:
+		return "tuple of names"
+	case TExpr:
+		return "expression"
 	}
 	return "?"
 }
@@ -188,6 +197,9 @@ type RowSpec struct {
 	Columns []Column
 	// MinRows is the least number of rows (after sampled rows expand).
 	MinRows int
+	// Dynamic: the columns are set by a field of the owning kind (a loft's
+	// `columns`), and Columns lists the default layout.
+	Dynamic bool
 }
 
 // NameRule says whether a block of this kind takes a declared name.

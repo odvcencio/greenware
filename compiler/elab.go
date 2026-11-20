@@ -34,6 +34,9 @@ type snode struct {
 	pieces  []piece
 	kids    []*snode
 	sockets []socketOut
+	// cond is the runtime condition that shows this node, set on a node that a
+	// runtime `when` controls. It is nil on every other node.
+	cond *resolve.Cond
 }
 
 // wctx is the walk state.
@@ -288,7 +291,7 @@ func (e *elab) walk(n *resolve.Node, c wctx) {
 	case "socket":
 		e.socket(n, c)
 	case "when":
-		e.unsupported(n.Name, "a `when` on a runtime parameter is not supported yet: it needs a hidden-branch scene")
+		e.report(diag.CodeUnsupported, e.spanOf(""), "a `when` on a runtime parameter must be the whole body of a part (`part mask { when facemask == cage { ... } }`): the part is the node that shows or hides the branch")
 	default:
 		e.shape(n, c)
 	}
@@ -308,7 +311,12 @@ func (e *elab) part(n *resolve.Node, c wctx, isRoot bool) {
 		c.dropped = true
 	}
 	c.a = placeAt(c.a, at)
-	export := isRoot || flag(n, "export")
+	vis := resolve.VisibilityWhen(n)
+	if vis != nil && isRoot {
+		e.unsupported(n.Name, "the root part cannot be shown or hidden by a runtime `when`")
+		return
+	}
+	export := isRoot || flag(n, "export") || vis != nil
 	if export {
 		if c.collect != nil {
 			e.unsupported(n.Name, "`export` inside an array is not supported yet")
@@ -321,11 +329,25 @@ func (e *elab) part(n *resolve.Node, c wctx, isRoot bool) {
 				c.a = mesh.Affine{M: c.a.M}
 			} else {
 				kid := &snode{name: name, t: c.a.T}
+				if vis != nil {
+					kid.cond = vis.Cond
+				}
 				c.node.kids = append(c.node.kids, kid)
 				c.node = kid
 				c.a = mesh.Affine{M: c.a.M}
 			}
 		}
+	}
+	if vis != nil {
+		// The part is the visibility node, so the `when` adds nothing of its own.
+		if len(vis.Else) > 0 {
+			e.unsupported(n.Name, "an `else` on a runtime `when` is not supported yet: the other branch would need a node of its own")
+			return
+		}
+		for _, ch := range vis.Children {
+			e.walk(ch, c)
+		}
+		return
 	}
 	for _, ch := range n.Children {
 		e.walk(ch, c)

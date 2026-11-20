@@ -81,7 +81,7 @@ func TestSubsetKinds(t *testing.T) {
 	if f, _ := cyl.Field("segments"); f.Default == nil || f.Default.Num != 16 {
 		t.Errorf("segments: %+v", f)
 	}
-	if !registry.IsKnownUnsupported(registry.CtxPart, "loft") || registry.IsKnownUnsupported(registry.CtxPart, "cylinder") {
+	if !registry.IsKnownUnsupported(registry.CtxPart, "torus") || registry.IsKnownUnsupported(registry.CtxPart, "cylinder") {
 		t.Error("unsupported list is wrong")
 	}
 }

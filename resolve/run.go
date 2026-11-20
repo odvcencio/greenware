@@ -76,6 +76,8 @@ type run struct {
 	overs    map[string]*Override
 	output   string
 	resolved *Resolved
+	// tstack is the chain of template calls being expanded.
+	tstack []*ast.Template
 }
 
 func (r *run) report(d diag.Diagnostic) {

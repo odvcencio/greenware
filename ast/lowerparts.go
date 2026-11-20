@@ -76,7 +76,12 @@ func (l *lowerer) item(n *lang.Node, ctx registry.Context, inMirror bool) Item {
 	case "block":
 		return l.block(n, ctx, inMirror)
 	case "row":
-		l.unsupported(n.Field("name"), "a template row `"+n.Field("name").Text()+"`")
+		if ctx == registry.CtxCollision {
+			l.report(diag.New(diag.CodeUnknownField, span(n.Field("name")), "collision holds colliders and mirrors, not rows"))
+			return nil
+		}
+		nm := n.Field("name")
+		return &TemplateCall{Name: nm.Text(), NameSpan: span(nm), Span: span(n), Args: l.args(n)}
 	case "sample_row":
 		l.report(diag.New(diag.CodeType, span(n), "a sampled row belongs in a lathe or path, not here"))
 	case "waiver":

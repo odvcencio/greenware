@@ -47,8 +47,15 @@ type Node struct {
 	// its value at the defaults. A bake `when` leaves no node; only the
 	// chosen branch remains.
 	Condition *units.Value `json:"condition,omitempty"`
-	Children  []*Node      `json:"children,omitempty"`
-	Else      []*Node      `json:"else,omitempty"`
+	// Test is the runtime condition as source writes it (`facemask == cage`);
+	// Cond is the same in structured form. Both are set on a runtime `when`.
+	Test     string  `json:"test,omitempty"`
+	Cond     *Cond   `json:"-"`
+	Children []*Node `json:"children,omitempty"`
+	Else     []*Node `json:"else,omitempty"`
+	// Loft carries the points of a loft whose rule is an author's `vertex`
+	// expression, so a level can evaluate them at its own column count.
+	Loft *LoftRule `json:"-"`
 }
 
 // Get returns a field's value.
@@ -63,8 +70,10 @@ func (n *Node) Get(name string) (units.Value, bool) {
 
 // Param is an evaluated parameter.
 type Param struct {
-	Name    string       `json:"name"`
-	Type    string       `json:"type"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+	// Members lists the members of an enum parameter, in declaration order.
+	Members []string     `json:"members,omitempty"`
 	Runtime bool         `json:"runtime,omitempty"`
 	Value   units.Value  `json:"value"`
 	Lo      *units.Value `json:"lo,omitempty"`

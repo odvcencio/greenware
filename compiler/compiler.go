@@ -28,11 +28,20 @@ type File struct {
 	SHA256 string         // hex SHA-256 of GLB
 
 	// Measured on the encoded file.
-	Triangles int // triangles drawn in the default look (all stored: no alternates yet)
-	Draws     int // primitives
+	Triangles int // triangles drawn in the default look
+	Draws     int // draws in the default look: one per visible primitive
 	Materials int // distinct materials written
-	Vertices  int // written glTF vertices
+	Vertices  int // written glTF vertices, every branch
 	Size      int // len(GLB)
+	// TrianglesWorst and DrawsWorst are the largest counts over every
+	// reachable look of the runtime parameters; TrianglesStored counts every
+	// branch of the file. Without runtime branches the three triangle counts
+	// are equal, and so are Draws and DrawsWorst.
+	TrianglesWorst  int
+	TrianglesStored int
+	DrawsWorst      int
+	// Alternates is the number of roots of the alternates scene.
+	Alternates int
 }
 
 // OutputProduct is the files of one output, level 0 first.
@@ -175,7 +184,7 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 		if op == nil || diag.HasErrors(ds) {
 			continue
 		}
-		if ref := classBoundFiles(op); ref != nil && rc != nil {
+		if ref := classBoundFiles(op, usesBranchClass(ro.r)); ref != nil && rc != nil {
 			rc.Refused = ref
 			all = append(all, limitDiag(outputSpan(file, name), ref, rc.Limit))
 			continue
@@ -199,12 +208,16 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 // classBoundFiles checks the class bounds that only the built files show: the
 // triangles of a level (the `surface` ticket) and the size of a file (the
 // `encode` ticket). It returns the first breach in level order.
-func classBoundFiles(op *OutputProduct) *Refusal {
+func classBoundFiles(op *OutputProduct, branches bool) *Refusal {
 	for _, f := range op.Files {
 		lv := f.Level
-		if f.Triangles > maxSurfaceTris {
-			return &Refusal{Charge: Charge{Ticket: TicketSurface, Output: op.Name, Level: &lv},
-				Bound: fmt.Sprintf("output %s level %d holds %d triangles; the class allows %d", op.Name, lv, f.Triangles, maxSurfaceTris)}
+		limit, ticket := maxSurfaceTris, TicketSurface
+		if branches {
+			limit, ticket = maxSurfaceBranchTris, TicketSurfaceBranches
+		}
+		if f.TrianglesStored > limit {
+			return &Refusal{Charge: Charge{Ticket: ticket, Output: op.Name, Level: &lv},
+				Bound: fmt.Sprintf("output %s level %d holds %d triangles; the class allows %d", op.Name, lv, f.TrianglesStored, limit)}
 		}
 		if f.Size > maxEncodeBytes {
 			return &Refusal{Charge: Charge{Ticket: TicketEncode, Output: op.Name, Level: &lv},
@@ -368,6 +381,7 @@ func buildOutput(file *ast.File, r *resolve.Resolved, oname string) (*OutputProd
 		op.Files = append(op.Files, &File{
 			Name: name, Level: lv, Doc: l.doc, GLB: glb, SHA256: hex.EncodeToString(sum[:]),
 			Triangles: l.tris, Draws: l.draws, Materials: l.mats, Vertices: l.verts, Size: len(glb),
+			TrianglesWorst: l.trisWorst, TrianglesStored: l.trisStored, DrawsWorst: l.drawsWorst, Alternates: l.alternates,
 		})
 	}
 	e.checkBudget(op, oname)
@@ -383,10 +397,16 @@ func (e *elab) checkBudget(op *OutputProduct, oname string) {
 		for _, f := range op.Files {
 			var got int
 			switch bf.Name {
-			case "triangles", "triangles_worst", "triangles_stored":
+			case "triangles":
 				got = f.Triangles
-			case "draw_calls", "draw_calls_worst":
+			case "triangles_worst":
+				got = f.TrianglesWorst
+			case "triangles_stored":
+				got = f.TrianglesStored
+			case "draw_calls":
 				got = f.Draws
+			case "draw_calls_worst":
+				got = f.DrawsWorst
 			case "vertices":
 				got = f.Vertices
 			case "materials":
@@ -443,6 +463,8 @@ func firHash(r *resolve.Resolved) string {
 		Value units.Value  `json:"value"`
 		Lo    *units.Value `json:"lo,omitempty"`
 		Hi    *units.Value `json:"hi,omitempty"`
+		// Members of an enum are part of what a binding can test.
+		Members []string `json:"members,omitempty"`
 	}
 	doc := struct {
 		Format      string          `json:"format"`
@@ -464,7 +486,7 @@ func firHash(r *resolve.Resolved) string {
 	}
 	for _, p := range r.Params {
 		if p.Runtime {
-			doc.Runtime = append(doc.Runtime, param{Name: p.Name, Type: p.Type, Value: p.Value, Lo: p.Lo, Hi: p.Hi})
+			doc.Runtime = append(doc.Runtime, param{Name: p.Name, Type: p.Type, Value: p.Value, Lo: p.Lo, Hi: p.Hi, Members: p.Members})
 		}
 	}
 	b, err := json.Marshal(doc)
@@ -489,7 +511,7 @@ func canon(n *resolve.Node, only map[string]bool) *resolve.Node {
 	if n == nil {
 		return nil
 	}
-	c := &resolve.Node{Kind: n.Kind, Name: n.Name, Pair: n.Pair, Rows: n.Rows, Condition: n.Condition}
+	c := &resolve.Node{Kind: n.Kind, Name: n.Name, Pair: n.Pair, Rows: n.Rows, Condition: n.Condition, Test: n.Test}
 	for _, f := range n.Fields {
 		if only != nil && !only[f.Name] {
 			continue

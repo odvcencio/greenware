@@ -49,6 +49,23 @@ const (
 	TicketPublish  = "publish"
 )
 
+// Tickets of the helmet profile (milestone M3). compiler.md 3.1 qualifies the
+// M2 profile only and says to register analogous bounded tickets before a
+// helmet build is admitted, but it does not name or price them. These names,
+// prices and bounds are an assumption of this compiler, kept apart from the
+// M2 schedule so that the goal post's receipt is unchanged:
+//
+//   - select, once per selected output that has a runtime `when`. It buys the
+//     enumeration of the jointly dependent discrete conditions for the worst
+//     look and the writing of the visibility bindings.
+//   - surface_branches, per level of an output that uses loft, ellipsoid or
+//     tube or has a runtime `when`. It replaces `surface` for that output. It
+//     admits twice the triangles, because the file stores every branch.
+const (
+	TicketSelect          = "select"
+	TicketSurfaceBranches = "surface_branches"
+)
+
 // Class bounds of the M2 tickets (compiler.md 3.1).
 const (
 	maxSnapshotInputs  = 64
@@ -63,6 +80,11 @@ const (
 	maxMeasureExpects  = 16
 	maxExpandDepth     = 64
 	saturatedItemCount = math.MaxInt32
+
+	// The helmet profile's classes (see TicketSelect).
+	maxSurfaceBranchTris = 4096
+	maxSelectBranches    = 16
+	maxSelectParams      = 8
 )
 
 // TicketClass is one row of the registered schedule.
@@ -84,8 +106,18 @@ var ticketTable = []TicketClass{
 	{TicketPublish, 50_000, "once per invocation", "the staged files of the build"},
 }
 
-// Tickets returns the registered schedule in reservation order.
+// ticketTableBranches is the helmet profile's additional rows, in reservation
+// order: select follows plan, and surface_branches stands where surface does.
+var ticketTableBranches = []TicketClass{
+	{TicketSelect, 100_000, "selected output with a runtime `when`", "at most 16 branches, 8 tested parameters and 4096 assignments"},
+	{TicketSurfaceBranches, 400_000, "level of an output with loft, ellipsoid, tube or runtime branches", "at most 4096 stored triangles in the level, every branch counted"},
+}
+
+// Tickets returns the registered M2 schedule in reservation order.
 func Tickets() []TicketClass { return append([]TicketClass(nil), ticketTable...) }
+
+// BranchTickets returns the helmet profile's additional tickets.
+func BranchTickets() []TicketClass { return append([]TicketClass(nil), ticketTableBranches...) }
 
 func ticketUnits(name string) uint64 {
 	for _, t := range ticketTable {
@@ -93,7 +125,81 @@ func ticketUnits(name string) uint64 {
 			return t.Units
 		}
 	}
+	for _, t := range ticketTableBranches {
+		if t.Name == name {
+			return t.Units
+		}
+	}
 	panic("compiler: unregistered ticket " + name)
+}
+
+// usesBranchClass reports whether an output belongs to the helmet profile: it
+// builds a loft, an ellipsoid or a tube, or a runtime `when` selects a branch.
+func usesBranchClass(r *resolve.Resolved) bool {
+	found := false
+	var walk func(n *resolve.Node, depth int)
+	defs := map[string]*resolve.Node{}
+	for _, d := range r.Definitions {
+		defs[d.Name] = d
+	}
+	walk = func(n *resolve.Node, depth int) {
+		if n == nil || found || depth > maxExpandDepth {
+			return
+		}
+		switch n.Kind {
+		case "loft", "ellipsoid", "tube":
+			found = true
+		case "when":
+			if n.Cond != nil {
+				found = true
+			}
+		case "instance":
+			of, _ := n.Get("of")
+			walk(defs[of.Str], depth+1)
+		}
+		for _, k := range n.Children {
+			walk(k, depth+1)
+		}
+		for _, k := range n.Else {
+			walk(k, depth+1)
+		}
+	}
+	walk(r.Root, 0)
+	for _, d := range r.Definitions {
+		walk(d, 0)
+	}
+	return found
+}
+
+// branchCount counts the runtime `when` nodes of an output and lists the
+// parameters they test.
+func branchCount(r *resolve.Resolved) (branches int, params []string) {
+	set := map[string]bool{}
+	var walk func(n *resolve.Node, depth int)
+	walk = func(n *resolve.Node, depth int) {
+		if n == nil || depth > maxExpandDepth {
+			return
+		}
+		if n.Kind == "when" && n.Cond != nil {
+			branches++
+			set[n.Cond.Param] = true
+		}
+		for _, k := range n.Children {
+			walk(k, depth+1)
+		}
+		for _, k := range n.Else {
+			walk(k, depth+1)
+		}
+	}
+	walk(r.Root, 0)
+	for _, d := range r.Definitions {
+		walk(d, 0)
+	}
+	for p := range set {
+		params = append(params, p)
+	}
+	sort.Strings(params)
+	return branches, params
 }
 
 // Policy is the production policy a build runs under.
@@ -520,10 +626,19 @@ func schedule(outs []resolvedOutput, acc []acceptLevel) []Charge {
 	for _, o := range sorted {
 		add(TicketPlan, o.name, nil, nil)
 	}
+	for _, o := range sorted {
+		if b, _ := branchCount(o.r); b > 0 {
+			add(TicketSelect, o.name, nil, nil)
+		}
+	}
 	for _, phase := range []string{TicketSurface, TicketEncode} {
 		for _, o := range sorted {
+			ticket := phase
+			if phase == TicketSurface && usesBranchClass(o.r) {
+				ticket = TicketSurfaceBranches
+			}
 			for lv := 0; lv < o.levels; lv++ {
-				add(phase, o.name, intp(lv), nil)
+				add(ticket, o.name, intp(lv), nil)
 			}
 		}
 	}
@@ -576,6 +691,18 @@ func classBound(c Charge, outs map[string]resolvedOutput, snapshotBytes []int, a
 		}
 		if n := expandedItems(o.r); n > maxPlanItems {
 			return fmt.Sprintf("output %s expands to %s items; the class allows %d", c.Output, itemText(n), maxPlanItems)
+		}
+	case TicketSelect:
+		o := outs[c.Output]
+		b, params := branchCount(o.r)
+		if b > maxSelectBranches {
+			return fmt.Sprintf("output %s has %d selectable branches; the class allows %d", c.Output, b, maxSelectBranches)
+		}
+		if len(params) > maxSelectParams {
+			return fmt.Sprintf("output %s tests %d runtime parameters; the class allows %d", c.Output, len(params), maxSelectParams)
+		}
+		if _, ok := resolve.Assignments(o.r.Params, params); !ok {
+			return fmt.Sprintf("output %s has more than %d assignments of its tested parameters; the class allows %d", c.Output, maxAssignments, maxAssignments)
 		}
 	case TicketMeasure:
 		if a := acc[accKey{c.Output, *c.Level}]; a.nonImage > maxMeasureExpects {

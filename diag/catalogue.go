@@ -51,7 +51,7 @@ var catalogue = []Entry{
 	{CodeUnsupported, Error, "The construct is valid in the language but outside the subset this compiler reads. Nothing is substituted for it.", "testdata/diag/GW-UNSUPPORTED.gw", false},
 	{CodeBudget, Error, "A budget limit that the source alone decides is broken: more distinct materials or draws than the limit allows, or a worst-case limit below its default-look limit.", "testdata/diag/GW-BUDGET.gw", false},
 	{CodeMissing, Error, "A required field, name or block is absent.", "testdata/diag/GW-MISSING.gw", false},
-	{CodeCycle, Error, "Names depend on each other in a closed chain: lets and parameters that read each other, or parts that instance each other. The related spans give the chain.", "testdata/diag/GW-CYCLE.gw", false},
+	{CodeCycle, Error, "Names depend on each other in a closed chain: lets and parameters that read each other, parts that instance each other, or templates that call each other. The related spans give the chain.", "testdata/diag/GW-CYCLE.gw", false},
 	{CodeDomain, Error, "An operation is undefined for its operands: division by zero, the square root of a negative number, an index out of range, a non-finite result.", "testdata/diag/GW-DOMAIN.gw", false},
 	{CodeRuntime, Error, "A value that depends on a runtime parameter reaches a slot that must be known when the file compiles: a length, a count, a require, a range bound.", "testdata/diag/GW-RUNTIME.gw", false},
 	{CodeMirrorName, Error, "A named declaration inside a mirror is not a pair `(left, right)`, or a pair is written outside a mirror.", "testdata/diag/GW-MIRROR-NAME.gw", false},

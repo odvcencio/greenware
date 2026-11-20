@@ -204,6 +204,39 @@ var kinds = []*Kind{
 		),
 		Blocks: []string{"path"}, Names: NameOptional, Ns: NsGeometry,
 	},
+	{
+		Name: "ellipsoid", Context: CtxPart, IsShape: true, Doc: "An ellipsoid with its own radii. The end rings keep a small floor, so each end is a small capped polygon.",
+		Fields: shapeFields(
+			Field{Name: "centre", Type: tPoint, Default: origin(), Doc: "Centre of the ellipsoid; `at` then translates the result."},
+			Field{Name: "radii", Type: tExtent, Required: true, Doc: "Half-extents along x, y and z; each must be positive."},
+			segments(12, 3),
+			Field{Name: "rings", Type: tInteger, Default: dv(units.Num(7)), Min: fp(2), Doc: "Latitude rows including both ends."},
+		),
+		Names: NameOptional, Ns: NsGeometry,
+	},
+	{
+		Name: "loft", Context: CtxPart, IsShape: true, Doc: "Rings joined by bands. Each `ring` row gives the values of one ring; the default columns are (x, y, z, rx, rz) and the ring is an ellipse.",
+		Fields: shapeFields(
+			segments(14, 3),
+			Field{Name: "caps", Type: enum("both", "bottom", "top", "off"), Default: dv(units.Label("both")), Doc: "Which end rings are closed. `off` is required on an open arc."},
+			Field{Name: "columns", Type: Type{Kind: TNames}, Doc: "Names of the ring row's columns; the default is (x, y, z, rx, rz)."},
+			Field{Name: "vertex", Type: Type{Kind: TExpr}, Doc: "The point at a ring and column, as (x, y, z), from the column names, the ring angle `a` and the whole numbers `j` (column) and `k` (ring)."},
+			Field{Name: "arc", Type: Type{Kind: TAngleRange}, Default: dv(units.Pair(units.Ang(0), units.Ang(units.TwoPi))), Doc: "Angular span, written lo..hi. A partial span is an open sheet."},
+		),
+		Rows: []RowSpec{{Name: "ring", MinRows: 2, Dynamic: true,
+			Columns: []Column{{"x", tLength, false}, {"y", tLength, false}, {"z", tLength, false}, {"rx", tLength, true}, {"rz", tLength, true}}}},
+		Names: NameOptional, Ns: NsGeometry,
+	},
+	{
+		Name: "tube", Context: CtxPart, IsShape: true, Doc: "A circle carried through the `point` rows, with its frame recomputed at every point. Open ends are not capped.",
+		Fields: shapeFields(
+			Field{Name: "radius", Type: tLength, Required: true, Positive: true, Doc: "Radius."},
+			segments(7, 3),
+			Field{Name: "closed", Type: tSwitch, Default: dv(units.Switch(false)), Doc: "Join the last point back to the first; do not repeat the first point."},
+		),
+		Rows:  []RowSpec{{Name: "point", MinRows: 2, Columns: pointRow3}},
+		Names: NameOptional, Ns: NsGeometry,
+	},
 	// Blocks inside shapes.
 	{
 		Name: "bevel", Context: CtxShape, Doc: "Rounds selected edges of a box, cylinder or cone.",
@@ -378,7 +411,7 @@ func KindNames(ctx Context) []string {
 // knownUnsupported lists block kinds the language defines that this compiler
 // does not read, by context.
 var knownUnsupported = map[Context][]string{
-	CtxPart:      {"capsule", "ellipsoid", "torus", "loft", "tube", "extrude", "panel", "subdivide", "boolean", "plug", "mount", "skeleton", "skin", "joint"},
+	CtxPart:      {"capsule", "torus", "extrude", "panel", "subdivide", "boolean", "plug", "mount", "skeleton", "skin", "joint"},
 	CtxShape:     {"subdivide"},
 	CtxCollision: {"hull", "trimesh"},
 }

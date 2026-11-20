@@ -23,6 +23,9 @@ type decl struct {
 type symbols struct {
 	ns    map[registry.Namespace]map[string]*decl
 	order map[registry.Namespace][]string
+	// templates are the row templates by name: a callable namespace of their
+	// own, apart from geometry.
+	templates map[string]*ast.Template
 }
 
 func (s *symbols) names(ns registry.Namespace) []string {
@@ -34,7 +37,7 @@ func (s *symbols) names(ns registry.Namespace) []string {
 func (s *symbols) lookup(ns registry.Namespace, name string) *decl { return s.ns[ns][name] }
 
 func (r *run) declare() *symbols {
-	s := &symbols{ns: map[registry.Namespace]map[string]*decl{}, order: map[registry.Namespace][]string{}}
+	s := &symbols{ns: map[registry.Namespace]map[string]*decl{}, order: map[registry.Namespace][]string{}, templates: map[string]*ast.Template{}}
 	add := func(ns registry.Namespace, name string, sp diag.Span, d *decl) {
 		if name == "" {
 			return
@@ -69,6 +72,13 @@ func (r *run) declare() *symbols {
 	}
 	for _, m := range f.Materials {
 		add(registry.NsMaterial, m.Name.Name, m.Name.Span, &decl{})
+	}
+	for _, t := range f.Templates {
+		if prev, dup := s.templates[t.Name.Name]; dup {
+			r.report(diag.New(diag.CodeDuplicate, t.Name.Span, "the template name `%s` is declared twice", t.Name.Name).WithRelated(prev.Name.Span, "first declaration"))
+			continue
+		}
+		s.templates[t.Name.Name] = t
 	}
 	outFiles := map[string]diag.Span{}
 	for _, o := range f.Outputs {

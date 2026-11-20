@@ -1,7 +1,7 @@
 // Command greenware compiles Greenware sources (.gw files).
 //
-//	greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--json]
-//	greenware check <file> [--json]
+//	greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--geometry-only] [--json]
+//	greenware check <file> [--geometry-only] [--json]
 //	greenware fmt <file> [--check] [--write] [--json]
 //	greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
 //
@@ -30,8 +30,8 @@ import (
 )
 
 const usage = `usage:
-  greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--json]
-  greenware check <file> [--json]
+  greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--geometry-only] [--json]
+  greenware check <file> [--geometry-only] [--json]
   greenware fmt <file> [--check] [--write] [--json]
   greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
 `
@@ -55,6 +55,9 @@ type options struct {
 	// accept is the acceptance file whose decode, measure and outline tickets
 	// the build reserves.
 	accept string
+	// geometryOnly leaves out the look declarations the compiler does not read
+	// yet (imports, plugs, textures, cells); every material is a plain grey pbr.
+	geometryOnly bool
 }
 
 var errUsage = errors.New("usage")
@@ -92,6 +95,8 @@ func parse(args []string, allowed map[string]bool) (options, error) {
 			o.json = true
 		case "check":
 			o.check = true
+		case "geometry-only":
+			o.geometryOnly = true
 		case "write":
 			o.write = true
 		case "output":
@@ -131,9 +136,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	var allowed map[string]bool
 	switch cmd {
 	case "build":
-		allowed = map[string]bool{"output": true, "out-dir": true, "json": true, "max-work": true, "accept": true}
+		allowed = map[string]bool{"output": true, "out-dir": true, "json": true, "max-work": true, "accept": true, "geometry-only": true}
 	case "check":
-		allowed = map[string]bool{"json": true}
+		allowed = map[string]bool{"json": true, "geometry-only": true}
 	case "fmt":
 		allowed = map[string]bool{"check": true, "write": true, "json": true}
 	case "accept":
@@ -166,9 +171,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 }
 
 // front lowers a source and returns its diagnostics and a locator.
-func front(src []byte) (*ast.File, []diag.Diagnostic, diag.Locator) {
+func front(src []byte, geometryOnly bool) (*ast.File, []diag.Diagnostic, diag.Locator) {
 	tree := lang.Parse(src)
-	f, ds := ast.Lower(tree)
+	f, ds := ast.LowerWith(tree, ast.Options{GeometryOnly: geometryOnly})
 	loc := func(off int) (int, int) {
 		p := tree.Position(off)
 		return p.Line, p.Column
@@ -217,7 +222,7 @@ func checkAll(f *ast.File, lowered []diag.Diagnostic) []diag.Diagnostic {
 }
 
 func runCheck(o options, src []byte, stdout, stderr io.Writer) int {
-	f, lowered, loc := front(src)
+	f, lowered, loc := front(src, o.geometryOnly)
 	ds := checkAll(f, lowered)
 	if o.json {
 		b, err := diag.Marshal(ds, loc)
@@ -229,6 +234,9 @@ func runCheck(o options, src []byte, stdout, stderr io.Writer) int {
 		return status(ds)
 	}
 	printText(stderr, o.file, ds, loc)
+	for _, sk := range f.Skipped {
+		fmt.Fprintf(stderr, "note: geometry only: skipped %s\n", sk)
+	}
 	if status(ds) == 0 {
 		fmt.Fprintf(stdout, "%s: ok\n", o.file)
 	}
@@ -242,7 +250,7 @@ func runFmt(o options, src []byte, stdout, stderr io.Writer) int {
 	if err != nil {
 		var fe *lang.FormatError
 		if errors.As(err, &fe) && o.json {
-			_, lowered, loc := front(src)
+			_, lowered, loc := front(src, false)
 			b, _ := diag.Marshal(lowered, loc)
 			stdout.Write(b)
 			return 1
@@ -289,6 +297,11 @@ type buildFile struct {
 	Draws     int    `json:"draws"`
 	Materials int    `json:"materials"`
 	Vertices  int    `json:"vertices"`
+	// The worst look and the stored counts, written only when a runtime branch
+	// makes them differ from the default look.
+	TrianglesWorst  int `json:"triangles_worst,omitempty"`
+	TrianglesStored int `json:"triangles_stored,omitempty"`
+	DrawsWorst      int `json:"draws_worst,omitempty"`
 }
 
 type buildOutput struct {
@@ -312,7 +325,7 @@ type buildReport struct {
 }
 
 func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
-	f, ds, loc := front(src)
+	f, ds, loc := front(src, o.geometryOnly)
 	opts := compiler.Options{Policy: compiler.Policy{MaxTotalWork: o.maxWork}}
 	if o.accept != "" {
 		accSrc, err := os.ReadFile(o.accept)
@@ -320,7 +333,7 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "greenware build: %v\n", err)
 			return 2
 		}
-		accAST, accDs, accLoc := front(accSrc)
+		accAST, accDs, accLoc := front(accSrc, false)
 		if accAST.Broken || diag.HasErrors(accDs) {
 			printText(stderr, o.accept, accDs, accLoc)
 			return 1
@@ -345,10 +358,17 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 		}
 		rep.InputSHA256 = p.InputSHA256
 		rep.Unsupported = append(rep.Unsupported, p.Unsupported...)
+		for _, sk := range f.Skipped {
+			rep.Unsupported = append(rep.Unsupported, "geometry only: skipped "+sk)
+		}
 		for _, op := range p.Outputs {
 			bo := buildOutput{Name: op.Name, FirSHA256: op.FirSHA256, Files: []buildFile{}}
 			for _, fl := range op.Files {
-				bo.Files = append(bo.Files, buildFile{fl.Name, fl.Level, fl.Size, fl.SHA256, fl.Triangles, fl.Draws, fl.Materials, fl.Vertices})
+				bf := buildFile{Name: fl.Name, Level: fl.Level, Bytes: fl.Size, SHA256: fl.SHA256, Triangles: fl.Triangles, Draws: fl.Draws, Materials: fl.Materials, Vertices: fl.Vertices}
+				if fl.TrianglesWorst != fl.Triangles || fl.DrawsWorst != fl.Draws || fl.TrianglesStored != fl.Triangles {
+					bf.TrianglesWorst, bf.TrianglesStored, bf.DrawsWorst = fl.TrianglesWorst, fl.TrianglesStored, fl.DrawsWorst
+				}
+				bo.Files = append(bo.Files, bf)
 			}
 			rep.Outputs = append(rep.Outputs, bo)
 		}
@@ -377,7 +397,11 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 	if rep.OK {
 		for _, bo := range rep.Outputs {
 			for _, fl := range bo.Files {
-				fmt.Fprintf(stdout, "%s/%s  %d triangles, %d draws, %d bytes\n", o.outDir, fl.Name, fl.Triangles, fl.Draws, fl.Bytes)
+				extra := ""
+				if fl.TrianglesWorst != 0 {
+					extra = fmt.Sprintf(" (worst look %d triangles, %d draws; stored %d triangles)", fl.TrianglesWorst, fl.DrawsWorst, fl.TrianglesStored)
+				}
+				fmt.Fprintf(stdout, "%s/%s  %d triangles, %d draws, %d bytes%s\n", o.outDir, fl.Name, fl.Triangles, fl.Draws, fl.Bytes, extra)
 			}
 		}
 		fmt.Fprintf(stdout, "%s/%s\n", o.outDir, rep.Record)

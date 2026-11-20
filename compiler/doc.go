@@ -11,7 +11,19 @@
 // What the first compiler reads (milestone M2-S):
 //
 //   - Shapes: cylinder (caps, bevel), sphere, sweep (circle profile, path
-//     rows, caps), lathe (rows, closed). Other shapes are GW-UNSUPPORTED.
+//     rows, caps), lathe (rows, closed), and, for the helmet (milestone M3,
+//     geometry), loft (rows, columns, an author's vertex rule, arc, caps),
+//     ellipsoid and tube (open or closed). Other shapes are GW-UNSUPPORTED.
+//   - Templates: a row that calls a `template` expands where it stands and
+//     adds no node.
+//   - Runtime branches: a part whose whole body is a runtime `when` on a switch
+//     or an enum member is a node of its own. A branch that is hidden at the
+//     defaults is written outside the default scene, as a root of the scene
+//     named "alternates", and every such node carries KHR_node_visibility. The
+//     runtime table records each branch's node, intended parent, local
+//     translation, scene and test. File.Triangles and File.Draws count the
+//     default look; TrianglesWorst and DrawsWorst the largest look over every
+//     assignment of the tested parameters; TrianglesStored every branch.
 //   - Composition: parts and nested parts, mirror (planes x, y, z; names
 //     given as pairs), array (linear, grid, radial), instance, bake `when`.
 //     A part's `at` is a translation. `rot`, `scale` and `pivot` on parts,

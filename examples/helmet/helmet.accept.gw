@@ -1,0 +1,36 @@
+greenware 1
+
+// Acceptance tests for the helmet's geometry (milestone M3, first part). They
+// run on the decoded GLB of each output at both levels, with the geometry-only
+// lowering: the looks are the next part. Lengths are metres; the helmet is
+// authored in yards and written in metres.
+//
+//   greenware build examples/helmet/helmet.gw --geometry-only --out-dir D
+//   greenware accept examples/helmet/helmet.gw examples/helmet/helmet.accept.gw --glb-dir D --geometry-only
+
+accept helmet {
+  of = "helmet.gw"
+  outputs = [classic, aero]
+  lods = all
+
+  // The head socket sits 1.7 yd up; the helmet stays within a head-sized box.
+  expect (bounds().min.y > 1.5m && bounds().max.y < 1.85m, "the helmet sits where the head is, in metres")
+  expect (abs(bounds().max.x) < 0.145m, "ear pads and shell stay within 14.5 cm of the middle")
+
+  // The default scene draws the cage and the stripe; the visor and the
+  // two-bar mask are present but not drawn.
+  expect (has_node(mask_cage) && has_node(crown_stripe), "the default look has its cage and stripe")
+  expect (has_node(visor_shield) && has_node(mask_two_bar), "the other branches are in the file")
+  expect (drawn_triangles(visor_shield) == 0, "the visor is not drawn by default")
+  expect (drawn_triangles(mask_two_bar) == 0, "the two-bar mask is not drawn by default")
+  expect (drawn_triangles(mask_cage) > 0 && drawn_triangles(crown_stripe) > 0, "the cage and stripe are drawn")
+  expect (draw_calls() == 3, "three draws: shell, cage and stripe")
+
+  // The shell is open at the bottom and the top; the facemask is made of open tubes.
+  expect (!closed(node(helmet)), "the shell has open rings")
+  expect (!closed(node(mask_cage)), "the cage has open tubes")
+
+  when lod == 0 {
+    expect (triangles() == 1766, "1,766 triangles are drawn in the default look")
+  }
+}

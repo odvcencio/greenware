@@ -7,6 +7,7 @@ import (
 	"m31labs.dev/greenware/det"
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/gltf"
+	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/resolve"
 	"m31labs.dev/greenware/units"
 )
@@ -17,6 +18,18 @@ type binding struct {
 	material string
 	field    string // baseColorFactor, roughnessFactor, metallicFactor
 	mapping  string // srgb_to_linear or identity
+
+	// A visibility binding (kind "visibility") shows or hides one node. The
+	// node, its intended parent and its local translation say where the node
+	// belongs; scene says whether the default scene draws it ("default") or it
+	// is a root of the "alternates" scene.
+	kind        string
+	node        string
+	parent      string
+	translation mesh.Vec3
+	scene       string
+	visible     bool // the node's own state at the defaults
+	cond        resolve.Cond
 }
 
 // matOut is a material as written, with the runtime bindings it carries.

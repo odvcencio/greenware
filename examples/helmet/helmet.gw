@@ -1,0 +1,290 @@
+greenware 1
+
+// A football helmet: gear with variants, mounted on an athlete's head socket.
+//
+// The shapes are the helmet pieces of the Python athlete
+// (presentation/author_athletes.py, figure()): the open shell with its cheek
+// drop, ear pads, chin strap, chin cup, three facemask rails and two bars, the
+// crown stripe and the rear bumper. They used to be part of the body mesh;
+// here they are their own document so a game can change them per player.
+//
+// Kinds of parameter used here:
+//   shell_style     bake, an enum: each value is a separate output (topology differs)
+//   facemask        runtime enum: every mask is in the file, one is visible
+//   visor, stripe   runtime switches: node visibility
+//   visor_tint      runtime ratio: a material parameter
+//   colours         runtime colours: Selena palette slots
+
+asset helmet {
+  title = "Football helmet"
+  root = helmet
+  length = yd              // the Python numbers are in field yards; output is metres
+  angle = deg
+  up = y
+  forward = -z
+}
+
+meta {
+  author = "M31 Labs"
+  license = "CC0-1.0"
+}
+
+// The standard library's finishes: small painters for gloss paint, satin
+// metal and foam, written in Greenware (spec 3.14).
+import "std/finish"
+
+// The point on the helmet that meets the athlete's head_gear socket. It is the
+// head joint's bind position in the Python figure, so every coordinate below
+// keeps the Python's numbers unchanged.
+plug head_gear {
+  kind = helmet
+  at = (0, 1.7, -0.012)
+}
+
+// ---- Parameters ---------------------------------------------------------
+
+param shell_style : enum(classic, aero) = classic
+param facemask : enum(open, two_bar, cage) = cage runtime
+param visor : switch = off runtime
+param visor_tint : ratio = 0.6 in 0..0.9 runtime
+param stripe : switch = on runtime
+param shell_color : color = #e1ae4f runtime
+param stripe_color : color = #fbefd4 runtime
+param mask_color : color = #48545a runtime
+param pad_color : color = #242b30 runtime
+
+// ---- Looks ---------------------------------------------------------------
+// One opaque material for every piece, so a helmet is one draw call (two with
+// the visor). The atlas holds shading and a slot index per cell; the Selena
+// palette material multiplies each slot by its colour parameter. That is how a
+// colour change shows on the next frame without a new texture.
+
+texture helmet_mask = atlas {
+  grid = (4, 2)
+  cell_size = 64px
+  inset = 7%
+  mode = palette            // red: shading, green: slot index; spec 3.13
+  cell shell { slot = 0 paint = finish.gloss() }
+  cell stripe { slot = 1 paint = finish.gloss() }
+  cell mask { slot = 2 paint = finish.satin() }
+  cell pad { slot = 3 paint = finish.foam() }
+  cell strap { slot = 1 paint = finish.satin() }
+}
+
+material helmet_paint = selena {
+  source = "materials/palette.sel"
+  name = "PaletteMask"
+  mask = helmet_mask
+  slot0 = shell_color
+  slot1 = stripe_color
+  slot2 = mask_color
+  slot3 = pad_color
+  clearcoat = 1
+  // Viewers without Selena draw the atlas painted with the default colours.
+  // Runtime colour changes need the Selena path.
+  fallback = pbr { base_texture = paint(helmet_mask) roughness = 0.35 clearcoat = 1 }
+}
+
+material visor_glass = pbr {
+  base = #0d1114
+  alpha = visor_tint        // runtime: bound to the base colour factor's alpha
+  roughness = 0.05
+  blend = on
+}
+
+// ---- Shape -----------------------------------------------------------------
+
+part helmet {
+  material = helmet_paint
+
+  // The shell: seven rings, open at the bottom. The front of each low ring
+  // drops by "drop" times a cheek weight, so the jaw pieces come down below
+  // the ears while the brow stays above the eyes. Columns other than the
+  // default (x, y, z, rx, rz) are declared with "columns" and used by the
+  // vertex expression; a is the ring angle, 0 at +z (the back).
+  part shell {
+    when shell_style == classic {
+      loft {
+        cell = shell
+        segments = 24
+        caps = off
+        columns = (y, rx, rz, drop)
+        vertex = (rx * sin(a), y + drop * pow(max(0, -cos(a)), 3), rz * cos(a) - 0.012)
+        ring (1.715, 0.119, 0.121, 0.175)
+        ring (1.752, 0.144, 0.153, 0.144)
+        ring (1.848, 0.147, 0.167, 0.050)
+        ring (1.925, 0.140, 0.156, 0)
+        ring (1.970, 0.105, 0.120, 0)
+        ring (1.990, 0.052, 0.066, 0)
+        ring (1.999, 0.001, 0.001, 0)
+      }
+    } else {
+      // aero: a longer, lower crown with a raised rear ridge.
+      loft {
+        cell = shell
+        segments = 24
+        caps = off
+        columns = (y, rx, rz, drop, ridge)
+        vertex = (rx * sin(a), y + drop * pow(max(0, -cos(a)), 3) + ridge * pow(max(0, cos(a)), 6), rz * cos(a) - 0.02)
+        ring (1.715, 0.119, 0.128, 0.175, 0)
+        ring (1.752, 0.146, 0.162, 0.144, 0.010)
+        ring (1.840, 0.150, 0.178, 0.050, 0.018)
+        ring (1.910, 0.141, 0.166, 0, 0.012)
+        ring (1.955, 0.104, 0.126, 0, 0)
+        ring (1.978, 0.050, 0.068, 0, 0)
+        ring (1.986, 0.001, 0.001, 0, 0)
+      }
+    }
+  }
+
+  mirror {
+    plane = x
+    part (ear_l, ear_r) {
+      ellipsoid { cell = pad centre = (0.136, 1.805, 0.014) radii = (0.013, 0.04, 0.03) }
+      ellipsoid { cell = pad centre = (0.145, 1.816, 0.018) radii = (0.009, 0.012, 0.013) }
+      tube (strap_l, strap_r) {
+        cell = strap
+        radius = 0.006
+        point (0.130, 1.780, 0.006)
+        point (0.118, 1.726, -0.078)
+        point (0.057, 1.704, -0.129)
+      }
+    }
+  }
+
+  ellipsoid chin_cup {
+    cell = strap
+    centre = (0, 1.71, -0.132)
+    radii = (0.058, 0.026, 0.025)
+    segments = 12
+    rings = 5
+  }
+
+  // Each facemask is its own exported node. Because facemask is a runtime
+  // parameter, the compiler keeps every mask and binds its visibility. Only the
+  // default (cage) is in the GLB's default scene, so a stock viewer draws the
+  // default helmet; the two-bar mask and the visor are written outside it and
+  // the GoSX adapter attaches them when a game selects them.
+  part mask_two_bar {
+    when facemask == two_bar {
+      rail (1.785, 0.198)
+      rail (1.726, 0.174)
+    }
+  }
+  part mask_cage {
+    when facemask == cage {
+      rail (1.848, 0.185)
+      rail (1.785, 0.198)
+      rail (1.726, 0.174)
+      // Two upright bars join the rails.
+      tube {
+        cell = mask
+        radius = 0.0057
+        point (-0.075, 1.850, -0.181)
+        point (-0.081, 1.786, -0.195)
+        point (-0.0615, 1.724, -0.170)
+      }
+      tube {
+        cell = mask
+        radius = 0.0057
+        point (0.075, 1.850, -0.181)
+        point (0.081, 1.786, -0.195)
+        point (0.0615, 1.724, -0.170)
+      }
+    }
+  }
+
+  // The painted stripe follows the crown, front to back.
+  part crown_stripe {
+    when stripe {
+      tube {
+        cell = stripe
+        radius = 0.008
+        segments = 7
+        point (0, 1.890, -0.163)
+        point (0, 1.955, -0.120)
+        point (0, 1.989, -0.061)
+        point (0, 2.002, -0.010)
+        point (0, 1.987, 0.060)
+        point (0, 1.949, 0.114)
+        point (0, 1.870, 0.153)
+        point (0, 1.800, 0.136)
+      }
+    }
+  }
+
+  ellipsoid bumper {
+    cell = stripe
+    centre = (0, 1.782, 0.132)
+    radii = (0.084, 0.013, 0.006)
+    segments = 10
+    rings = 4
+  }
+
+  part visor_shield {
+    material = visor_glass
+    when visor {
+      // A partial ring across the eyes: arc limits the loft to the front.
+      loft {
+        segments = 16
+        arc = 110deg..250deg
+        caps = off
+        columns = (y, rx, rz)
+        vertex = (rx * sin(a), y, rz * cos(a) - 0.012)
+        ring (1.795, 0.150, 0.178)
+        ring (1.835, 0.152, 0.182)
+        ring (1.860, 0.150, 0.176)
+      }
+    }
+  }
+}
+
+// A rail is one facemask bar: a tube through 11 points on a flattened arc in
+// front of the face, rising a little toward the ear cups. "template" makes a
+// reusable block with arguments; it expands where it is used, like a macro
+// with typed arguments, and creates no node of its own.
+template rail(y0: length, reach: length) {
+  tube {
+    cell = mask
+    radius = 0.0058
+    segments = 7
+    sample a in -1.39rad..1.39rad by 11 -> point (0.147 * sin(a), y0 + 0.026 * pow(abs(a) / 1.39rad, 1.6), -reach * cos(a) - 0.020)
+  }
+}
+
+// ---- Checks, budgets, outputs -------------------------------------------------
+
+// The default look draws three primitives: the painted shell with its merged
+// pieces, the cage and the stripe. The worst reachable look adds the visor.
+// The fit check against the athlete lives on the athlete's mount, because a
+// check here that named the athlete would make an import cycle.
+budget {
+  triangles = 2200          // drawn in the default look
+  triangles_worst = 2400    // with the visor
+  triangles_stored = 2700   // every facemask and the visor
+  materials = 2
+  draw_calls = 3
+  draw_calls_worst = 4
+  texture_bytes = 128KiB    // the 256 x 128 atlas, decoded RGBA
+}
+
+// Every shape here is parametric, so the level re-tessellates (fewer segments
+// per ring within 3 mm, loft rings dropped where the surface moves less than
+// that) instead of decimating; "simplify" would be GW-FIELD.
+lod 1 {
+  distance = 25m
+  max_error = 3mm
+  drop = [chin_cup, ear_l, ear_r]
+}
+
+output classic {
+  file = "helmet-classic.glb"
+  lods = files
+  set { shell_style = classic }
+}
+
+output aero {
+  file = "helmet-aero.glb"
+  lods = files
+  set { shell_style = aero }
+}

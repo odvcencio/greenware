@@ -80,6 +80,8 @@ func (r *run) items(items []ast.Item, sc *scope) []*Node {
 			out = append(out, r.collider(n, sc))
 		case *ast.When:
 			out = append(out, r.when(n, sc)...)
+		case *ast.TemplateCall:
+			out = append(out, r.templateCall(n, sc)...)
 		}
 	}
 	return out
@@ -106,7 +108,14 @@ func (r *run) when(w *ast.When, sc *scope) []*Node {
 		return nil
 	case c.DependsOnRuntime():
 		cond := c
-		return []*Node{{Kind: "when", Condition: &cond, Children: branch(w.Then, true), Else: branch(w.Else, true)}}
+		cd, ok := r.condOf(w.Cond, sc)
+		if !ok {
+			r.report(diag.New(diag.CodeUnsupported, w.Cond.Span(), "a runtime `when` can test a switch parameter, its negation, or an enum parameter against one of its members; this condition is none of those"))
+			branch(w.Then, false)
+			branch(w.Else, false)
+			return nil
+		}
+		return []*Node{{Kind: "when", Condition: &cond, Test: cd.String(), Cond: &cd, Children: branch(w.Then, true), Else: branch(w.Else, true)}}
 	case c.Bool:
 		out := branch(w.Then, true)
 		branch(w.Else, false)
@@ -122,11 +131,30 @@ func (r *run) shape(s *ast.Shape, sc *scope) *Node {
 	n := &Node{Kind: s.Kind, Name: s.Name.Name, Pair: s.Pair.Name}
 	n.Fields = r.fields(k, s.Settings, sc, s.KindSpan)
 	var rowsOK bool
-	n.Rows, rowsOK = r.rows(s.Rows, k, sc)
+	if k.Name == "loft" {
+		r.loft(n, s, k, sc)
+	} else {
+		n.Rows, rowsOK = r.rows(s.Rows, k, sc)
+	}
 	if rowsOK {
 		for _, spec := range k.Rows {
 			if len(n.Rows) < spec.MinRows {
 				r.report(diag.New(diag.CodeMissing, s.KindSpan, "`%s` needs at least %d `%s` rows, found %d", k.Name, spec.MinRows, spec.Name, len(n.Rows)))
+			}
+		}
+	}
+	if k.Name == "tube" {
+		if c, ok := field(n.Fields, "closed"); ok && c.Valid() && c.Bool && rowsOK && len(n.Rows) < 3 {
+			r.report(diag.New(diag.CodeMissing, s.KindSpan, "a closed `tube` needs at least 3 points, found %d", len(n.Rows)))
+		}
+	}
+	if k.Name == "ellipsoid" {
+		if v, ok := field(n.Fields, "radii"); ok && v.Valid() {
+			for _, e := range v.Elems {
+				if !(e.Num > 0) {
+					r.report(diag.New(diag.CodeFieldRange, settingSpan(s, "radii"), "every radius of an ellipsoid must be greater than zero, found %s", v.Format()))
+					break
+				}
 			}
 		}
 	}

@@ -237,6 +237,14 @@ func (r *run) slot(sc *scope, f *registry.Field, s *ast.Setting) units.Value {
 		v = r.axis(e)
 	case registry.TEnum:
 		name, sp, ok := nameOf(e)
+		if b, isBool := e.(*ast.BoolLit); isBool {
+			// `off` and `on` are switch words, and also members of an enum
+			// such as `caps = off`.
+			name, sp, ok = "off", e.Span(), true
+			if b.Value {
+				name = "on"
+			}
+		}
 		if !ok {
 			r.report(diag.New(diag.CodeType, e.Span(), "`%s` takes %s", f.Name, t.Name()))
 			return units.Bad()
@@ -277,6 +285,12 @@ func (r *run) slot(sc *scope, f *registry.Field, s *ast.Setting) units.Value {
 		return units.List(out...)
 	case registry.TProfile:
 		v = r.profile(e, sc)
+	case registry.TNames:
+		v = r.names(e)
+	case registry.TExpr:
+		// Kept as written and evaluated where it applies. The unit scales are
+		// part of its meaning, because its bare numbers take them.
+		return units.Str(exprText(e) + " @" + strconv.FormatFloat(r.d.LengthScale, 'g', -1, 64) + "," + strconv.FormatFloat(r.d.AngleScale, 'g', -1, 64))
 	default:
 		v = r.coerce(r.eval(e, sc), t, vsp)
 	}

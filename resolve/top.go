@@ -102,7 +102,13 @@ func (r *run) evalParam(p *ast.Param) units.Value {
 			hasRange = false
 		}
 	}
-	def := r.paramValue(r.eval(p.Default, r.globals), p.Default, t, r.globals)
+	// An enum member is a name of the enum, not a value in scope: it is not
+	// evaluated (spec 2.2).
+	var defVal units.Value
+	if t.Kind != registry.TEnum {
+		defVal = r.eval(p.Default, r.globals)
+	}
+	def := r.paramValue(defVal, p.Default, t, r.globals)
 	if def.Valid() && def.DependsOnRuntime() {
 		r.report(diag.New(diag.CodeRuntime, p.Default.Span(), "the default of `%s` cannot depend on a runtime parameter", p.Name.Name))
 		def = units.Bad()
@@ -121,7 +127,9 @@ func (r *run) evalParam(p *ast.Param) units.Value {
 		case ov.Expr != nil:
 			e = ov.Expr
 			sp = ov.Expr.Span()
-			v = r.eval(ov.Expr, r.globals)
+			if t.Kind != registry.TEnum {
+				v = r.eval(ov.Expr, r.globals)
+			}
 		}
 		if e != nil {
 			v = r.paramValue(v, e, t, r.globals)
@@ -177,6 +185,9 @@ func (r *run) params() {
 		out := Param{Name: p.Name.Name, Type: p.Type.Name, Runtime: p.Runtime, Value: v}
 		if t, ok := registry.ParamType(p.Type.Name); ok && t.Kind == registry.TEnum {
 			out.Type = "enum"
+			for _, m := range p.Type.Enum {
+				out.Members = append(out.Members, m.Name)
+			}
 		}
 		if p.Range != nil {
 			if t, ok := registry.ParamType(p.Type.Name); ok && t.Kind != registry.TEnum {
