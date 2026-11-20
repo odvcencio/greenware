@@ -125,6 +125,8 @@ type Resolved struct {
 	Materials []*Node `json:"materials"`
 	// Imports are the libraries the file imports, with their pins.
 	Imports []Import `json:"imports,omitempty"`
+	// Data are the data packages the file imports, with their pins.
+	Data []DataImport `json:"data,omitempty"`
 	// Textures are the atlas declarations, each with its cells as children.
 	Textures []*Node `json:"textures,omitempty"`
 	// Atlases are the atlases in a form that can be baked.

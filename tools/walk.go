@@ -2,6 +2,7 @@ package tools
 
 import (
 	"strconv"
+	"strings"
 
 	"m31labs.dev/greenware/ast"
 	"m31labs.dev/greenware/diag"
@@ -33,6 +34,11 @@ type reference struct {
 	Span  diag.Span
 	In    site
 	Field string
+	// Full is the whole dotted name of a qualified reference
+	// (`world.crate.width`); Name is its first part. Empty for a plain name.
+	Full string
+	// FullSpan covers all of Full.
+	FullSpan diag.Span
 }
 
 // index lists every declaration and every name reference of a file, in source
@@ -333,6 +339,8 @@ func (b *builder) expr(e ast.Expr, in site, field string) {
 		if len(n.Parts) > 0 {
 			sp := n.Span()
 			b.ref(n.Parts[0], diag.Span{Start: sp.Start, End: sp.Start + len(n.Parts[0])}, in, field)
+			last := &b.ix.refs[len(b.ix.refs)-1]
+			last.Full, last.FullSpan = strings.Join(n.Parts, "."), sp
 		}
 	case *ast.Tuple:
 		for _, x := range n.Elems {

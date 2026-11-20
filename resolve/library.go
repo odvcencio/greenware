@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"m31labs.dev/greenware/ast"
+	"m31labs.dev/greenware/datapkg"
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/registry"
 	"m31labs.dev/greenware/std"
@@ -35,6 +36,13 @@ type Import struct {
 func (r *run) imports() {
 	r.libs = map[string]*library{}
 	for _, im := range r.f.Imports {
+		if datapkg.IsImport(im.Path) {
+			continue // read by dataImports, before the lets
+		}
+		if _, dup := r.data[im.Qualifier]; dup {
+			r.report(diag.New(diag.CodeDuplicate, im.QualSpan, "the import qualifier `%s` is used twice", im.Qualifier).WithRelated(r.data[im.Qualifier].span, "first import"))
+			continue
+		}
 		if prev, dup := r.libs[im.Qualifier]; dup {
 			r.report(diag.New(diag.CodeDuplicate, im.QualSpan, "the import qualifier `%s` is used twice", im.Qualifier).WithRelated(prev.span(), "first import"))
 			continue

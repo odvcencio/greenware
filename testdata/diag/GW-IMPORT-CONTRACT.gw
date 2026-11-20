@@ -1,0 +1,10 @@
+greenware 1
+
+// The import asks for contract major 2, but the package in data/contract is
+// data/contract@1.
+
+import "data/contract@2" as world
+
+asset a { root = a }
+
+part a { sphere ball { radius = 0.1m } }

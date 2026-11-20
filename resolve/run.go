@@ -84,6 +84,7 @@ type run struct {
 	// painters by key.
 	libs     map[string]*library
 	gears    map[string]*GearImport
+	data     map[string]*dataImport
 	painters map[string]*pentry
 }
 
@@ -114,6 +115,7 @@ func evaluate(f *ast.File, output string, overrides []Override, shallowOutputs b
 	}
 	r.syms = r.declare()
 	r.assetUnits()
+	r.dataImports()
 	r.bindGlobals()
 	r.params()
 	r.lets()

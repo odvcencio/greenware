@@ -1,0 +1,10 @@
+greenware 1
+
+// The package in data/locked has a lock file whose pin does not match its
+// files. The message gives the expected and the actual digest.
+
+import "data/locked@1" as world
+
+asset a { root = a }
+
+part a { sphere ball { radius = 0.1m } }

@@ -1,0 +1,9 @@
+{
+  "contract": "data/baddata@1",
+  "profile": "fixture",
+  "values": {
+    "box": {
+      "heigth": { "value": "2", "unit": "ft" }
+    }
+  }
+}

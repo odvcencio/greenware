@@ -49,6 +49,9 @@ func (r *run) eval(e ast.Expr, sc *scope) units.Value {
 	case *ast.Name:
 		return r.lookup(n.Name, n.Span(), sc)
 	case *ast.Qualified:
+		if di := r.data[n.Parts[0]]; di != nil {
+			return r.dataRef(n, di)
+		}
 		// The token is one run of text with no spaces, so each part's span
 		// follows from the lengths of the parts before it.
 		at := n.Span().Start

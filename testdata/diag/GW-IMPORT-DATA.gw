@@ -1,0 +1,11 @@
+greenware 1
+
+// A data package whose data file has a field the schema does not declare. The
+// message names the file and the JSON path, `$.values.box.heigth`. The package
+// is in data/baddata.
+
+import "data/baddata@1" as world
+
+asset a { root = a }
+
+part a { sphere ball { radius = 0.1m } }

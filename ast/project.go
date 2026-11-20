@@ -3,6 +3,7 @@ package ast
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"m31labs.dev/greenware/datapkg"
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/lang"
 	"m31labs.dev/greenware/registry"
@@ -125,7 +127,7 @@ func OpenProject(file, root string) (*Project, error) {
 // outside the project is a GW-MISSING diagnostic.
 func (p *Project) Import(importPath string, sp diag.Span) (*Gear, []diag.Diagnostic) {
 	if !strings.HasSuffix(importPath, ".gw") {
-		return nil, []diag.Diagnostic{diag.New(diag.CodeUnknownName, sp, "the import %q is neither a `std/` library nor a project file ending in .gw", importPath)}
+		return nil, []diag.Diagnostic{diag.New(diag.CodeUnknownName, sp, "the import %q is neither a `std/` library, a project file ending in .gw nor a data package such as \"football/world@1\"", importPath)}
 	}
 	b, clean, err := p.Read(importPath)
 	if err != nil {
@@ -149,7 +151,7 @@ func (p *Project) Import(importPath string, sp diag.Span) (*Gear, []diag.Diagnos
 		return g, nil
 	}
 	for _, im := range f.Imports {
-		if strings.HasPrefix(im.Path, "std/") {
+		if strings.HasPrefix(im.Path, "std/") || datapkg.IsImport(im.Path) {
 			continue
 		}
 		sub, more := child.Import(im.Path, im.PathSpan)
@@ -167,6 +169,41 @@ func (p *Project) Import(importPath string, sp diag.Span) (*Gear, []diag.Diagnos
 		g.Pins = append(g.Pins, sub.Pins...)
 	}
 	return g, nil
+}
+
+// ImportData loads the data package an `import "football/world@1"` names. The
+// lock is found from the project root, not from the importing file's folder:
+// `football/world@1` is `football/world.lock` under the root. The pin is
+// verified. A failure is a diagnostic at sp, by the kind of the error:
+// GW-IMPORT-DATA, GW-UNIT, GW-IMPORT-CONTRACT or GW-LOCK. Nothing is fetched.
+func (p *Project) ImportData(logical string, sp diag.Span) (*datapkg.Package, *diag.Diagnostic) {
+	if p == nil || p.FS == nil {
+		d := diag.New(diag.CodeImportData, sp, "importing the data package %q needs a project directory, and this source was read without one", logical)
+		return nil, &d
+	}
+	pkg, err := datapkg.LoadFS(p.FS, logical)
+	if err == nil {
+		return pkg, nil
+	}
+	d := DataDiagnostic(err, sp)
+	return nil, &d
+}
+
+// DataDiagnostic turns a datapkg error into the diagnostic of its kind.
+func DataDiagnostic(err error, sp diag.Span) diag.Diagnostic {
+	code := diag.CodeImportData
+	var de *datapkg.Error
+	if errors.As(err, &de) {
+		switch de.Kind {
+		case datapkg.KindUnit:
+			code = diag.CodeUnit
+		case datapkg.KindContract:
+			code = diag.CodeImportContract
+		case datapkg.KindLock:
+			code = diag.CodeLock
+		}
+	}
+	return diag.New(code, sp, "%s", err.Error())
 }
 
 // Mount is `mount name { asset = ... socket = ... mode = ... set { } fit { } }`.

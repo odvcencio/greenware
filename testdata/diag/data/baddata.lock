@@ -1,0 +1,7 @@
+{
+  "schema": "greenware.datalock/1",
+  "contract": "data/baddata@1",
+  "schema_file": "data/baddata/schema.json",
+  "data_file": "data/baddata/data.json",
+  "sha256": "ea903b114d35daee1f0e5c9c25325e8e3cd3304a1cf0a91c97be328c68fce7eb"
+}

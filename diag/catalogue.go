@@ -3,40 +3,43 @@ package diag
 // Codes of the diagnostics the front end reports. Emission sites use these
 // constants; the catalogue tests reject a code that is not listed below.
 const (
-	CodeSyntax        = "GW-SYNTAX"
-	CodeEdition       = "GW-EDITION"
-	CodeUnknownName   = "GW-UNKNOWN-NAME"
-	CodeUnknownField  = "GW-UNKNOWN-FIELD"
-	CodeDuplicate     = "GW-DUPLICATE"
-	CodeType          = "GW-TYPE"
-	CodeUnit          = "GW-UNIT"
-	CodeParamRange    = "GW-PARAM-RANGE"
-	CodeFieldRange    = "GW-FIELD-RANGE"
-	CodeRequire       = "GW-REQUIRE"
-	CodeUnsupported   = "GW-UNSUPPORTED"
-	CodeBudget        = "GW-BUDGET"
-	CodeMissing       = "GW-MISSING"
-	CodeCycle         = "GW-CYCLE"
-	CodeDomain        = "GW-DOMAIN"
-	CodeRuntime       = "GW-RUNTIME"
-	CodeMirrorName    = "GW-MIRROR-NAME"
-	CodeAccept        = "GW-ACCEPT"
-	CodeLimit         = "GW-LIMIT"
-	CodeUVCell        = "GW-UV-CELL"
-	CodeMatParam      = "GW-MAT-PARAM"
-	CodeRigUnbound    = "GW-RIG-UNBOUND"
-	CodeRigStructure  = "GW-RIG-STRUCTURE"
-	CodeClipKey       = "GW-CLIP-KEY"
-	CodeRigLimit      = "GW-RIG-LIMIT"
-	CodeRigBand       = "GW-RIG-BAND"
-	CodeMount         = "GW-MOUNT"
-	CodeTableRow      = "GW-TABLE-ROW"
-	CodeRigGround     = "GW-RIG-GROUND"
-	CodeRuntimePart   = "GW-RUNTIME-PARTIAL"
-	CodeRigTorn       = "GW-RIG-TORN"
-	CodePrint         = "GW-PRINT"
-	CodeRuntimeUnsafe = "GW-RUNTIME-UNSAFE"
-	CodeSolve         = "GW-SOLVE"
+	CodeSyntax         = "GW-SYNTAX"
+	CodeEdition        = "GW-EDITION"
+	CodeUnknownName    = "GW-UNKNOWN-NAME"
+	CodeUnknownField   = "GW-UNKNOWN-FIELD"
+	CodeDuplicate      = "GW-DUPLICATE"
+	CodeType           = "GW-TYPE"
+	CodeUnit           = "GW-UNIT"
+	CodeParamRange     = "GW-PARAM-RANGE"
+	CodeFieldRange     = "GW-FIELD-RANGE"
+	CodeRequire        = "GW-REQUIRE"
+	CodeUnsupported    = "GW-UNSUPPORTED"
+	CodeBudget         = "GW-BUDGET"
+	CodeMissing        = "GW-MISSING"
+	CodeCycle          = "GW-CYCLE"
+	CodeDomain         = "GW-DOMAIN"
+	CodeRuntime        = "GW-RUNTIME"
+	CodeMirrorName     = "GW-MIRROR-NAME"
+	CodeAccept         = "GW-ACCEPT"
+	CodeLimit          = "GW-LIMIT"
+	CodeUVCell         = "GW-UV-CELL"
+	CodeMatParam       = "GW-MAT-PARAM"
+	CodeRigUnbound     = "GW-RIG-UNBOUND"
+	CodeRigStructure   = "GW-RIG-STRUCTURE"
+	CodeClipKey        = "GW-CLIP-KEY"
+	CodeRigLimit       = "GW-RIG-LIMIT"
+	CodeRigBand        = "GW-RIG-BAND"
+	CodeMount          = "GW-MOUNT"
+	CodeTableRow       = "GW-TABLE-ROW"
+	CodeRigGround      = "GW-RIG-GROUND"
+	CodeRuntimePart    = "GW-RUNTIME-PARTIAL"
+	CodeRigTorn        = "GW-RIG-TORN"
+	CodePrint          = "GW-PRINT"
+	CodeRuntimeUnsafe  = "GW-RUNTIME-UNSAFE"
+	CodeSolve          = "GW-SOLVE"
+	CodeImportData     = "GW-IMPORT-DATA"
+	CodeImportContract = "GW-IMPORT-CONTRACT"
+	CodeLock           = "GW-LOCK"
 )
 
 // Entry documents one code.
@@ -87,6 +90,9 @@ var catalogue = []Entry{
 	{CodePrint, Error, "An output cannot be written as a print file. A solid of the output is not a closed manifold shell (an open edge, an edge shared by three triangles or more, a degenerate triangle) or its triangles wind inward (non-positive volume), or the output cannot be printed at all (a rigged asset, a mount, no visible shape, a bad scale). The message names the shape, the fault and the first example in millimetres. Only `BuildPrint` reports this code; a GLB of the same source still builds. Touching or overlapping solids are not refused: they print as separate bodies and the product notes list them.", "testdata/diag/GW-PRINT.gw", false},
 	{CodeRuntimeUnsafe, Error, "The browser worker, which always runs under `runtime_safe required`, refuses an output that asks for work with no certified worker charge: a `check rig` or `check runtime` audit, or a mount with a fit check. Build the output with the native `greenware build` or the release service, or use its prebuilt GLB. Only the worker (`internal/workerproto`) reports this code; `greenware build` has no such policy and builds the same source.", "testdata/diag/GW-RUNTIME-UNSAFE.gw", false},
 	{CodeSolve, Error, "The skin weight solver (`solve` in a `skin`) cannot finish and writes nothing: its smoothing is still above `tolerance` after `iterations` sweeps (the message names the iteration count and the residual), or a vertex has no usable candidate joint. Raise `iterations` or `tolerance`, or use `refine = none`. The solve is not runtime safe: the browser worker refuses it with GW-RUNTIME-UNSAFE.", "testdata/diag/GW-SOLVE.gw", false},
+	{CodeImportData, Error, "A data package named by `import \"name@N\" as q` cannot be read or does not hold together: a schema or data file that is missing, is not strict JSON (a duplicate key, a trailing comma), has a field the schema does not declare or lacks one it does, has a value that is not a decimal string, has no unit where the dimension needs one, or declares a bad dimension or name. The message names the file and the JSON path (for example `$.values.crate.width.value`). Nothing defaults and nothing is repaired. A unit of the wrong dimension is GW-UNIT; a contract mismatch is GW-IMPORT-CONTRACT.", "testdata/diag/GW-IMPORT-DATA.gw", false},
+	{CodeImportContract, Error, "The contract major in `import \"name@N\"` does not match the package: the lock file names another contract (`name@M`), or the schema or the data file names a contract other than the lock's. Change the import to the package's major, or move the package to a new contract name.", "testdata/diag/GW-IMPORT-CONTRACT.gw", false},
+	{CodeLock, Error, "The lock file of a data package is missing, or its pin does not match the files: the SHA-256 of the canonical schema and data differs from the `sha256` in `<name>.lock`. The message gives the expected and the actual digest. Nothing is built and nothing is fetched. After reviewing the change, run `greenware lock --data name@N` to pin the files as they are.", "testdata/diag/GW-LOCK.gw", false},
 }
 
 // Catalogue returns every code in a fixed order. The caller must not change

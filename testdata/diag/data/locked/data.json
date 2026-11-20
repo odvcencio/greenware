@@ -1,0 +1,9 @@
+{
+  "contract": "data/locked@1",
+  "profile": "fixture",
+  "values": {
+    "box": {
+      "height": { "value": "2", "unit": "ft" }
+    }
+  }
+}

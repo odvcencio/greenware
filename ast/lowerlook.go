@@ -25,6 +25,7 @@ func (l *lowerer) importDecl(n *lang.Node) *Import {
 		if i := strings.LastIndex(q, "/"); i >= 0 {
 			q = q[i+1:]
 		}
+		q, _, _ = strings.Cut(q, "@") // a data package: football/world@1 is `world`
 		im.Qualifier, im.QualSpan = strings.TrimSuffix(q, ".gw"), im.PathSpan
 	}
 	return im

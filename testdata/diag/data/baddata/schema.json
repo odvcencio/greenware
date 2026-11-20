@@ -1,0 +1,8 @@
+{
+  "contract": "data/baddata@1",
+  "fields": {
+    "box": {
+      "height": { "dimension": "length", "meaning": "height of the box from the floor" }
+    }
+  }
+}

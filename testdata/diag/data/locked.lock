@@ -1,0 +1,7 @@
+{
+  "schema": "greenware.datalock/1",
+  "contract": "data/locked@1",
+  "schema_file": "data/locked/schema.json",
+  "data_file": "data/locked/data.json",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}
