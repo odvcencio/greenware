@@ -179,6 +179,11 @@ func ticketUnits(name string) uint64 {
 			return t.Units
 		}
 	}
+	for _, t := range ticketTableSolve {
+		if t.Name == name {
+			return t.Units
+		}
+	}
 	if u, ok := athleteUnits(name); ok {
 		return u
 	}
@@ -716,7 +721,7 @@ func schedule(outs []resolvedOutput, acc []acceptLevel, pol Policy) []Charge {
 			add(TicketRig, o.name, nil, nil)
 		}
 	}
-	for _, phase := range []string{TicketSurface, TicketWeights, TicketMorph, TicketClip, TicketAudit, TicketFit, TicketEncode} {
+	for _, phase := range []string{TicketSurface, TicketWeights, TicketSolve, TicketMorph, TicketClip, TicketAudit, TicketFit, TicketEncode} {
 		if phase == TicketClip {
 			for _, o := range sorted {
 				if rigCountsOf(o.r).clips > 0 {
@@ -726,9 +731,9 @@ func schedule(outs []resolvedOutput, acc []acceptLevel, pol Policy) []Charge {
 			continue
 		}
 		for _, o := range sorted {
-			if phase == TicketWeights || phase == TicketMorph {
+			if phase == TicketWeights || phase == TicketSolve || phase == TicketMorph {
 				n := rigCountsOf(o.r)
-				if !n.skeleton || (phase == TicketMorph && n.morphs == 0) {
+				if !n.skeleton || (phase == TicketMorph && n.morphs == 0) || (phase == TicketSolve && n.solves == 0) {
 					continue
 				}
 				for lv := 0; lv < o.levels; lv++ {
@@ -864,7 +869,7 @@ func classBound(c Charge, outs map[string]resolvedOutput, snapshotBytes []int, a
 		if a.Ops > maxPaintOps {
 			return fmt.Sprintf("the atlas %s needs %d scalar painter operations; the class allows %d", a.Name, a.Ops, maxPaintOps)
 		}
-	case TicketRig, TicketWeights, TicketMorph, TicketClip:
+	case TicketRig, TicketWeights, TicketSolve, TicketMorph, TicketClip:
 		return rigClassBound(c, outs)
 	case TicketPaintLarge, TicketAudit, TicketFit:
 		return athleteClassBound(c, outs[c.Output], pol)

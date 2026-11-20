@@ -36,6 +36,7 @@ const (
 	CodeRigTorn       = "GW-RIG-TORN"
 	CodePrint         = "GW-PRINT"
 	CodeRuntimeUnsafe = "GW-RUNTIME-UNSAFE"
+	CodeSolve         = "GW-SOLVE"
 )
 
 // Entry documents one code.
@@ -85,6 +86,7 @@ var catalogue = []Entry{
 	{CodeRigTorn, Error, "More than the `torn` share of the geometric edges of the posed skin are longer than three times or shorter than a quarter of their bind length at some key. The message names the output, level, clip, key time, runtime point and the share.", "testdata/diag/GW-RIG-TORN.gw", false},
 	{CodePrint, Error, "An output cannot be written as a print file. A solid of the output is not a closed manifold shell (an open edge, an edge shared by three triangles or more, a degenerate triangle) or its triangles wind inward (non-positive volume), or the output cannot be printed at all (a rigged asset, a mount, no visible shape, a bad scale). The message names the shape, the fault and the first example in millimetres. Only `BuildPrint` reports this code; a GLB of the same source still builds. Touching or overlapping solids are not refused: they print as separate bodies and the product notes list them.", "testdata/diag/GW-PRINT.gw", false},
 	{CodeRuntimeUnsafe, Error, "The browser worker, which always runs under `runtime_safe required`, refuses an output that asks for work with no certified worker charge: a `check rig` or `check runtime` audit, or a mount with a fit check. Build the output with the native `greenware build` or the release service, or use its prebuilt GLB. Only the worker (`internal/workerproto`) reports this code; `greenware build` has no such policy and builds the same source.", "testdata/diag/GW-RUNTIME-UNSAFE.gw", false},
+	{CodeSolve, Error, "The skin weight solver (`solve` in a `skin`) cannot finish and writes nothing: its smoothing is still above `tolerance` after `iterations` sweeps (the message names the iteration count and the residual), or a vertex has no usable candidate joint. Raise `iterations` or `tolerance`, or use `refine = none`. The solve is not runtime safe: the browser worker refuses it with GW-RUNTIME-UNSAFE.", "testdata/diag/GW-SOLVE.gw", false},
 }
 
 // Catalogue returns every code in a fixed order. The caller must not change

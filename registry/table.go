@@ -382,7 +382,7 @@ var kinds = []*Kind{
 		Fields: []Field{
 			{Name: "max_influences", Type: tInteger, Default: dv(units.Num(4)), Min: fp(1), Max: fp(4), Doc: "Most active joint weights on one vertex."},
 		},
-		Blocks: []string{"lengthen", "blend", "mirror"},
+		Blocks: []string{"lengthen", "blend", "solve", "mirror"},
 	},
 	{
 		Name: "lengthen", Context: CtxRig, Doc: "Sets a bone to a new length and carries its subtree.",
@@ -406,6 +406,23 @@ var kinds = []*Kind{
 			{Name: "only", Type: refs(NsGeometry), Doc: "Shapes the band works on; absent means every shape."},
 		},
 		Names: NameOptional,
+	},
+	{
+		Name: "solve", Context: CtxRig, Doc: "Chooses skin weights from the distance to the supplied bones, then smooths them over the mesh. It never moves or adds a joint. Not runtime safe.",
+		Fields: []Field{
+			{Name: "method", Type: enum("falloff"), Default: dv(units.Label("falloff")), Doc: "Weight method. `falloff` is an inverse-distance weight over the bone segments of the candidate joints."},
+			{Name: "max_influences", Type: tInteger, Min: fp(1), Max: fp(4), Doc: "Most weights kept on one vertex; absent takes the skin's limit, which it may not exceed."},
+			{Name: "refine", Type: enum("smooth", "none", "audit"), Default: dv(units.Label("smooth")), Doc: "`smooth` runs the bounded Laplacian pass; `none` keeps the falloff weights; `audit` (the pinned deformation audit as the refiner) is not supported."},
+			{Name: "iterations", Type: tInteger, Default: dv(units.Num(64)), Min: fp(1), Max: fp(256), Doc: "Cap on smoothing sweeps. A solve still above `tolerance` at the cap is refused."},
+			{Name: "tolerance", Type: tNumber, Default: dv(units.Num(0.0001)), Positive: true, Doc: "Largest weight change a sweep may make for the solve to count as converged."},
+			{Name: "smooth", Type: tNumber, Default: dv(units.Num(0.5)), Positive: true, Max: fp(4), Doc: "Strength of the smoothing against the falloff weights."},
+			{Name: "power", Type: tInteger, Default: dv(units.Num(2)), Min: fp(1), Max: fp(4), Doc: "The falloff is 1 / (d^2 + soft^2) to this power."},
+			{Name: "cutoff", Type: tNumber, Default: dv(units.Num(0.02)), Min: fp(0), Max: fp(0.49), Doc: "Taken off the share of each weight of a vertex; a share that reaches zero is dropped, so a vertex far from a blend is rigid on one joint."},
+			{Name: "own", Type: tNumber, Default: dv(units.Num(16)), Min: fp(1), Doc: "Factor on the weight of a joint the vertex is already bound to."},
+			{Name: "soft", Type: tLength, Default: dv(units.Len(0.005)), Positive: true, Doc: "Softening distance of the falloff."},
+			{Name: "reach", Type: tInteger, Default: dv(units.Num(1)), Min: fp(0), Max: fp(3), Doc: "Joint-tree steps from a vertex's own joints that may take weight."},
+			{Name: "rigid", Type: refs(NsGeometry), Doc: "Shapes that keep the weights they have; the solver does not touch them."},
+		},
 	},
 	{
 		Name: "morph", Context: CtxDocument, Doc: "A morph target built on the finished bind mesh.",

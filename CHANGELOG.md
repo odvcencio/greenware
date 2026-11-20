@@ -5,6 +5,7 @@
 What works now, as of this list:
 
 - Examples that build with `greenware build`: the goal post (`examples/goalpost`), the helmet, the rigged arm and the athlete, each with an acceptance file.
+- The skin weight solver (milestone M5): `skin { solve { ... } }` chooses weights on the supplied joints from the distance to the bones, smooths them over the mesh and refuses with `GW-SOLVE` when the smoothing does not settle in the iteration cap. New ticket `solve`, new example `examples/arm-solved`. It is not qualified: on the athlete it is worse than the hand skin at both feet (`docs/reference/rig.md`, "Solved skin"). The worker refuses it with `GW-RUNTIME-UNSAFE`.
 - `greenware accept` runs those acceptance files on decoded GLB files.
 - Authoring commands: `fix`, `diff`, `describe`, `ir`, `init`, `lock`, `explain`, `search` and `trace` (`docs/reference/commands.md`).
 - `greenware print` writes one level of one output as a 3MF file of solids, and refuses a shape that is not a closed manifold with `GW-PRINT` (`docs/reference/print.md`). It does not check wall thickness or intersections.

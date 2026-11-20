@@ -188,6 +188,14 @@ func admit(file *ast.File, req Request) []diag.Diagnostic {
 			out = append(out, diag.New(diag.CodeRuntimeUnsafe, r.RuntimeCheck.Span,
 				"output %s asks for a `check runtime` audit, which has no certified worker charge; build it with the native greenware or use its prebuilt GLB", name))
 		}
+		if r.Rig != nil && r.Rig.Skin != nil {
+			for _, st := range r.Rig.Skin.Steps {
+				if st.Solve != nil {
+					out = append(out, diag.New(diag.CodeRuntimeUnsafe, st.Solve.Span,
+						"output %s has a `solve` step in its skin, which is not runtime safe and has no certified worker charge; build it with the native greenware or use its prebuilt GLB", name))
+				}
+			}
+		}
 		for _, m := range r.Mounts {
 			if m.HasFit {
 				out = append(out, diag.New(diag.CodeRuntimeUnsafe, m.FitSpan,

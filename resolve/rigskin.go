@@ -102,6 +102,8 @@ func (r *run) skinItems(sk *RigSkin, items []ast.RigItem, m mirrorCtx, sc *scope
 				r.lengthen(sk, b, m, sc, st)
 			case "blend":
 				r.blend(sk, b, m, sc, st)
+			case "solve":
+				r.solve(sk, b, m, sc, st)
 			case "mirror":
 				r.openMirrorOnlyPlane(b)
 				if m.plane != "" {
@@ -115,7 +117,7 @@ func (r *run) skinItems(sk *RigSkin, items []ast.RigItem, m mirrorCtx, sc *scope
 				r.skinItems(sk, b.Items, mirrorCtx{plane: plane}, sc, st)
 				r.skinItems(sk, b.Items, mirrorCtx{plane: plane, copy: true}, sc, st)
 			default:
-				r.report(diag.New(diag.CodeUnknownField, b.KindSpan, "`%s` is not a skin step: a skin holds `lengthen`, `blend` and `mirror`", b.Kind))
+				r.report(diag.New(diag.CodeUnknownField, b.KindSpan, "`%s` is not a skin step: a skin holds `lengthen`, `blend`, `solve` and `mirror`", b.Kind))
 			}
 		}
 	}
@@ -225,4 +227,79 @@ func (r *run) checkSkin(rg *Rig) {
 			}
 		}
 	}
+}
+
+// solve reads a `solve` step. It is valid once in a skin and not inside a
+// mirror: a solve works on the whole skin, and a reflected copy would solve
+// it twice. `refine = audit` is valid in the language and outside this
+// compiler's subset.
+func (r *run) solve(sk *RigSkin, b *ast.RigBlock, m mirrorCtx, sc *scope, st *rigState) {
+	if m.plane != "" {
+		r.report(diag.New(diag.CodeUnsupported, b.KindSpan, "a `solve` inside a mirror is valid in the language but outside this compiler's subset: write one `solve` in the skin"))
+		return
+	}
+	for _, s := range sk.Steps {
+		if s.Solve != nil {
+			r.report(diag.New(diag.CodeUnsupported, b.KindSpan, "a second `solve` in one skin is valid in the language but outside this compiler's subset"))
+			return
+		}
+	}
+	body := r.rigScope(sc, b.Items, &m)
+	fs := r.fields(rigKind("solve"), b.Settings, body, b.KindSpan)
+	sv := &RigSolve{MaxInfluences: sk.MaxInfluences, Span: b.KindSpan}
+	if v, ok := field(fs, "method"); ok && v.Valid() {
+		sv.Method = v.Str
+	}
+	if s := ast.FindSetting(b.Settings, "max_influences"); s != nil {
+		if v, ok := field(fs, "max_influences"); ok && v.Valid() {
+			sv.MaxInfluences = int(v.Num)
+			if sv.MaxInfluences > sk.MaxInfluences {
+				sp := b.KindSpan
+				if s.Value != nil {
+					sp = s.Value.Span()
+				}
+				r.report(diag.New(diag.CodeFieldRange, sp, "the solve keeps %d influences, above the skin's `max_influences` of %d", sv.MaxInfluences, sk.MaxInfluences))
+			}
+		}
+	}
+	if v, ok := field(fs, "refine"); ok && v.Valid() {
+		sv.Refine = v.Str
+		if v.Str == "audit" {
+			sp := b.KindSpan
+			if s := ast.FindSetting(b.Settings, "refine"); s != nil && s.Value != nil {
+				sp = s.Value.Span()
+			}
+			r.report(diag.New(diag.CodeUnsupported, sp, "`refine = audit` is valid in the language but outside this compiler's subset: the pinned deformation audit is not a refiner here; use `smooth` or `none`"))
+		}
+	}
+	if v, ok := field(fs, "iterations"); ok && v.Valid() {
+		sv.Iterations = int(v.Num)
+	}
+	if v, ok := field(fs, "tolerance"); ok && v.Valid() {
+		sv.Tolerance = v.Num
+	}
+	if v, ok := field(fs, "smooth"); ok && v.Valid() {
+		sv.Smooth = v.Num
+	}
+	if v, ok := field(fs, "power"); ok && v.Valid() {
+		sv.Power = int(v.Num)
+	}
+	if v, ok := field(fs, "cutoff"); ok && v.Valid() {
+		sv.Cutoff = v.Num
+	}
+	if v, ok := field(fs, "own"); ok && v.Valid() {
+		sv.Own = v.Num
+	}
+	if v, ok := field(fs, "soft"); ok && v.Valid() {
+		sv.Soft = v.Num
+	}
+	if v, ok := field(fs, "reach"); ok && v.Valid() {
+		sv.Reach = int(v.Num)
+	}
+	if v, ok := field(fs, "rigid"); ok && v.Valid() {
+		for _, e := range v.Elems {
+			sv.Rigid = append(sv.Rigid, st.pair(registry.NsGeometry, e.Str, m))
+		}
+	}
+	sk.Steps = append(sk.Steps, RigStep{Solve: sv})
 }

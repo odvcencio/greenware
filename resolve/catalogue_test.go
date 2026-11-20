@@ -47,7 +47,7 @@ func TestCatalogueFixtures(t *testing.T) {
 			// So do GW-RIG-GROUND, GW-RIG-TORN and GW-RUNTIME-PARTIAL, which the
 			// compiler's audit reports.
 			if e.Code == diag.CodeRigLimit || e.Code == diag.CodeRigBand || e.Code == diag.CodeRigGround ||
-				e.Code == diag.CodeRigTorn || e.Code == diag.CodeRuntimePart {
+				e.Code == diag.CodeRigTorn || e.Code == diag.CodeRuntimePart || e.Code == diag.CodeSolve {
 				if _, err := os.Stat(filepath.Join("..", e.Fixture)); err != nil {
 					t.Fatalf("fixture: %v", err)
 				}

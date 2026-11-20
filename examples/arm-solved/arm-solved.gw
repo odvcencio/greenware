@@ -1,0 +1,182 @@
+greenware 1
+
+// The rigged arm of examples/arm with its skin weights solved instead of
+// written: the same skeleton, shapes, morphs and clips, and one `solve` step
+// where arm.gw has two `blend` steps. The solver chooses the weights from the
+// distance of each vertex to the bones of its own joint and its neighbours in
+// the joint tree, smooths them over the mesh edges and refuses if the
+// smoothing does not settle. It never moves a joint. See
+// docs/reference/rig.md, "Solved skin".
+//
+// Distances are metres, the arm hangs along -y from the shoulder at 1.4 m,
+// and the model faces -z.
+
+asset arm_solved {
+  title = "Arm, solved weights"
+  root = arm_body
+  length = m
+  angle = deg
+  up = y
+  forward = -z
+  idle = rest                // the clip a renderer shows before any other
+  mesh_name = "Arm"
+  generator = "Greenware examples"
+}
+
+meta {
+  author = "M31 Labs"
+  license = "CC0-1.0"
+}
+
+// Runtime parameters: stature scales the root's vertical keys, reach is the
+// forearm morph, bulk the muscle morph.
+param height : ratio = 1 in 0.9..1.1 runtime
+param reach : ratio = 1 in 0.8..1.25 runtime
+param bulk : ratio = 0 in 0..1 runtime
+
+material cloth = pbr { base = #3d6fb5 roughness = 0.8 }
+material skin_tone = pbr { base = #c58c5f roughness = 0.6 }
+
+// ---- Skeleton -----------------------------------------------------------------
+// "at" is the model-space bind position. The wrist is turned 20 degrees about
+// y in the model frame (orient), so its frame is not the identity.
+
+skeleton arm_rig {
+  root_scale = height
+
+  joint shoulder {
+    at = (0, 1.4, 0)
+    swing_x = -100..170
+    twist = -80..80
+    swing_z = -20..90
+    limit { swing_x = -90..175 twist = -100..100 }
+
+    joint elbow {
+      at = (0.02, 1.1, 0)
+      swing_x = -150..5
+      twist = -60..60
+      swing_z = -10..10
+
+      joint wrist {
+        at = (0.04, 0.82, 0)
+        orient = rot(0, 20, 0)
+        swing_x = -60..60
+        twist = -40..40
+        swing_z = -30..30
+        socket grip { kind = hand at = (0.04, 0.74, 0) }
+      }
+    }
+  }
+}
+
+// ---- Geometry -----------------------------------------------------------------
+// Every shape starts rigid on its "joint". The lathes have several rings, so
+// the blend bands below have vertices to work on.
+
+part arm_body {
+  material = cloth
+  joint = shoulder
+
+  lathe upper {
+    at = (0.01, 1.4, 0)
+    segments = 12
+    point (0, 0)
+    point (0.05, 0)
+    point (0.052, -0.08)
+    point (0.05, -0.16)
+    point (0.046, -0.24)
+    point (0.044, -0.3)
+    point (0, -0.3)
+  }
+
+  lathe forearm {
+    joint = elbow
+    at = (0.03, 1.1, 0)
+    segments = 12
+    point (0, 0)
+    point (0.044, 0)
+    point (0.046, -0.07)
+    point (0.04, -0.14)
+    point (0.035, -0.22)
+    point (0.032, -0.28)
+    point (0, -0.28)
+  }
+
+  ellipsoid hand {
+    joint = wrist
+    material = skin_tone
+    centre = (0.04, 0.75, 0)
+    radii = (0.04, 0.07, 0.025)
+    segments = 12
+  }
+}
+
+// ---- Skin ---------------------------------------------------------------------
+// lengthen moves the child joint and carries its subtree. solve then replaces
+// the weights of every vertex: candidates are the vertex's own joint and the
+// joints one step away in the tree; at most two influences are kept; the
+// smoothing stops at the first sweep that changes no weight by more than
+// 0.0001 and the build is refused if 64 sweeps are not enough.
+
+skin {
+  max_influences = 2
+  lengthen { joint = shoulder to = 0.32 anchor = 0.5 }
+  solve { method = falloff refine = smooth iterations = 64 tolerance = 0.0001 reach = 1 }
+}
+
+// ---- Morph targets ------------------------------------------------------------
+
+// A longer forearm: stretch lifts what lies above 1.1 m, so the elbow and
+// shoulder rise and the hand stays, and the joints follow.
+morph long {
+  weight = clamp((reach - 1) / 0.25, 0, 1)
+  stretch { axis = y from = 0.85 to = 1.1 by = 40% }
+  joints = follow
+}
+
+morph bulk {
+  name = "bulk-up"
+  weight = bulk
+  inflate { parts = [upper, forearm] by = 20% }
+}
+
+// ---- Clips --------------------------------------------------------------------
+// A clip samples its pose at "keys" evenly spaced times from 0 to "duration".
+// t runs from 0 to 1 over the clip. root is the root joint's local translation.
+
+clip rest {
+  duration = 1s
+  keys = 2
+  loop = on
+  pose {
+    shoulder = rot(0, 0, 0)
+    elbow = rot(-12, 0, 0)
+    wrist = rot(0, 0, 0)
+    root = (0, 1.4, 0)
+  }
+}
+
+clip wave {
+  name = "wave"
+  duration = 2s
+  keys = 9
+  loop = on
+  let s = sin(360deg * t)
+  pose {
+    shoulder = rot(-70 + 15 * s, 0, 10)
+    elbow = rot(-60 - 25 * s, 0, 0)
+    wrist = rot(0, 20 * s, 15 * s)
+    root = (0, 1.4 + 0.02 * s, 0)
+  }
+}
+
+// ---- Output -------------------------------------------------------------------
+
+budget {
+  bones = 3
+  influences = 2
+  morphs = 2
+  file_size = 64KiB
+}
+
+output arm_solved_glb { file = "arm-solved.glb" }

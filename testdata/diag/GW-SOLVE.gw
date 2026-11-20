@@ -1,0 +1,35 @@
+greenware 1
+
+// A post on a two-joint skeleton whose skin weights are solved. The smoothing
+// is asked to settle to 1e-12 within 2 sweeps, which it cannot: the build is
+// refused with the iteration count and the residual, and nothing is written.
+// `greenware check` does not solve, so this fixture reports the code from
+// `greenware build`.
+
+asset a { root = a idle = rest }
+
+skeleton s {
+  joint base {
+    at = (0, 0, 0)
+    joint top { at = (0, 0.5, 0) }
+  }
+}
+
+skin {
+  solve { iterations = 2 tolerance = 0.000000000001 }
+}
+
+part a {
+  joint = base
+  cylinder post { radius = 0.04m height = 1m at = (0, 0.5, 0) segments = 8 }
+}
+
+clip rest {
+  duration = 1s
+  pose {
+    base = rot(0, 0, 0)
+    top = rot(0, 0, 0)
+  }
+}
+
+output demo { file = "a.glb" }

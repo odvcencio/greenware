@@ -34,7 +34,20 @@ import (
 // The class bounds on counts that exist only after the surface is built (the
 // bound positions) are checked on the built level, as the surface ticket's
 // triangle bound is.
+//
+// The solver (milestone M5) adds one more. It is reserved only for a level
+// whose skin has a `solve` step, so an asset without one keeps its receipt:
+//
+//   - solve, per level of a rigged output whose skin has a `solve` step. It
+//     buys the falloff weights, the bounded smoothing sweeps with their
+//     residual test, the influence limit and the quantisation to 2^-24. The
+//     solve is not runtime safe (language reference 7.8). Class: one solve
+//     step, at most 256 sweeps, 64 joints and 8,192 bound positions (the
+//     `weights` ticket checks the positions). Price 1,000,000; the price is an
+//     assumption of this compiler, set above the measured cost of 64 sweeps
+//     over the athlete's 4,465 positions.
 const (
+	TicketSolve   = "solve"
 	TicketRig     = "rig"
 	TicketWeights = "weights"
 	TicketMorph   = "morph"
@@ -61,6 +74,14 @@ var ticketTableRig = []TicketClass{
 	{TicketClip, 200_000, "selected output with clips", "at most 32 clips and 4,096 keys in all"},
 }
 
+// ticketTableSolve is the solver's row: it follows weights.
+var ticketTableSolve = []TicketClass{
+	{TicketSolve, 1_000_000, "level of an output whose skin has a `solve` step", "one solve step, at most 256 sweeps, 64 joints and 8,192 bound positions"},
+}
+
+// SolveTickets returns the solver's tickets.
+func SolveTickets() []TicketClass { return append([]TicketClass(nil), ticketTableSolve...) }
+
 // RigTickets returns the rig's tickets.
 func RigTickets() []TicketClass { return append([]TicketClass(nil), ticketTableRig...) }
 
@@ -69,6 +90,7 @@ type rigCounts struct {
 	skeleton               bool
 	joints, sockets, steps int
 	morphs, clips, keys    int
+	solves                 int
 }
 
 func rigCountsOf(r *resolve.Resolved) rigCounts {
@@ -83,6 +105,11 @@ func rigCountsOf(r *resolve.Resolved) rigCounts {
 	}
 	if rg.Skin != nil {
 		c.steps = len(rg.Skin.Steps)
+		for _, st := range rg.Skin.Steps {
+			if st.Solve != nil {
+				c.solves++
+			}
+		}
 	}
 	c.morphs, c.clips = len(rg.Morphs), len(rg.Clips)
 	for _, cl := range rg.Clips {
@@ -106,6 +133,10 @@ func rigClassBound(c Charge, outs map[string]resolvedOutput) string {
 	case TicketWeights:
 		if n.steps > maxRigSteps {
 			return fmt.Sprintf("output %s has %d skin steps; the class allows %d", c.Output, n.steps, maxRigSteps)
+		}
+	case TicketSolve:
+		if n.solves > 1 {
+			return fmt.Sprintf("output %s has %d solve steps; the class allows 1", c.Output, n.solves)
 		}
 	case TicketMorph:
 		if n.morphs > maxRigMorphs {

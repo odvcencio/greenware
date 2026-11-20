@@ -53,6 +53,28 @@ type AuditReport struct {
 	Strained Measure `json:"strained_share"`
 	// Fit has one entry per mount with a fit check.
 	Fit []FitReport `json:"fit,omitempty"`
+	// joints are the same measures split by the joint each shape was bound
+	// to before the skin steps ran, one entry per joint in joint order. They
+	// compare two skins of one asset (the weight solver against hand
+	// weights); they are not in the record.
+	joints []JointMeasures
+}
+
+// JointMeasures are the audit measures of the geometry bound to one joint
+// before the skin steps. Every value is the worst over every point and pose.
+type JointMeasures struct {
+	Joint string
+	// Edges is the number of geometric edges of the region.
+	Edges int
+	// StrainMax is the largest of r and 1/r over the region's edges, where r
+	// is the posed edge length over its bind length. 1 means no change.
+	StrainMax float64
+	// Strained and Torn are the largest shares of the region's edges outside
+	// 1/1.5..1.5 and outside 1/4..3.
+	Strained, Torn float64
+	// Lowest is the lowest posed vertex of the region over the non-airborne
+	// poses, in metres above the ground; +Inf when the region has none.
+	Lowest float64
 }
 
 // Measure is a measured number and where it was found.
@@ -90,6 +112,11 @@ type auditMesh struct {
 	// part names the piece each triangle belongs to.
 	part   []string
 	partOf []int32 // piece index per triangle
+	// region is the joint index the piece of each position was bound to
+	// before the skin steps; edgeRegion is that of each edge.
+	region     []int32
+	edgeRegion []int32
+	joints     []string
 }
 
 func buildAuditMesh(rl *rigLevel) *auditMesh {
@@ -105,6 +132,10 @@ func buildAuditMesh(rl *rigLevel) *auditMesh {
 			a.delta[t] = append(a.delta[t], p.rig.pos[t]...)
 		}
 		names = append(names, firstName(p))
+		ji := int32(rl.sk.Index(p.meta.joint))
+		for range p.m.Positions {
+			a.region = append(a.region, ji)
+		}
 		seen := map[[2]int32]bool{}
 		for _, tr := range p.m.Tris {
 			var idx [3]int32
@@ -126,6 +157,9 @@ func buildAuditMesh(rl *rigLevel) *auditMesh {
 		}
 	}
 	a.part = names
+	for _, j := range rl.sk.Joints {
+		a.joints = append(a.joints, j.Name)
+	}
 	// Sort edges so that the order does not depend on map iteration.
 	sort.Slice(a.edges, func(i, j int) bool {
 		if a.edges[i][0] != a.edges[j][0] {
@@ -133,6 +167,10 @@ func buildAuditMesh(rl *rigLevel) *auditMesh {
 		}
 		return a.edges[i][1] < a.edges[j][1]
 	})
+	a.edgeRegion = make([]int32, len(a.edges))
+	for i, ed := range a.edges {
+		a.edgeRegion[i] = a.region[ed[0]]
+	}
 	return a
 }
 
@@ -232,6 +270,7 @@ type pointScan struct {
 	lowestAt, highestAt, tornAt, strainAt poseRef
 	fit                                   map[string]*fitScan
 	poses                                 int
+	joints                                []JointMeasures
 }
 
 type fitScan struct {
@@ -319,8 +358,20 @@ func (e *elab) audit(rl *rigLevel, cds []*clipData, lvl int) (*AuditReport, bool
 
 	rep := &AuditReport{Output: e.oname, Level: lvl, Points: len(pl.points), Partial: pl.partial, Omitted: pl.omitted}
 	rep.GroundLowest.Value, rep.GroundHighest.Value = math.Inf(1), math.Inf(-1)
+	rep.joints = make([]JointMeasures, len(rl.sk.Joints))
+	for j := range rep.joints {
+		rep.joints[j] = JointMeasures{Joint: am.joints[j], StrainMax: 1, Lowest: math.Inf(1)}
+	}
 	for i, sc := range results {
 		pt := pl.points[i].label
+		for j, jm := range sc.joints {
+			r := &rep.joints[j]
+			r.Edges = max(r.Edges, jm.Edges)
+			r.StrainMax = math.Max(r.StrainMax, jm.StrainMax)
+			r.Strained = math.Max(r.Strained, jm.Strained)
+			r.Torn = math.Max(r.Torn, jm.Torn)
+			r.Lowest = math.Min(r.Lowest, jm.Lowest)
+		}
 		rep.Poses += sc.poses
 		if sc.lowest < rep.GroundLowest.Value {
 			rep.GroundLowest = Measure{sc.lowest, pt, sc.lowestAt.clip, sc.lowestAt.time}
@@ -396,6 +447,12 @@ func (e *elab) judgeAudit(rep *AuditReport, rc *resolve.RigCheck) {
 func (e *elab) scanPoint(rl *rigLevel, am *auditMesh, poses []poseRef, clipOf map[string]*clipData, pt runtimePoint,
 	fitMounts []*mountGear, gears map[string]*gearCache, up, lvl int) *pointScan {
 	sc := &pointScan{lowest: math.Inf(1), highest: math.Inf(-1), fit: map[string]*fitScan{}}
+	nj := len(rl.sk.Joints)
+	sc.joints = make([]JointMeasures, nj)
+	for j := range sc.joints {
+		sc.joints[j] = JointMeasures{Joint: am.joints[j], StrainMax: 1, Lowest: math.Inf(1)}
+	}
+	jn, jtorn, jstrained := make([]int, nj), make([]int, nj), make([]int, nj)
 	w := make([]float64, len(rl.morphs))
 	for i, m := range rl.morphs {
 		w[i] = weightAt(m.weight, pt.vals)
@@ -435,6 +492,11 @@ func (e *elab) scanPoint(rl *rigLevel, am *auditMesh, poses []poseRef, clipOf ma
 			for _, p := range posed[1:] {
 				lo = math.Min(lo, p[up])
 			}
+			for i, p := range posed {
+				if j := am.region[i]; j >= 0 {
+					sc.joints[j].Lowest = math.Min(sc.joints[j].Lowest, p[up])
+				}
+			}
 			// The lowest vertex of this pose; the band is for this number.
 			if lo < sc.lowest {
 				sc.lowest, sc.lowestAt = lo, ps
@@ -445,18 +507,45 @@ func (e *elab) scanPoint(rl *rigLevel, am *auditMesh, poses []poseRef, clipOf ma
 		}
 		torn, strained := 0, 0
 		n := 0
+		for j := range jn {
+			jn[j], jtorn[j], jstrained[j] = 0, 0, 0
+		}
 		for i, ed := range am.edges {
 			if blen[i] == 0 {
 				continue
 			}
 			n++
 			r := mesh.Len(mesh.Sub(posed[ed[0]], posed[ed[1]])) / blen[i]
+			j := am.edgeRegion[i]
+			if j >= 0 {
+				jn[j]++
+				if r > sc.joints[j].StrainMax {
+					sc.joints[j].StrainMax = r
+				}
+				if r > 0 && 1/r > sc.joints[j].StrainMax {
+					sc.joints[j].StrainMax = 1 / r
+				}
+			}
 			if r < 0.25 || r > 3 {
 				torn++
+				if j >= 0 {
+					jtorn[j]++
+				}
 			}
 			if r < 1/1.5 || r > 1.5 {
 				strained++
+				if j >= 0 {
+					jstrained[j]++
+				}
 			}
+		}
+		for j := range jn {
+			if jn[j] == 0 {
+				continue
+			}
+			sc.joints[j].Edges = jn[j]
+			sc.joints[j].Torn = math.Max(sc.joints[j].Torn, float64(jtorn[j])/float64(jn[j]))
+			sc.joints[j].Strained = math.Max(sc.joints[j].Strained, float64(jstrained[j])/float64(jn[j]))
 		}
 		if n > 0 {
 			if s := float64(torn) / float64(n); s > sc.torn {

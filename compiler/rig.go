@@ -398,7 +398,7 @@ func (e *elab) buildRigLevel(root *snode) (*rigLevel, bool) {
 	if rg.Skin != nil {
 		maxInfl = rg.Skin.MaxInfluences
 		for _, st := range rg.Skin.Steps {
-			if !e.runStep(st, sk, b, pieces) {
+			if !e.runStep(st, sk, b, pieces, first) {
 				return nil, false
 			}
 		}
@@ -487,7 +487,10 @@ func firstName(p piece) string {
 }
 
 // runStep runs one skin step.
-func (e *elab) runStep(st resolve.RigStep, sk *rig.Skeleton, b *rig.Bound, pieces []piece) bool {
+func (e *elab) runStep(st resolve.RigStep, sk *rig.Skeleton, b *rig.Bound, pieces []piece, first []int) bool {
+	if sv := st.Solve; sv != nil {
+		return e.runSolve(sv, sk, b, pieces, first)
+	}
 	if l := st.Lengthen; l != nil {
 		ji := sk.Index(l.Joint)
 		if ji < 0 {
@@ -582,4 +585,30 @@ func (e *elab) followOffsets(m *resolve.RigMorph, mi int, rl *rigLevel) []rig.Of
 		return p
 	}
 	return rig.Follow(rl.sk, move, mi)
+}
+
+// runSolve runs the weight solver on the bound positions. The geometric edges
+// are the triangle edges of each piece, offset to the piece's first position;
+// the centre-line positions that ride the steps have none.
+func (e *elab) runSolve(sv *resolve.RigSolve, sk *rig.Skeleton, b *rig.Bound, pieces []piece, first []int) bool {
+	var edges [][2]int32
+	for i, p := range pieces {
+		off := int32(first[i])
+		for _, tr := range p.m.Tris {
+			for k := 0; k < 3; k++ {
+				u, v := p.m.Corners[tr[k]].Pos+off, p.m.Corners[tr[(k+1)%3]].Pos+off
+				edges = append(edges, [2]int32{u, v})
+			}
+		}
+	}
+	prm := rig.Solve{
+		MaxInfluences: sv.MaxInfluences, Reach: sv.Reach, Power: sv.Power, Own: sv.Own, Cutoff: sv.Cutoff, Soft: sv.Soft,
+		Refine: sv.Refine == "smooth", Smooth: sv.Smooth, Iterations: sv.Iterations, Tolerance: sv.Tolerance,
+		Rigid: selectIDs(pieces, sv.Rigid),
+	}
+	if _, err := b.Solve(sk, prm, edges); err != nil {
+		e.report(diag.CodeSolve, sv.Span, "%v", err)
+		return false
+	}
+	return true
 }

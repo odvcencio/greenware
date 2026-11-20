@@ -54,9 +54,9 @@ The worker always imposes `runtime_safe required` (compiler.md 9.4). Admission r
 | Case | Code |
 |---|---|
 | `max_work` above the edition default, which is the worker's ceiling. A request may lower the ceiling, not raise it. | `GW-LIMIT` |
-| A `check rig` audit, a `check runtime` audit, or a mount with a fit check. They are the full athlete audit, which goes to the native build or the service, and they have no certified worker charge. | `GW-RUNTIME-UNSAFE` |
+| A `check rig` audit, a `check runtime` audit, a mount with a fit check, or a `solve` step in a skin. The audits are the full athlete audit and the solve is the experimental weight solver (not runtime safe, language reference 7.8). They go to the native build or the service, and they have no certified worker charge. | `GW-RUNTIME-UNSAFE` |
 
-Everything else the compiler builds today has a bounded ticket in the cost schedule, so admission passes it on to `BuildWith`, which reserves the tickets and refuses with `GW-LIMIT` before it builds. The compiler has no boolean, subdivision, remeshing, mesh import, weight solving, sculpt or unwrap; a source that asks for one gets `GW-UNSUPPORTED` from the front end, as it does natively.
+Everything else the compiler builds today has a bounded ticket in the cost schedule, so admission passes it on to `BuildWith`, which reserves the tickets and refuses with `GW-LIMIT` before it builds. The compiler has no boolean, subdivision, remeshing, mesh import, sculpt or unwrap; a source that asks for one gets `GW-UNSUPPORTED` from the front end, as it does natively.
 
 Not provided: a wall-clock budget (one thread cannot watch itself), acceptance and outline checks (a request has no acceptance file, and the worker has no renderer), and a `geometry_only` option.
 

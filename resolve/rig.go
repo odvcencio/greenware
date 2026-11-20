@@ -102,10 +102,32 @@ type RigBlend struct {
 	Span          diag.Span `json:"-"`
 }
 
+// RigSolve is a solve step: the weight solver of milestone M5. MaxInfluences
+// is the effective limit (the step's own, else the skin's).
+type RigSolve struct {
+	Method        string
+	MaxInfluences int
+	Refine        string // "smooth" or "none"
+	Iterations    int
+	Tolerance     float64
+	Smooth        float64
+	Power         int
+	Own           float64
+	Cutoff        float64
+	Soft          float64
+	Reach         int
+	Rigid         []string
+	Span          diag.Span `json:"-"`
+}
+
 // RigStep is one skin step: exactly one of its fields is set.
 type RigStep struct {
 	Lengthen *RigLengthen
 	Blend    *RigBlend
+	// Solve is omitted from the encoding when nil, so that the encoding of a
+	// skin with no solve (and the digest of the file built from it) is what it
+	// was before the solver.
+	Solve *RigSolve `json:",omitempty"`
 }
 
 // RigSkin is the ordered skin steps.

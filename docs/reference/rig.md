@@ -39,9 +39,61 @@ skin {
 }
 ```
 
-- Steps run in written order. `lengthen` needs a joint with one child; `blend` needs a parent and its immediate child and a nonzero axis.
+- Steps run in written order. `solve` (below) is a step too. `lengthen` needs a joint with one child; `blend` needs a parent and its immediate child and a nonzero axis.
 - `joint(name)` in `centre` or `about` reads the bind the earlier steps left. Only `joint(name)` and `joint(name) + point` (or `-`) are read.
 - Weights are sorted by weight, then joint index; zero weights are dropped and duplicates are combined. More than `max_influences` fails with `GW-RIG-STRUCTURE`; nothing is dropped silently.
+
+## Solved skin
+
+`solve` is the weight solver of milestone M5. It chooses influences for joints you supplied. It never places, moves or adds a joint, and it is experimental: it is not runtime safe and the browser worker refuses it (`GW-RUNTIME-UNSAFE`). The language reference (7.8) proposes `solve { method = ... max_influences = ... refine = ... }` and names three methods (geodesic voxel binding, heat diffusion, bounded biharmonic weights). This compiler reads one method of its own, `falloff`, which is none of the three, and does not yet require `experimental organic` in a manifest or policy (the compiler has no manifest gate for it).
+
+```
+skin {
+  max_influences = 2
+  lengthen { joint = shoulder to = 0.32 anchor = 0.5 }
+  solve { method = falloff refine = smooth iterations = 64 tolerance = 0.0001 reach = 1 }
+}
+```
+
+`examples/arm-solved/arm-solved.gw` is the arm with two `blend` steps replaced by one `solve`.
+
+One `solve` per skin, outside any `mirror`. It replaces the weights of every position that is not in a `rigid` shape, so write the steps that move joints (`lengthen`) before it. A `blend` after it works on the solved weights.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `method` | `falloff` | The only method. |
+| `max_influences` | the skin's | Weights kept on a vertex, 1 to 4, not above the skin's. |
+| `refine` | `smooth` | `smooth` runs the bounded smoothing; `none` keeps the falloff weights; `audit` is `GW-UNSUPPORTED`. |
+| `iterations` | 64 | Cap on smoothing sweeps, 1 to 256. |
+| `tolerance` | 0.0001 | The solve has converged when a sweep changes no weight by more than this. |
+| `smooth` | 0.5 | Strength of the smoothing against the falloff weights, above 0 and up to 4. |
+| `power` | 2 | Falloff exponent, 1 to 4. |
+| `own` | 16 | Factor on the weight of a joint the vertex is already bound to, at least 1. |
+| `cutoff` | 0.02 | Taken off the share of each weight; a share that reaches 0 is dropped, so a vertex far from every blend ends rigid on one joint. |
+| `soft` | 5 mm | Softening distance of the falloff. |
+| `reach` | 1 | Joint-tree steps from a vertex's own joint that may take weight. |
+| `rigid` | none | Shapes that keep the weights they have. |
+
+### Algorithm
+
+Distances are in metres. A vertex's own joints are the joints that carry weight on it before the solve (the shape's `joint`, after earlier steps). Its candidates are its own joints and every joint within `reach` steps of one of them in the joint tree. A weight on any other joint is never given.
+
+1. Bones. The bone of joint c is the set of segments from c to each of its children. A leaf has one segment from c along its parent's bone direction for the length of that bone. A lone joint is a point. The joint positions are the binds the earlier steps left.
+2. Falloff. For a candidate c, d2 is the squared distance from the vertex to the nearest segment of c, and w = g / (d2 + soft^2)^power, where g is `own` for an own joint and 1 for another. The candidate weights are divided by their sum.
+3. Smoothing (`refine = smooth`). Jacobi sweeps over the mesh edges of each shape, for each candidate c of a vertex p: `w[p][c] <- (w0[p][c] + smooth * sum of w[n][c] over the neighbours n of p) / (1 + smooth * deg(p))`, where w0 is the falloff weight. A neighbour's weight on a joint that is not a candidate of p counts as 0. The sweep is a contraction (it solves `(I + smooth L) w = w0`), so it converges. The residual of a sweep is the largest change of any weight in it. The sweeps stop at the first residual not above `tolerance`.
+4. Finish. `cutoff` comes off every share, the `max_influences` largest weights stay (ties go to the lower joint index), and the weights are written on the grid of multiples of 2^-24: all but the largest are rounded half to even and the largest takes the rest. The weights are exact `float32` values, none is negative, and they sum to exactly 1.
+
+If the residual is still above `tolerance` after `iterations` sweeps, the build is refused with `GW-SOLVE`, naming the iteration count and the residual. Nothing is written: no partly solved weights reach a file. A vertex with no usable candidate is `GW-SOLVE` too.
+
+Vertices, joints, edges and segments are visited in index order and there are no maps in the numeric path, so the bytes do not depend on the architecture (`kernel/rig/lint_test.go` checks it, and `TestSolvedArmDigestMatchesCandidate` pins the arm's digest on amd64 and arm64).
+
+### What the audit says
+
+`go test ./compiler -run TestSolvedAthleteAuditAgainstHand -v` builds the athlete with its hand skin and with the blends replaced by `solve { }`, runs the audit of `check rig` over the default runtime points, and prints the measures per joint. The audit measures the geometry bound to a joint before the skin steps: the largest edge strain (r or 1/r, r the posed edge length over its bind length), the worst share of edges outside 1/1.5..1.5 and outside 1/4..3, and the lowest posed vertex. On the athlete's two skeletal clips (`ready`, `run`) the solved skin is better than the hand skin at 11 joints and worse at both ankles (worst edge 3.38 against 2.90; lowest vertex 1.1 mm and 0.6 mm lower, still inside the -5 mm..20 mm band). The solver does not qualify for M5: that needs no regression on any measure, over all 19 body clips, and the 19-clip library is not shipped here.
+
+## Cost ticket for the solver
+
+A level whose skin has a `solve` reserves one more ticket after `weights`: `solve`, 1,000,000 units per level, class one solve step, at most 256 sweeps, 64 joints and 8,192 bound positions. The price is this compiler's assumption. An asset with no `solve` reserves none, so the other receipts do not change.
 
 ## Morphs
 
@@ -79,7 +131,7 @@ clip field_x { name = "field-x"  node = "field lateral"  key (0s, (-64, 0, 0))  
 
 ## Not supported (all `GW-UNSUPPORTED`)
 
-`mount` and `fit` (they need a project import), `check rig` and `check runtime` (the posed audit and runtime points), clip `ground`, `interpolation = cubicspline`, `when` and `waive` inside a rig body, a second skeleton, a mirror inside a mirror, `joints = follow` with an operation other than `stretch`, an exported part with shapes inside a skinned asset, `lod keep`, and sparse morph targets. `side` is not yet refused in a point slot.
+`mount` and `fit` (they need a project import), `check rig` and `check runtime` (the posed audit and runtime points), clip `ground`, `interpolation = cubicspline`, `when` and `waive` inside a rig body, `solve` inside a mirror or a second `solve`, `refine = audit`, the geodesic, heat and biharmonic methods, a second skeleton, a mirror inside a mirror, `joints = follow` with an operation other than `stretch`, an exported part with shapes inside a skinned asset, `lod keep`, and sparse morph targets. `side` is not yet refused in a point slot.
 
 ## Cost tickets
 

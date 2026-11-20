@@ -195,6 +195,32 @@ func TestRuntimeUnsafeFixture(t *testing.T) {
 	}
 }
 
+// A `solve` step in a skin is not runtime safe: the worker refuses it at the
+// word `solve`, and the same source builds under an unrestricted host.
+func TestSolveStepIsRuntimeUnsafe(t *testing.T) {
+	src := string(read(t, "examples/arm-solved/arm-solved.gw"))
+	resp := Handle(single(src))
+	codes := diagCodes(t, resp)
+	if resp.OK || len(codes) != 1 || codes[0] != diag.CodeRuntimeUnsafe {
+		t.Fatalf("worker: ok=%v %v %s", resp.OK, codes, resp.Diagnostics)
+	}
+	var doc struct {
+		Diagnostics []struct {
+			Span struct{ Start, End struct{ Byte int } }
+		}
+	}
+	json.Unmarshal(resp.Diagnostics, &doc)
+	sp := doc.Diagnostics[0].Span
+	if got := string(src[sp.Start.Byte:sp.End.Byte]); got != "solve" {
+		t.Errorf("span covers %q, want the word solve", got)
+	}
+	req := single(src)
+	req.Options.RuntimeSafe = SafeOff
+	if r := (Host{AllowUnrestricted: true}).Handle(req); !r.OK {
+		t.Errorf("unrestricted: ok=%v err=%v diag=%s", r.OK, r.Error, r.Diagnostics)
+	}
+}
+
 func TestWorkCeiling(t *testing.T) {
 	post := goalpost(t, "stadium")
 	post.Options.MaxWork = compiler.DefaultMaxTotalWork + 1

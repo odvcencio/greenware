@@ -28,6 +28,7 @@ func TestAuditFixtures(t *testing.T) {
 	}{
 		{diag.CodeRigGround, diag.Error, Policy{}},
 		{diag.CodeRigTorn, diag.Error, Policy{}},
+		{diag.CodeSolve, diag.Error, Policy{}},
 		{diag.CodeRuntimePart, diag.Warning, Policy{RuntimePoints: 3}},
 	}
 	for _, c := range cases {
