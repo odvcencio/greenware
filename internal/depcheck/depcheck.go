@@ -1,4 +1,4 @@
-// Package depcheck checks the module boundary: the Facet core must not
+// Package depcheck checks the module boundary: the Greenware core must not
 // import GoSX, Kiln or cgo, directly or through any dependency.
 package depcheck
 
@@ -9,7 +9,7 @@ var ForbiddenPrefixes = []string{
 	"github.com/odvcencio/gosx",
 	"github.com/odvcencio/kiln",
 	"m31labs.dev/kiln",
-	"m31labs.dev/facet/gosx",
+	"m31labs.dev/greenware/gosx",
 	// The all-language grammar registry is generator-only.
 	"github.com/odvcencio/gotreesitter/grammars",
 }

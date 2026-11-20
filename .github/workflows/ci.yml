@@ -26,8 +26,8 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Build
-        run: go build ./... && (cd det && go build ./...) && (cd gltf && go build ./...)
+        run: go build ./... && (cd det && go build ./...) && (cd gltf && go build ./...) && (cd conformance && go build ./...)
       - name: Vet
-        run: go vet ./... && (cd det && go vet ./...) && (cd gltf && go vet ./...)
+        run: go vet ./... && (cd det && go vet ./...) && (cd gltf && go vet ./...) && (cd conformance && go vet ./...)
       - name: Test
-        run: go test ./... && (cd det && go test ./...) && (cd gltf && go test ./...)
+        run: go test ./... && (cd det && go test ./...) && (cd gltf && go test ./...) && (cd conformance && go test ./...)
