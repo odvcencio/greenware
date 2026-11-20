@@ -84,6 +84,12 @@ func renderSummary(w io.Writer, file string, s *Summary) {
 			fmt.Fprintf(w, "  %q as %s\n", im.Path, im.Qualifier)
 		}
 	}
+	for _, d := range s.Data {
+		fmt.Fprintf(w, "data %s as %s: profile %s, sha256 %s\n", d.Contract, d.Qualifier, d.Profile, d.SHA256)
+		for _, fd := range d.Fields {
+			fmt.Fprintf(w, "  %s : %s = %s  %s\n", fd.Ref, fd.Dimension, fd.Value, fd.Meaning)
+		}
+	}
 	fmt.Fprintf(w, "parameters (%d):\n", len(s.Params))
 	for _, p := range s.Params {
 		rng := ""

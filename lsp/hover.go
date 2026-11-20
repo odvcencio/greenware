@@ -92,7 +92,10 @@ func (d *document) hoverAt(off int) (string, diag.Span) {
 	sp := diag.Span{Start: off, End: off}
 	ix := d.index()
 	if ix != nil {
-		if i := ix.refAt(off); i >= 0 {
+		if t, tsp := d.dataFieldHover(ix, off); t != "" {
+			sp = tsp
+			parts = append(parts, t)
+		} else if i := ix.refAt(off); i >= 0 {
 			r := ix.refs[i]
 			sp = r.Span
 			if r.Target >= 0 {
@@ -445,4 +448,30 @@ func describeField(kind string, f *registry.Field) string {
 		fmt.Fprintf(&b, "\n- Not supported by this compiler: %s", f.Unsupported)
 	}
 	return b.String()
+}
+
+// dataFieldHover describes a field of a data package that the offset names:
+// its dimension and value as written, the meaning the schema gives it, and the
+// package, profile and pin.
+func (d *document) dataFieldHover(ix *index, off int) (string, diag.Span) {
+	q, ok := ix.qualifiedAt(off)
+	if !ok || d.resolved == nil {
+		return "", diag.Span{}
+	}
+	for _, di := range d.resolved.Data {
+		if di.Qualifier != q.Parts[0] || di.Pkg == nil {
+			continue
+		}
+		v, ok := di.Pkg.Value(q.Parts[1:]...)
+		if !ok {
+			return "", diag.Span{}
+		}
+		written := v.Text
+		if v.Unit != "" {
+			written += " " + v.Unit
+		}
+		text := fmt.Sprintf("**%s** : %s = %s\n\n%s\n\ndata package `%s`, profile `%s`, sha256 `%s`", strings.Join(q.Parts, "."), v.Dimension, written, v.Meaning, di.Contract, di.Profile, di.SHA256)
+		return text, q.Span
+	}
+	return "", diag.Span{}
 }

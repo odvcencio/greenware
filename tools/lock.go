@@ -15,11 +15,12 @@ import (
 
 	"m31labs.dev/greenware/ast"
 	"m31labs.dev/greenware/compiler"
+	"m31labs.dev/greenware/datapkg"
 	"m31labs.dev/greenware/lang"
 	"m31labs.dev/greenware/std"
 )
 
-const lockUsage = "greenware lock [<dir>] [--check] [--dry-run] [--json]"
+const lockUsage = "greenware lock [<dir>] [--check] [--dry-run] [--json]\n       greenware lock --data <name@N> [<dir>] [--schema-file <path> --data-file <path>] [--check] [--dry-run] [--json]"
 
 // SumFile is the name of the lock file, beside greenware.mod.
 const SumFile = "greenware.sum"
@@ -30,8 +31,12 @@ type pin struct {
 }
 
 func (p pin) line() string {
-	if p.Kind == "compiler" {
+	switch p.Kind {
+	case "compiler":
 		return "compiler " + p.Name
+	case "data":
+		// data <logical> contract <id> sha256:<digest>
+		return strings.Join([]string{"data", quoteField(p.Name), "contract", quoteField(p.Origin), p.Digest}, " ")
 	}
 	return strings.Join([]string{p.Kind, quoteField(p.Name), p.Origin, p.Digest, quoteField(p.License)}, " ")
 }
@@ -104,6 +109,21 @@ func computePins(root string) ([]pin, error) {
 		f, _ := ast.LowerWith(lang.Parse(b), ast.Options{Project: proj})
 		add(pin{"source", rel, "project", sha(b), metaLicense(f)})
 		for _, im := range f.Imports {
+			if datapkg.IsImport(im.Path) {
+				// A data package is pinned by the digest of its canonical files.
+				// A package that does not load, or whose lock is stale, stops the
+				// lock: `greenware lock --data` repins it first.
+				pkg, err := datapkg.LoadUnpinnedFS(os.DirFS(root), im.Path)
+				if err == nil {
+					err = pkg.Verify()
+				}
+				if err != nil {
+					problems = append(problems, fmt.Sprintf("%s imports %q: %v", rel, im.Path, err))
+					continue
+				}
+				add(pin{Kind: "data", Name: im.Path, Origin: pkg.Contract, Digest: "sha256:" + pkg.Digest})
+				continue
+			}
 			if !strings.HasPrefix(im.Path, std.Prefix) {
 				continue
 			}
@@ -269,7 +289,13 @@ func pinChanges(pins []pin, current []byte) []LockChange {
 // line `kind name origin sha256:digest license`, sorted. With --check the
 // command writes nothing and exits 1 when the file is missing or differs.
 func Lock(args []string, stdout, stderr io.Writer) int {
-	p, err := parseArgs(args, flagSet{"check": false, "dry-run": false, "json": false})
+	p, err := parseArgs(args, flagSet{"check": false, "dry-run": false, "json": false, "data": true, "schema-file": true, "data-file": true})
+	if err == nil && !p.has("data") && (p.has("schema-file") || p.has("data-file")) {
+		err = fmt.Errorf("--schema-file and --data-file go with --data")
+	}
+	if err == nil && p.has("data") && len(p.pos) <= 1 {
+		return lockData(p, stdout, stderr)
+	}
 	if err != nil || len(p.pos) > 1 {
 		if err == nil {
 			err = fmt.Errorf("at most one directory is needed")
@@ -361,4 +387,110 @@ func writeAtomic(name string, data []byte) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), name)
+}
+
+// lockData is `greenware lock --data name@N`: it checks the schema and data
+// file of one data package and rewrites its lock file, `<root>/<name>.lock`.
+// The files come from the existing lock unless --schema-file and --data-file
+// name them; the first lock of a package needs both. Nothing is written when
+// the files do not parse and agree. --check writes nothing and exits 1 when
+// the lock file is missing or its pin is out of date.
+func lockData(p *parsed, stdout, stderr io.Writer) int {
+	logical := p.get("data")
+	dir := "."
+	if len(p.pos) == 1 {
+		dir = p.pos[0]
+	}
+	if _, err := os.Stat(filepath.Join(dir, "greenware.mod")); err != nil {
+		fmt.Fprintf(stderr, "greenware lock: %s has no greenware.mod\n", dir)
+		return ExitUsage
+	}
+	rel, err := datapkg.LockPath(logical)
+	if err != nil {
+		return usageError(stderr, "lock", lockUsage, err)
+	}
+	lockPath := filepath.Join(dir, filepath.FromSlash(rel))
+	cur, readErr := os.ReadFile(lockPath)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		fmt.Fprintf(stderr, "greenware lock: %v\n", readErr)
+		return ExitUsage
+	}
+	schemaFile, dataFile := p.get("schema-file"), p.get("data-file")
+	var old datapkg.Lock
+	haveOld := false
+	if readErr == nil {
+		if l, err := datapkg.ParseLock(rel, cur); err == nil {
+			old, haveOld = l, true
+		} else if schemaFile == "" || dataFile == "" {
+			fmt.Fprintf(stderr, "greenware lock: %v\n(name the files again with --schema-file and --data-file)\n", err)
+			return ExitFindings
+		}
+	}
+	if haveOld {
+		if schemaFile == "" {
+			schemaFile = old.SchemaFile
+		}
+		if dataFile == "" {
+			dataFile = old.DataFile
+		}
+	}
+	if schemaFile == "" || dataFile == "" {
+		fmt.Fprintf(stderr, "greenware lock: %s has no lock file to take the file names from; give --schema-file and --data-file\n", rel)
+		return ExitUsage
+	}
+	next, _, err := datapkg.NewLock(os.DirFS(dir), logical, schemaFile, dataFile)
+	if err != nil {
+		fmt.Fprintf(stderr, "greenware lock: %v\n", err)
+		return ExitFindings
+	}
+	nextBytes := next.Bytes()
+	oldPin := ""
+	if haveOld {
+		oldPin = "sha256:" + old.SHA256
+	}
+	rep := lockReport{Schema: "greenware.lock/1", Dir: dir, Mode: "write", BeforeSHA256: sha(cur), AfterSHA256: sha(nextBytes), Changes: []LockChange{}}
+	rep.Drift = !bytes.Equal(cur, nextBytes)
+	if rep.Drift {
+		rep.Changes = append(rep.Changes, LockChange{Kind: "data", Name: logical, Old: oldPin, New: "sha256:" + next.SHA256})
+	}
+	switch {
+	case p.has("check"):
+		rep.Mode = "check"
+	case p.has("dry-run"):
+		rep.Mode = "dry-run"
+	}
+	code := ExitOK
+	if rep.Mode == "check" && rep.Drift {
+		code = ExitFindings
+	}
+	if rep.Mode == "write" && rep.Drift {
+		if err := datapkg.WriteLock(dir, next); err != nil {
+			fmt.Fprintf(stderr, "greenware lock: %v\n", err)
+			return ExitUsage
+		}
+		rep.Written = true
+	}
+	rep.OK = code == ExitOK
+	if p.has("json") {
+		writeJSON(stdout, rep)
+		return code
+	}
+	for _, c := range rep.Changes {
+		mark := "~"
+		if c.Old == "" {
+			mark = "+"
+		}
+		fmt.Fprintf(stdout, "%s data %s %s\n", mark, c.Name, c.New)
+	}
+	switch {
+	case rep.Mode == "check" && rep.Drift:
+		fmt.Fprintf(stderr, "%s: out of date; run greenware lock --data %s\n", lockPath, logical)
+	case !rep.Drift:
+		fmt.Fprintf(stdout, "%s: up to date\n", lockPath)
+	case rep.Mode == "dry-run":
+		fmt.Fprintf(stdout, "%s: would be written\n", lockPath)
+	case rep.Written:
+		fmt.Fprintf(stdout, "%s: written\n", lockPath)
+	}
+	return code
 }

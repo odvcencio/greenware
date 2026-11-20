@@ -126,11 +126,39 @@ type ImportInfo struct {
 	Line      int    `json:"line"`
 }
 
+// DataInfo is a data package the source imports (decision 0020): the
+// contract, the profile and pin, and the fields the source reads, each with
+// the meaning the schema gives it and its value as written.
+type DataInfo struct {
+	Path      string      `json:"path"`
+	Qualifier string      `json:"qualifier"`
+	Contract  string      `json:"contract"`
+	Profile   string      `json:"profile"`
+	SHA256    string      `json:"sha256"`
+	Line      int         `json:"line"`
+	Fields    []DataField `json:"fields"`
+}
+
+// DataField is one field of a data package that the source reads.
+type DataField struct {
+	// Name is the field's path in the package, "crate.width"; Ref is how the
+	// source writes it, "world.crate.width".
+	Name      string `json:"name"`
+	Ref       string `json:"ref"`
+	Dimension string `json:"dimension"`
+	Meaning   string `json:"meaning"`
+	// Value is the data file's value as written, "24 in".
+	Value string `json:"value"`
+	// Line is the first line that reads the field.
+	Line int `json:"line"`
+}
+
 // Summary is what describe reports and diff compares.
 type Summary struct {
 	Asset      []Setting      `json:"asset"`
 	Meta       []Setting      `json:"meta"`
 	Imports    []ImportInfo   `json:"imports"`
+	Data       []DataInfo     `json:"data,omitempty"`
 	Params     []ParamInfo    `json:"params"`
 	Outputs    []OutputInfo   `json:"outputs"`
 	Levels     []NamedInfo    `json:"levels"`
@@ -229,6 +257,9 @@ func Summarize(u *Unit) *Summary {
 			r = res
 			sum.Evaluated = true
 		}
+	}
+	if r != nil {
+		sum.Data = s.dataInfo(r, f)
 	}
 	for _, p := range f.Params {
 		pi := ParamInfo{Name: p.Name.Name, Line: s.line(p.Span), Type: paramType(p.Type), Default: s.text(p.Default), Binding: "bake"}
@@ -427,4 +458,39 @@ func excise(src []byte, sp diag.Span, cut []diag.Span) string {
 	}
 	b.WriteString(srcText(src, diag.Span{Start: pos, End: sp.End}))
 	return b.String()
+}
+
+// dataInfo lists the data packages of the file with the fields it reads. A
+// field is read when a qualified name `qualifier.path` names it.
+func (s *summarizer) dataInfo(r *resolve.Resolved, f *ast.File) []DataInfo {
+	var out []DataInfo
+	ix := buildIndex(f)
+	for _, d := range r.Data {
+		di := DataInfo{Path: d.Path, Qualifier: d.Qualifier, Contract: d.Contract, Profile: d.Profile, SHA256: d.SHA256, Fields: []DataField{}}
+		for _, im := range f.Imports {
+			if im.Path == d.Path && im.Qualifier == d.Qualifier {
+				di.Line = s.line(im.Span)
+			}
+		}
+		seen := map[string]bool{}
+		for _, ref := range ix.refs {
+			if ref.Name != d.Qualifier || ref.Full == "" || seen[ref.Full] {
+				continue
+			}
+			name := strings.TrimPrefix(ref.Full, d.Qualifier+".")
+			v, ok := d.Pkg.Value(name)
+			if !ok {
+				continue
+			}
+			seen[ref.Full] = true
+			text := v.Text
+			if v.Unit != "" {
+				text += " " + v.Unit
+			}
+			di.Fields = append(di.Fields, DataField{Name: name, Ref: ref.Full, Dimension: string(v.Dimension), Meaning: v.Meaning, Value: text, Line: s.line(ref.FullSpan)})
+		}
+		sort.Slice(di.Fields, func(i, j int) bool { return di.Fields[i].Name < di.Fields[j].Name })
+		out = append(out, di)
+	}
+	return out
 }

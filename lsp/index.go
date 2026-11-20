@@ -43,11 +43,20 @@ type fieldUse struct {
 // of declaration the slot asks for (`material = x` wants a material). It does
 // not read library files: a name from an import stays unresolved here.
 type index struct {
-	decls  []decl
-	refs   []ref
-	fields []fieldUse
-	size   int
-	byPos  []int // indices of decls, by identifier position
+	decls []decl
+	refs  []ref
+	// qualified lists every qualified name (`world.crate.width`), the whole
+	// token, for the hover of a data package field.
+	qualified []qualifiedUse
+	fields    []fieldUse
+	size      int
+	byPos     []int // indices of decls, by identifier position
+}
+
+// qualifiedUse is one qualified name and its span.
+type qualifiedUse struct {
+	Span  diag.Span
+	Parts []string
 }
 
 type indexer struct {
@@ -371,6 +380,7 @@ func (b *indexer) expr(e ast.Expr, field string) {
 		if len(n.Parts) > 0 {
 			sp := n.Span()
 			b.ref(n.Parts[0], diag.Span{Start: sp.Start, End: sp.Start + len(n.Parts[0])}, field)
+			b.ix.qualified = append(b.ix.qualified, qualifiedUse{Span: sp, Parts: n.Parts})
 		}
 	case *ast.Tuple:
 		for _, x := range n.Elems {
@@ -513,4 +523,14 @@ func (ix *index) fieldAt(off int) (fieldUse, bool) {
 		return ix.fields[i], true
 	}
 	return fieldUse{}, false
+}
+
+// qualifiedAt returns the qualified name that holds the offset.
+func (ix *index) qualifiedAt(off int) (qualifiedUse, bool) {
+	for _, q := range ix.qualified {
+		if off >= q.Span.Start && off <= q.Span.End {
+			return q, true
+		}
+	}
+	return qualifiedUse{}, false
 }

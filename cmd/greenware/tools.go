@@ -26,6 +26,7 @@ const toolsUsage = `  greenware fix <file> [--write] [--code GW-...] [--choose N
   greenware ir <file> [--output NAME] [--project DIR] [--json]
   greenware init <dir> [--name NAME] [--author TEXT] [--license SPDX] [--dry-run] [--json]
   greenware lock [<dir>] [--check] [--dry-run] [--json]
+  greenware lock --data <name@N> [<dir>] [--schema-file F --data-file F] [--check] [--dry-run] [--json]
   greenware explain <GW-CODE> [--json]
   greenware search <query> [dir] [--kind KIND] [--json]
   greenware trace <file> <name> [--project DIR] [--json]
