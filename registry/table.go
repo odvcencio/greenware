@@ -544,12 +544,68 @@ var kinds = []*Kind{
 			{Name: "manifest", Type: tSwitch, Default: dv(units.Switch(false)), Doc: "Write the asset manifest entry."},
 			{Name: "profile", Type: enum("source", "delivery"), Default: dv(units.Label("source")), Doc: "Encoding profile."},
 			unsupported("variant", tLabel, "variants"),
-			unsupported("for_each", tLabel, "tables"),
-			unsupported("mounts", tLabel, "mounts"),
-			unsupported("buffer", tString, "split glTF"),
-			unsupported("image", tLabel, "image encodings"),
+			{Name: "for_each", Type: tLabel, Doc: "A table: one output per row. `{row.column}` in `file` and `row.column` in `set` read the row."},
+			{Name: "mounts", Type: enum("runtime", "bake"), Doc: "Overrides the mode of every mount of the asset for this output; absent uses each mount's own mode."},
+			unsupported("buffer", tString, "split glTF: package gltf writes GLB only, and the split kit files are codec fixtures, not game outputs"),
+			unsupported("image", tLabel, "image encodings: jpeg(q) needs a deterministic baseline JPEG encoder, which only the split kit files would use"),
 		},
 		Blocks: []string{"set", "budget"}, Names: NameRequired, Ns: NsOutput,
+	},
+	{
+		Name: "mount", Context: CtxDocument, Doc: "Host-side attachment of an imported asset to a host socket.",
+		Fields: []Field{
+			{Name: "asset", Type: tLabel, Required: true, Doc: "The qualifier of an imported project asset."},
+			{Name: "socket", Type: tLabel, Required: true, Doc: "A socket of this asset."},
+			{Name: "mode", Type: enum("runtime", "bake"), Default: dv(units.Label("runtime")), Doc: "runtime attaches the gear's own file at the posed socket; bake merges the gear into this asset's mesh, rigid on the socket's joint."},
+		},
+		Blocks: []string{"set", "fit"}, Names: NameRequired,
+	},
+	{
+		Name: "fit", Context: CtxDocument, Doc: "The clearance the mounted gear keeps from the host surface.",
+		Fields: []Field{
+			{Name: "clearance", Type: tLength, Required: true, NonNegative: true, Doc: "Least separation of the posed gear and host surfaces, in the bind pose and at every key of every clip."},
+		},
+	},
+	{
+		Name: "table", Context: CtxDocument, Doc: "Rows of data for table-driven outputs, read from a JSON file of the project.",
+		Fields: []Field{
+			{Name: "path", Type: tString, Required: true, Doc: "A relative path inside the project; the file's bytes are pinned in the build's input record."},
+			{Name: "columns", Type: Type{Kind: TNames}, Required: true, Doc: "The distinct column names; every row has each exactly once."},
+		},
+		Blocks: []string{"types"}, Names: NameRequired,
+	},
+	{
+		Name: "types", Context: CtxDocument, Doc: "Column types of a table: `name = type`, with `string` or a parameter type.",
+		Open: true,
+	},
+	{
+		Name: "check rig", Context: CtxDocument, Doc: "The deformation audit of the posed skin at every clip key and runtime point.",
+		Fields: []Field{
+			{Name: "ground", Type: Type{Kind: TLengthRange}, Doc: "The band for the lowest skinned vertex of every non-airborne key. Default -5mm..20mm."},
+			{Name: "waist", Type: Type{Kind: TNames}, Doc: "The lower and upper waist joints."},
+			{Name: "legs", Type: Type{Kind: TNames}, Doc: "The two leg root joints."},
+			{Name: "waist_ratio", Type: tNumber, Default: dv(units.Num(0.95)), Doc: "Least waist section ratio."},
+			{Name: "torn", Type: tNumber, Default: dv(units.Num(0.01)), Doc: "Greatest share of torn edges."},
+			{Name: "open", Type: tNumber, Default: dv(units.Num(0.02)), Doc: "Greatest increase of the open seam share."},
+			{Name: "bands", Type: enum("warning", "error"), Default: dv(units.Label("warning")), Doc: "The severity of a pose outside a joint's natural band."},
+		},
+	},
+	{
+		Name: "check runtime", Context: CtxDocument, Doc: "The runtime points every check runs at.",
+		Fields: []Field{
+			{Name: "corners", Type: Type{Kind: TExpr}, Doc: "Numeric runtime parameters tested at their extremes."},
+			{Name: "each", Type: Type{Kind: TExpr}, Doc: "Discrete runtime parameters tested at every member."},
+			{Name: "gear", Type: Type{Kind: TExpr}, Doc: "Gear outputs tested on the mount, one at a time."},
+			{Name: "pairs", Type: Type{Kind: TExpr}, Doc: "Pairs of parameters tested together."},
+		},
+		Blocks: []string{"case"},
+	},
+	{
+		Name: "case", Context: CtxDocument, Doc: "A named runtime point of `check runtime`.",
+		Fields: []Field{
+			{Name: "gear", Type: Type{Kind: TExpr}, Doc: "The gear output selected at this point."},
+		},
+		Blocks: []string{"set"}, Names: NameRequired,
 	},
 	{
 		Name: "set", Context: CtxDocument, Doc: "Parameter values an output overrides: `name = value` for each parameter.",

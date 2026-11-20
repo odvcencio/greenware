@@ -15,21 +15,20 @@ import (
 
 const athletePath = "../examples/athlete/athlete.gw"
 
-// buildAthlete compiles the athlete's `match` output below the ledger: the
-// output's own 1 MiB file budget is lifted because its atlas alone is over it
-// (conformance 7.2), and the paint class refuses a 512 x 512 atlas. What these
-// tests measure is the rig, not the look. edit rewrites the source first.
+// buildAthlete compiles the athlete's `match` output. edit rewrites the source
+// first. The output's own budget is the one the file declares: nothing is
+// lifted.
 func buildAthlete(t testing.TB, edit func(string) string) (*OutputProduct, *gltf.Document) {
 	t.Helper()
 	b, err := os.ReadFile(athletePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	src := strings.Replace(string(b), "file_size = 1MiB", "file_size = 8MiB", 1)
+	src := string(b)
 	if edit != nil {
 		src = edit(src)
 	}
-	f := lowerSource(t, []byte(src))
+	f := lowerProjectSource(t, athletePath, []byte(src))
 	r, ds := resolve.EvaluateOutput(f, "match")
 	if r == nil {
 		t.Fatalf("resolve: %v", ds)
@@ -280,3 +279,22 @@ func TestAthleteDigestsMatchCandidate(t *testing.T) {
 }
 
 func runtimeName() string { return runtime.GOOS + "/" + runtime.GOARCH }
+
+// All six athlete files, with the helmet baked into home and away, are pinned
+// in a candidate file. The same test runs on amd64 and arm64.
+func TestAthleteAllDigestsMatchCandidate(t *testing.T) {
+	p := athleteAll(t)
+	var got []string
+	for _, o := range p.Outputs {
+		for _, f := range o.Files {
+			got = append(got, f.Name+" "+f.SHA256)
+		}
+	}
+	b, err := os.ReadFile("../testdata/compiler/athlete-all.candidate.sha256")
+	if err != nil {
+		t.Fatalf("no candidate digests: %v\n%s", err, strings.Join(got, "\n"))
+	}
+	if want := strings.TrimSpace(string(b)); strings.Join(got, "\n") != want {
+		t.Errorf("athlete digests on %s:\n%s\nthe candidate says:\n%s", runtimeName(), strings.Join(got, "\n"), want)
+	}
+}

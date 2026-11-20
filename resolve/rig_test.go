@@ -98,7 +98,7 @@ func TestRigDiagnostics(t *testing.T) {
 		{"duplicate joint", rigPrefix + strings.Replace(rigBase, "joint foot { at = (0, 0, 0.1) }", "joint foot { at = (0, 0, 0.1) }\n joint foot { at = (0, 0, 0.2) }", 1), diag.CodeDuplicate, "foot"},
 		{"explicit axis swing", rigPrefix + strings.Replace(rigBase, "joint foot {", "joint foot { twist_axis = y swing_y = -10..10", 1), diag.CodeFieldRange, "swing about the twist axis"},
 		{"empty range", rigPrefix + strings.Replace(rigBase, "joint foot {", "joint foot { twist = 40..-40", 1), diag.CodeFieldRange, "empty"},
-		{"mount", rigPrefix + rigBase + "\nmount m { asset = x socket = y }", diag.CodeUnsupported, "mount"},
+		{"mount of an unknown asset", rigPrefix + rigBase + "\nmount m { asset = x socket = y }", diag.CodeUnknownName, "not an imported project asset"},
 		{"lengthen two children", rigPrefix + strings.Replace(rigBase, "joint foot { at = (0, 0, 0.1) }", "joint foot { at = (0, 0, 0.1) }\n joint toe { at = (0, 0, 0.2) }", 1) + "\nskin { lengthen { joint = knee to = 0.6 } }", diag.CodeRigStructure, "exactly one child"},
 		{"blend not a child", rigPrefix + rigBase + "\nskin { blend { parent = hip child = foot centre = (0, 0.5, 0) axis = (0, -1, 0) width = 0.1 } }", diag.CodeRigStructure, "immediate child"},
 		{"blend zero axis", rigPrefix + rigBase + "\nskin { blend { parent = hip child = knee centre = (0, 0.5, 0) axis = (0, 0, 0) width = 0.1 } }", diag.CodeRigStructure, "nonzero"},

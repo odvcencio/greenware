@@ -52,6 +52,9 @@ type File struct {
 	// vertex, morph targets, animations and their keys, and the positions
 	// the skin binds. All zero for a file without a skeleton.
 	Joints, Influences, Morphs, Animations, AnimKeys, SkinnedVertices int
+	// Audit is the audit of the level's rig and mounts; nil when the source
+	// declares no `check rig` and no fit.
+	Audit *AuditReport
 }
 
 // OutputProduct is the files of one output, level 0 first.
@@ -102,9 +105,13 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 		return nil, nil, []diag.Diagnostic{diag.New(diag.CodeSyntax, diag.Span{}, "the file has syntax errors; nothing was built")}
 	}
 	var names []string
-	for _, o := range file.Outputs {
-		if outputName == "" || o.Name.Name == outputName {
-			names = append(names, o.Name.Name)
+	refs, tds := resolve.Outputs(file)
+	if diag.HasErrors(tds) {
+		return nil, nil, tds
+	}
+	for _, o := range refs {
+		if outputName == "" || o.Name == outputName || o.Base.Name.Name == outputName {
+			names = append(names, o.Name)
 		}
 	}
 	if len(names) == 0 {
@@ -129,7 +136,7 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 	for _, line := range imports {
 		in.Write([]byte(line))
 	}
-	p.InputSHA256 = hex.EncodeToString(in.Sum(nil))
+	inputHash := in
 	if file.Asset != nil {
 		p.Asset = file.Asset.Name.Name
 	}
@@ -158,6 +165,23 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 		byName[name] = ro
 	}
 
+	// Project files and table files are pinned by the SHA-256 of their bytes.
+	pins := map[string]string{}
+	for _, ro := range resolved {
+		for _, pin := range ro.r.Pins {
+			pins[pin.Path] = pin.SHA256
+		}
+	}
+	var pinPaths []string
+	for path := range pins {
+		pinPaths = append(pinPaths, path)
+	}
+	sort.Strings(pinPaths)
+	for _, path := range pinPaths {
+		fmt.Fprintf(inputHash, "project %s sha256 %s\n", path, pins[path])
+	}
+	p.InputSHA256 = hex.EncodeToString(inputHash.Sum(nil))
+
 	// The ledger: reserve the whole planned run before running any of it.
 	var rc *Receipt
 	if !diag.HasErrors(all) {
@@ -181,11 +205,11 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 		}
 		lg := newLedger(opts.Policy.limit())
 		rc = lg.rc
-		for _, c := range schedule(resolved, plan) {
+		for _, c := range schedule(resolved, plan, opts.Policy) {
 			// The class bound comes first: a ticket whose operand does not fit
 			// its class is never priced.
 			var ref *Refusal
-			if b := classBound(c, byName, inputs, accByKey); b != "" {
+			if b := classBound(c, byName, inputs, accByKey, opts.Policy); b != "" {
 				ref = &Refusal{Charge: c, Bound: b}
 			} else {
 				ref = lg.reserve(c)
@@ -201,12 +225,17 @@ func BuildWith(file *ast.File, outputName string, opts Options) (*Product, *Rece
 	files := map[string]string{} // output file name -> output name; lookup only
 	for _, ro := range resolved {
 		name := ro.name
-		op, ds, notes := buildOutput(file, ro.r, name)
+		op, ds, notes := buildOutputWith(file, ro.r, name, opts.Policy)
 		all = append(all, ds...)
 		if op == nil || diag.HasErrors(ds) {
 			continue
 		}
-		ref := classBoundFiles(op, usesBranchClass(ro.r), len(atlasesUsed(ro.r)) > 0)
+		var ref *Refusal
+		if isRigged(ro.r) {
+			ref = athleteClassBoundFiles(op)
+		} else {
+			ref = classBoundFiles(op, usesBranchClass(ro.r), len(atlasesUsed(ro.r)) > 0)
+		}
 		if ref == nil {
 			ref = rigClassBoundFiles(op)
 		}
@@ -277,6 +306,9 @@ func appendUnique(dst []string, add ...string) []string {
 }
 
 func outputSpan(f *ast.File, name string) diag.Span {
+	if i := strings.Index(name, "["); i > 0 {
+		name = name[:i] // a row of a table-driven output
+	}
 	for _, o := range f.Outputs {
 		if o.Name.Name == name {
 			return o.Name.Span
@@ -290,6 +322,7 @@ type levelSpec struct {
 	n      int
 	maxErr float64
 	drop   []string
+	keep   []string
 }
 
 func (e *elab) levelSpecs() []levelSpec {
@@ -306,8 +339,8 @@ func (e *elab) levelSpecs() []levelSpec {
 					spec.drop = append(spec.drop, d.Str)
 				}
 			case "keep":
-				if !f.Default && len(f.Value.Elems) > 0 {
-					e.report(diag.CodeUnsupported, lodSpan(e.file, spec.n), "`keep` on level %d is not supported yet", spec.n)
+				for _, d := range f.Value.Elems {
+					spec.keep = append(spec.keep, d.Str)
 				}
 			case "segments":
 				if !f.Default {
@@ -338,7 +371,11 @@ func splitFile(name string) (stem, ext string, ok bool) {
 }
 
 func buildOutput(file *ast.File, r *resolve.Resolved, oname string) (*OutputProduct, []diag.Diagnostic, []string) {
-	e := &elab{file: file, r: r, defs: map[string]*resolve.Node{}}
+	return buildOutputWith(file, r, oname, Policy{})
+}
+
+func buildOutputWith(file *ast.File, r *resolve.Resolved, oname string, pol Policy) (*OutputProduct, []diag.Diagnostic, []string) {
+	e := &elab{file: file, r: r, defs: map[string]*resolve.Node{}, policy: pol, oname: oname}
 	var notes []string
 	var out resolve.Output
 	for _, o := range r.Outputs {
@@ -384,7 +421,12 @@ func buildOutput(file *ast.File, r *resolve.Resolved, oname string) (*OutputProd
 	if !ok || e.failed() {
 		return nil, diag.Dedup(e.diags), nil
 	}
-	fir := firHash(r, imgKeys)
+	if len(r.Mounts) > 0 {
+		if !e.buildMounts(out) || e.failed() {
+			return nil, diag.Dedup(e.diags), nil
+		}
+	}
+	fir := firHash(r, imgKeys, e.mountIdentity())
 	cols := e.colliders()
 	op := &OutputProduct{Name: oname, FirSHA256: fir}
 
@@ -400,6 +442,12 @@ func buildOutput(file *ast.File, r *resolve.Resolved, oname string) (*OutputProd
 			}
 		}
 		e.drop = dropped
+		e.keep = map[string]bool{}
+		if lv > 0 {
+			for _, k := range specs[lv-1].keep {
+				e.keep[k] = true
+			}
+		}
 		root := &snode{name: r.Root.Name}
 		e.part(r.Root, wctx{node: root, a: mesh.IdentityAffine}, true)
 		if e.failed() {
@@ -426,6 +474,7 @@ func buildOutput(file *ast.File, r *resolve.Resolved, oname string) (*OutputProd
 			TextureBytes: l.texBytes, Images: l.images,
 			Joints: l.joints, Influences: l.influences, Morphs: l.morphs,
 			Animations: l.animations, AnimKeys: l.keys, SkinnedVertices: l.rigVerts,
+			Audit: l.audit,
 		})
 	}
 	e.checkBudget(op, oname)
@@ -433,6 +482,9 @@ func buildOutput(file *ast.File, r *resolve.Resolved, oname string) (*OutputProd
 		return nil, diag.Dedup(e.diags), nil
 	}
 	notes = appendUnique(notes, e.notes...)
+	if rc := r.RigCheck; rc != nil {
+		notes = appendUnique(notes, fmt.Sprintf("`check rig` measures the ground band, the torn and strained edge shares, the natural bands and hard limits, and the mount fit; the waist section, the seam probe and the hip crossing (language reference 5.9, items 3 and 4) are not measured, so `waist`, `legs`, `waist_ratio` and `open` are read and not applied"))
+	}
 	return op, diag.Dedup(e.diags), notes
 }
 
@@ -507,7 +559,7 @@ func (e *elab) budgetSpan(oname, field string) diag.Span {
 // settings that change geometry, the collision shapes and the rights holder.
 // It leaves out record fields (budgets, meta text, level distances, doc
 // strings) and the Default flags, so spelling a default does not change it.
-func firHash(r *resolve.Resolved, images []string) string {
+func firHash(r *resolve.Resolved, images []string, mounts []mountIdent) string {
 	type param struct {
 		Name  string       `json:"name"`
 		Type  string       `json:"type"`
@@ -532,6 +584,9 @@ func firHash(r *resolve.Resolved, images []string) string {
 		// the meaning when there are any; an asset without them hashes as before.
 		Plugs  []*resolve.Node `json:"plugs,omitempty"`
 		Images []string        `json:"images,omitempty"`
+		// Mounts, with the gear each selects, when there are any.
+		Mounts []mountIdent `json:"mounts,omitempty"`
+		// The audit's pass marks do not change the product.
 	}{
 		Format:      "greenware.fir.product/1",
 		Copyright:   metaString(r, "author"),
@@ -541,6 +596,7 @@ func firHash(r *resolve.Resolved, images []string) string {
 		Collision:   canonAll(r.Collision, nil),
 		Plugs:       canonAll(r.Plugs, nil),
 		Images:      images,
+		Mounts:      mounts,
 		Rig:         r.Rig,
 		Lods:        canonAll(r.Lods, map[string]bool{"max_error": true, "drop": true, "keep": true, "segments": true}),
 	}

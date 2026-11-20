@@ -1,7 +1,7 @@
 // Command greenware compiles Greenware sources (.gw files).
 //
-//	greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--geometry-only] [--json]
-//	greenware check <file> [--geometry-only] [--json]
+//	greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]
+//	greenware check <file> [--project DIR] [--geometry-only] [--json]
 //	greenware fmt <file> [--check] [--write] [--json]
 //	greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
 //
@@ -30,8 +30,8 @@ import (
 )
 
 const usage = `usage:
-  greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--geometry-only] [--json]
-  greenware check <file> [--geometry-only] [--json]
+  greenware build <file> [--output NAME] [--out-dir DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]
+  greenware check <file> [--project DIR] [--geometry-only] [--json]
   greenware fmt <file> [--check] [--write] [--json]
   greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
 `
@@ -52,6 +52,10 @@ type options struct {
 	hasName bool
 	// maxWork is the total_work ceiling; zero means the default.
 	maxWork uint64
+	// runtimePoints is the `runtime_points` limit; zero means the default.
+	runtimePoints int
+	// project is the project root; empty finds the nearest greenware.mod.
+	project string
 	// accept is the acceptance file whose decode, measure and outline tickets
 	// the build reserves.
 	accept string
@@ -116,6 +120,17 @@ func parse(args []string, allowed map[string]bool) (options, error) {
 			}
 		case "accept":
 			o.accept, err = takes()
+		case "project":
+			o.project, err = takes()
+		case "runtime-points":
+			var v string
+			if v, err = takes(); err == nil {
+				n, perr := strconv.Atoi(v)
+				if perr != nil || n < 1 {
+					return o, fmt.Errorf("flag --runtime-points needs a whole number above zero, got %q", v)
+				}
+				o.runtimePoints = n
+			}
 		}
 		if err != nil {
 			return o, err
@@ -136,9 +151,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	var allowed map[string]bool
 	switch cmd {
 	case "build":
-		allowed = map[string]bool{"output": true, "out-dir": true, "json": true, "max-work": true, "accept": true, "geometry-only": true}
+		allowed = map[string]bool{"output": true, "out-dir": true, "json": true, "max-work": true, "accept": true, "geometry-only": true, "project": true, "runtime-points": true}
 	case "check":
-		allowed = map[string]bool{"json": true, "geometry-only": true}
+		allowed = map[string]bool{"json": true, "geometry-only": true, "project": true}
 	case "fmt":
 		allowed = map[string]bool{"check": true, "write": true, "json": true}
 	case "accept":
@@ -170,10 +185,20 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-// front lowers a source and returns its diagnostics and a locator.
-func front(src []byte, geometryOnly bool) (*ast.File, []diag.Diagnostic, diag.Locator) {
+// front lowers a source and returns its diagnostics and a locator. file and
+// root say where the project is; an unreadable project leaves the source
+// without one, and a project import then reports that.
+func front(file, root string, src []byte, geometryOnly bool) (*ast.File, []diag.Diagnostic, diag.Locator) {
 	tree := lang.Parse(src)
-	f, ds := ast.LowerWith(tree, ast.Options{GeometryOnly: geometryOnly})
+	var proj *ast.Project
+	var projErr error
+	if file != "" {
+		proj, projErr = ast.OpenProject(file, root)
+	}
+	f, ds := ast.LowerWith(tree, ast.Options{GeometryOnly: geometryOnly, Project: proj})
+	if projErr != nil && root != "" {
+		ds = append(ds, diag.New(diag.CodeMissing, diag.Span{}, "%v", projErr))
+	}
 	loc := func(off int) (int, int) {
 		p := tree.Position(off)
 		return p.Line, p.Column
@@ -222,7 +247,7 @@ func checkAll(f *ast.File, lowered []diag.Diagnostic) []diag.Diagnostic {
 }
 
 func runCheck(o options, src []byte, stdout, stderr io.Writer) int {
-	f, lowered, loc := front(src, o.geometryOnly)
+	f, lowered, loc := front(o.file, o.project, src, o.geometryOnly)
 	ds := checkAll(f, lowered)
 	if o.json {
 		b, err := diag.Marshal(ds, loc)
@@ -250,7 +275,7 @@ func runFmt(o options, src []byte, stdout, stderr io.Writer) int {
 	if err != nil {
 		var fe *lang.FormatError
 		if errors.As(err, &fe) && o.json {
-			_, lowered, loc := front(src, false)
+			_, lowered, loc := front(o.file, o.project, src, false)
 			b, _ := diag.Marshal(lowered, loc)
 			stdout.Write(b)
 			return 1
@@ -321,22 +346,24 @@ type buildReport struct {
 	Record      string        `json:"record,omitempty"`
 	InputSHA256 string        `json:"input_sha256,omitempty"`
 	Outputs     []buildOutput `json:"outputs"`
-	Unsupported []string      `json:"unsupported"`
+	// Census holds the measured figures of every output and level.
+	Census      []compiler.Census `json:"census"`
+	Unsupported []string          `json:"unsupported"`
 	// Cost is the ticket receipt, present on a refusal as well.
 	Cost        *compiler.Receipt `json:"cost,omitempty"`
 	Diagnostics json.RawMessage   `json:"diagnostics"`
 }
 
 func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
-	f, ds, loc := front(src, o.geometryOnly)
-	opts := compiler.Options{Policy: compiler.Policy{MaxTotalWork: o.maxWork}}
+	f, ds, loc := front(o.file, o.project, src, o.geometryOnly)
+	opts := compiler.Options{Policy: compiler.Policy{MaxTotalWork: o.maxWork, RuntimePoints: o.runtimePoints}}
 	if o.accept != "" {
 		accSrc, err := os.ReadFile(o.accept)
 		if err != nil {
 			fmt.Fprintf(stderr, "greenware build: %v\n", err)
 			return 2
 		}
-		accAST, accDs, accLoc := front(accSrc, false)
+		accAST, accDs, accLoc := front(o.accept, o.project, accSrc, false)
 		if accAST.Broken || diag.HasErrors(accDs) {
 			printText(stderr, o.accept, accDs, accLoc)
 			return 1
@@ -350,7 +377,7 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 		p, receipt, more = compiler.BuildWith(f, o.output, opts)
 		ds = diag.Dedup(append(ds, more...))
 	}
-	rep := buildReport{Schema: "greenware.build/1", Outputs: []buildOutput{}, Unsupported: []string{}, Cost: receipt}
+	rep := buildReport{Schema: "greenware.build/1", Outputs: []buildOutput{}, Census: []compiler.Census{}, Unsupported: []string{}, Cost: receipt}
 	code := status(ds)
 	var writeErr error
 	if p != nil && code == 0 {
@@ -360,6 +387,7 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 			rep.Record = p.RecordName()
 		}
 		rep.InputSHA256 = p.InputSHA256
+		rep.Census = p.Census()
 		rep.Unsupported = append(rep.Unsupported, p.Unsupported...)
 		for _, sk := range f.Skipped {
 			rep.Unsupported = append(rep.Unsupported, "geometry only: skipped "+sk)

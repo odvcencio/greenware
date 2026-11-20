@@ -66,21 +66,24 @@ func (s *scope) visible() []string {
 
 // run is one evaluation of a file.
 type run struct {
-	f        *ast.File
-	syms     *symbols
-	d        units.Defaults
-	diags    []diag.Diagnostic
-	quiet    int // > 0: evaluating a branch that is not taken; no domain errors
-	globals  *scope
-	stack    []*binding
-	overs    map[string]*Override
-	output   string
+	f       *ast.File
+	syms    *symbols
+	d       units.Defaults
+	diags   []diag.Diagnostic
+	quiet   int // > 0: evaluating a branch that is not taken; no domain errors
+	globals *scope
+	stack   []*binding
+	overs   map[string]*Override
+	output  string
+	// ref is the concrete output being evaluated; nil for the defaults.
+	ref      *OutputRef
 	resolved *Resolved
 	// tstack is the chain of template calls being expanded.
 	tstack []*ast.Template
 	// libs are the imported libraries by qualifier; painters are the compiled
 	// painters by key.
 	libs     map[string]*library
+	gears    map[string]*GearImport
 	painters map[string]*pentry
 }
 
@@ -91,12 +94,16 @@ func (r *run) report(d diag.Diagnostic) {
 	r.diags = append(r.diags, d)
 }
 
-func evaluate(f *ast.File, output string, overrides []Override, shallowOutputs bool) (*Resolved, []diag.Diagnostic) {
+func evaluate(f *ast.File, output string, overrides []Override, shallowOutputs bool, ref *OutputRef) (*Resolved, []diag.Diagnostic) {
 	if f.Broken {
 		return nil, nil
 	}
-	r := &run{f: f, d: units.DefaultUnits(), output: output, overs: map[string]*Override{}, libs: map[string]*library{}, painters: map[string]*pentry{}}
+	r := &run{f: f, d: units.DefaultUnits(), output: output, overs: map[string]*Override{}, libs: map[string]*library{}, gears: map[string]*GearImport{}, painters: map[string]*pentry{}}
 	r.resolved = &Resolved{Output: output}
+	r.ref = ref
+	if ref != nil {
+		r.output = ref.Base.Name.Name
+	}
 	for i := range overrides {
 		o := &overrides[i]
 		if prev, dup := r.overs[o.Name]; dup {
@@ -118,6 +125,9 @@ func evaluate(f *ast.File, output string, overrides []Override, shallowOutputs b
 	r.plugs()
 	r.parts()
 	r.rig()
+	r.mounts()
+	r.auditChecks()
+	r.pins()
 	r.checkCells()
 	r.lods()
 	r.collision()

@@ -56,8 +56,14 @@
 //     morph targets with table weights and `joints = follow`, sampled and
 //     keyed clips, wrapper nodes and an idle pose. They are written as glTF
 //     joints, a skin with inverse binds, JOINTS_0 and WEIGHTS_0, morph targets
-//     with names, and animations. Package kernel/rig does the math. Targets are
-//     written dense: package gltf has no sparse accessors.
+//     with names, and animations. Package kernel/rig does the math. A morph
+//     target is stored as a glTF sparse accessor when that is smaller.
+//   - The athlete (milestone M4, docs/reference/athlete.md): project imports,
+//     `mount` (runtime: a record in the extras; bake: the gear's default look
+//     merged into the skinned mesh, rigid on the socket's joint), `output
+//     mounts`, `table` and `for_each`, `lod keep`, `check runtime` and `check
+//     rig` (the audit of rigaudit.go: ground, torn edges, mount fit), and a
+//     census of every output and level in the build record.
 //   - Budgets, measured on the encoded files, at the output's effective budget.
 //
 // Cost: BuildWith reserves a fixed price for every operation of the planned
@@ -76,5 +82,10 @@
 //   - The Selena artifact is neither read nor pinned; only the fallback
 //     material is written, and the build notes record the artifact as pending.
 //   - The look's tickets (`paint`, `encode_images`) are this compiler's
-//     assumption, as are `select` and `surface_branches`; see cost.go.
+//     assumption, as are `select` and `surface_branches`; see cost.go. So are
+//     the athlete's (costathlete.go).
+//   - The audit does not measure the waist section, the seam probe or the hip
+//     crossing (reference 5.9, items 3 and 4); the build says so in its
+//     unsupported notes. `buffer`, `image` and split glTF are not written:
+//     package gltf writes GLB only.
 package compiler

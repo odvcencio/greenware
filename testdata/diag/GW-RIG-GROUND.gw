@@ -1,0 +1,24 @@
+greenware 1
+
+// A standing clip whose lowest vertex is 0.4 m above the ground. The ground
+// band of `check rig` is -5 mm to 20 mm for a clip that is not airborne.
+// `greenware check` does not pose clips, so this fixture reports the code from
+// `greenware build`.
+
+asset a { root = a idle = rest }
+
+skeleton s { joint base { at = (0, 0, 0) } }
+
+part a {
+  joint = base
+  sphere ball { radius = 0.1m at = (0, 0.5, 0) }
+}
+
+clip rest {
+  duration = 1s
+  pose { base = rot(0, 0, 0) }
+}
+
+check rig { ground = -5mm..20mm }
+
+output demo { file = "a.glb" }

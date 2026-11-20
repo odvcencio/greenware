@@ -58,6 +58,7 @@ type level struct {
 	// The rig: joints, most influences on one vertex, morph targets,
 	// animations, animation keys and bound positions. Zero without a rig.
 	joints, influences, morphs, animations, keys, rigVerts int
+	audit                                                  *AuditReport
 }
 
 // vertexKey identifies a written vertex.
@@ -304,6 +305,26 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 	}
 	rootIdx, _ := addNode(root, "", false)
 	top := rootIdx
+	// A baked mount merges its gear into the host's skinned mesh.
+	bakes := map[string]bakeStats{}
+	var bakedAdd bakeStats
+	if rl != nil {
+		for _, g := range e.baked() {
+			st, ok := e.bakeGear(doc, rl, rootIdx, g, lvl)
+			if !ok {
+				return nil, false
+			}
+			bakes[g.m.Name] = st
+			bakedAdd.tris += st.tris
+			bakedAdd.verts += st.verts
+			bakedAdd.draws += st.draws
+			bakedAdd.mats += st.mats
+			bakedAdd.texBytes += st.texBytes
+			bakedAdd.images = append(bakedAdd.images, st.images...)
+		}
+	}
+	lv.trisStored += bakedAdd.tris
+	lv.verts += bakedAdd.verts
 	var cds []*clipData
 	if rl != nil {
 		rn, c, ok := e.attachRig(doc, rl, rootIdx)
@@ -319,6 +340,11 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 		}
 		lv.animations = len(doc.Animations)
 		lv.rigVerts = rl.verts
+		rep, ok := e.audit(rl, cds, lvl)
+		if !ok {
+			return nil, false
+		}
+		lv.audit = rep
 	}
 	// Colliders hang off the root, after its sockets.
 	for _, c := range cols {
@@ -338,6 +364,7 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 
 	// What the file stores and what each look draws.
 	lv.tris, lv.draws = look(root, defaults)
+	lv.tris, lv.draws = lv.tris+bakedAdd.tris, lv.draws+bakedAdd.draws
 	lv.trisWorst, lv.drawsWorst = lv.tris, lv.draws
 	set := map[string]bool{}
 	condNames(root, set)
@@ -357,7 +384,7 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 				merged[k] = v
 			}
 			t, d := look(root, merged)
-			lv.trisWorst, lv.drawsWorst = max(lv.trisWorst, t), max(lv.drawsWorst, d)
+			lv.trisWorst, lv.drawsWorst = max(lv.trisWorst, t+bakedAdd.tris), max(lv.drawsWorst, d+bakedAdd.draws)
 		}
 		if n := len(bindingsOfKind(bindings, "visibility")); n > maxBranches {
 			e.report(diag.CodeLimit, e.spanOf(""), "a level has %d selectable branches; the class allows %d", n, maxBranches)
@@ -389,14 +416,20 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 	if rl != nil {
 		e.rigExtras(asset, rl, cds, &bindings)
 	}
+	if rl != nil {
+		e.mountExtras(asset, rl, bakes)
+	}
 	if rt := e.runtimeTable(bindings); rt != nil {
 		asset["runtime"] = rt
 	}
 	doc.Extras = mustJSON(map[string]any{"greenware": asset})
+	// Morph deltas are stored sparse when that is smaller (glTF sparse
+	// accessors); the decoded values are the same. Only the bytes change.
+	doc.AutoSparse()
 	lv.doc = doc
-	lv.mats = len(names)
+	lv.mats = len(names) + bakedAdd.mats
 	lv.nodes = len(doc.Nodes)
-	lv.texBytes, lv.images = tt.decoded, tt.infos
+	lv.texBytes, lv.images = tt.decoded+bakedAdd.texBytes, append(append([]ImageInfo(nil), tt.infos...), bakedAdd.images...)
 	return lv, true
 }
 

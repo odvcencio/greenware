@@ -1,0 +1,39 @@
+greenware 1
+
+// A cylinder whose lower end follows `base` and whose upper end follows `top`.
+// The clip turns `top` half a turn about x, so the upper ring flips over the
+// joint and the long edges between the two rings shrink to a fraction of their
+// bind length: more than the 1% of torn edges `check rig` allows. `greenware
+// check` does not pose clips, so this fixture reports the code from
+// `greenware build`.
+
+asset a { root = a idle = flip }
+
+skeleton s {
+  joint base {
+    at = (0, 0, 0)
+    joint top { at = (0, 0.5, 0) }
+  }
+}
+
+skin {
+  blend seam { parent = base child = top centre = joint(top) axis = (0, 1, 0) width = 0.01 }
+}
+
+part a {
+  joint = base
+  cylinder post { radius = 0.04m height = 1m at = (0, 0.5, 0) segments = 8 }
+}
+
+clip flip {
+  duration = 1s
+  airborne = on
+  pose {
+    base = rot(0, 0, 0)
+    top = rot(180, 0, 0)
+  }
+}
+
+check rig { torn = 1% }
+
+output demo { file = "a.glb" }

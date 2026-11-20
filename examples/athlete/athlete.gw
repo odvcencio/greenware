@@ -40,8 +40,9 @@ meta {
   license = "CC0-1.0"
 }
 
-// GAP (project import is valid in the language and outside the compiler's subset):
-// import "helmet.gw" as helmet
+// The helmet is a project asset. The path is relative to this file and stays
+// inside the project root (examples/greenware.mod).
+import "../helmet/helmet.gw" as helmet
 
 // ---- Parameters ---------------------------------------------------------
 // Runtime parameters become morph weights (and, for height, joint offsets)
@@ -558,19 +559,24 @@ morph brow {
 // mode = runtime the game mounts helmet-classic.glb or helmet-aero.glb on the
 // socket and sets its parameters per player; mode = bake merges the helmet
 // into this mesh, rigid on the head joint, as the Python did.
-// GAP (mount, plus its fit check, needs the helmet import):
-// mount headgear {
-//   asset = helmet
-//   socket = head_gear
-//   mode = runtime
-//   set {
-//     shell_style = classic    // picks helmet-classic.glb
-//     facemask = cage
-//   }
-//   // Mounted, the helmet keeps 2 mm from the head in the bind pose and at every
-//   // key of every clip. The check lives here because only the host knows both.
-//   fit { clearance = 2mm }
-// }
+mount headgear {
+  asset = helmet
+  socket = head_gear
+  mode = runtime
+  set {
+    shell_style = classic    // picks helmet-classic.glb
+    facemask = cage
+  }
+  // Mounted, the helmet is to keep 2 mm from the head in the bind pose and at
+  // every key of every clip. The check lives here because only the host knows
+  // both. GAP (the ported numbers do not meet it): the shell's lower front rim
+  // (z -0.133 at the lowest ring) lies inside the head loft's face (z -0.144
+  // at the same height), so the two surfaces touch in the bind pose and
+  // `greenware build` with this line refuses the athlete with GW-MOUNT. The
+  // accept file measures the gap (athlete.accept.gw); the geometry, not the
+  // check, is what M4 must re-derive.
+  // fit { clearance = 2mm }
+}
 
 // ---- Clips --------------------------------------------------------------------
 // A clip samples its pose at "keys" evenly spaced times from t = 0 to t = 1,
@@ -613,6 +619,10 @@ clip run {
   duration = 0.71s
   keys = 25
   loop = on
+  // The stride has a flight phase: at mid-stride both feet are off the ground
+  // (the lowest vertex is 235 mm up), so the ground band of `check rig` does
+  // not apply to it. The sample left this out and failed its own audit.
+  airborne = on
   let wob = sin(360deg * t)
   pose {
     pelvis = rot(0, 0, 0)
@@ -679,45 +689,55 @@ collision {
 // (spec 6.9): each body parameter at its extremes, every species, and both
 // helmet shells on the mount, one at a time. The named case adds the
 // combination most likely to clip, a Brannoc lineman under the aero shell.
-// GAP (check runtime):
-// check runtime {
-//   corners = [build, pads, belly, height]
-//   each = [species]
-//   gear = [helmet.classic, helmet.aero]
-//   // Already inside the full product (2^4 x 3 x 2 = 96 points); named so the
-//   // report lists it by name.
-//   case brannoc_lineman_aero {
-//     set { species = brannoc build = 1 belly = 1 }
-//     gear = helmet.aero
-//   }
-// }
+check runtime {
+  corners = [build, pads, belly, height]
+  each = [species]
+  gear = [helmet.classic, helmet.aero]
+  // Already inside the full product (2^4 x 3 x 2 = 96 points); named so the
+  // report lists it by name.
+  case brannoc_lineman_aero {
+    set { species = brannoc build = 1 belly = 1 }
+    gear = helmet.aero
+  }
+}
 
 // The deformation audit (spec section 6.6): every clip, every key, at every
 // level of detail, with these pass marks.
-// GAP (check rig: the posed audit):
-// check rig {
-//   ground = -5mm..20mm         // the lowest sole vertex at every key and runtime point
-//   waist = (pelvis, chest)
-//   legs = (legl, legr)
-//   waist_ratio = 0.95
-//   torn = 1%
-//   open = 2%
-//   bands = error
-// }
+check rig {
+  ground = -5mm..20mm         // the lowest sole vertex at every key and runtime point
+  waist = (pelvis, chest)
+  legs = (legl, legr)
+  waist_ratio = 0.95
+  torn = 1%
+  open = 2%
+  bands = error
+}
 
+// The budget is MEASURED from the build's census, per output and level (decision
+// 0018, H2; `greenware build --json` prints the census). The measured figures,
+// level 0 of each output, with the morph targets stored sparse:
+//
+//   output  triangles  vertices  decoded images   file bytes
+//   match      6,262     4,465     1,048,576 (1)     988,516
+//   home       8,028     5,677     1,310,720 (3)   1,074,692
+//   away       8,028     5,677     1,310,720 (3)   1,059,744
+//
+// Level 1 is smaller in every column. The old limits stay as refusal tests
+// (compiler/athlete_test.go): the same asset under file_size = 1MiB on the
+// baked files, or texture_bytes = 128KiB anywhere, is refused with GW-BUDGET.
 budget {
-  triangles = 9000
+  triangles = 9000           // the 9,000 of the Python port holds: 8,028 at most
   bones = 15
   influences = 2
-  texture_bytes = 1MiB       // decoded RGBA, 512 x 512
+  texture_bytes = 1MiB       // match: one 512 x 512 RGBA image, 1,048,576 B decoded, exactly
   materials = 1
   draw_calls = 1              // the match file; the helmet is its own model
   draw_calls_worst = 1
-  // Ten targets, above the default of 8. sequoia measured about 870 KB per
-  // file for 8 full targets; delivery quantization and sparse targets
-  // (only the moved vertices) should cut that, which M7 must measure.
+  // Ten targets, above the default of 8. Targets are stored sparse (only the
+  // vertices a target moves): the match file is 988,516 B, not about 1.7 MB.
   morphs = 10
-  file_size = 1MiB
+  vertices = 4600            // measured 4,465
+  file_size = 1MiB           // measured 988,516 B: 94% of it
 }
 
 // Re-tessellation, not decimation: every shape is parametric. Fewer segments
@@ -726,38 +746,46 @@ budget {
 lod 1 {
   distance = 30m
   max_error = 4mm
-  // GAP (keep on a level): keep = [head, glove_l, glove_r]        // these keep their lod 0 segments
+  keep = [head, glove_l, glove_r]        // these keep their lod 0 segments
   drop = [laces_l, laces_r, pupil_l, pupil_r, brow_l, brow_r, eye_l, eye_r]
 }
 
 // ---- Outputs ------------------------------------------------------------------------
 
-// The school table comes from the game's own build hook (Go), which writes
-// it from league/schools.go. The Python read that Go file with regular
-// expressions; Greenware reads data, not code.
-// GAP (table):
-// table schools = json {
-//   path = "build/schools.json"
-//   columns = (key, main, away, trim)
-// }
-
+// NOT IMPLEMENTED ON PURPOSE (table, kits_home, kits_away at the end of this
+// file): the sample's school table and its split kit outputs. Plan 4.5 step 2
+// says home/away and the split kit descriptors are pinned compatibility and
+// codec fixtures and that they are never restored as game outputs: the game now
+// draws one athlete.glb with one Selena uniform per player and requests no kit
+// file. `table` and `for_each` are implemented (compiler/table_test.go builds a
+// table-driven family of GLB files); the split `.gltf` writer (`buffer`,
+// `image = jpeg(89)`) is not, because package gltf writes GLB only.
 // athlete.glb: the match file. The helmet is mounted at run time on head_gear.
 output match {
   file = "athlete.glb"
-  // GAP: mounts = runtime
+  mounts = runtime
 }
 
 // home.glb and away.glb: the Python's two files, for parity, helmet merged in
 // with the mount's set values. The baked helmet adds its palette material.
 output home {
   file = "home.glb"
-  // GAP: mounts = bake
-  budget { materials = 2 draw_calls = 2 draw_calls_worst = 2 }
+  mounts = bake
+  // The baked helmet adds its palette material, its two 256 x 128 images
+  // (262,144 B decoded) and its triangles: 1,310,720 B decoded in all, and a
+  // file 26,116 B over 1 MiB. Measured ceilings, per output (decision 0018).
+  budget {
+    materials = 2 draw_calls = 2 draw_calls_worst = 2
+    texture_bytes = 1280KiB vertices = 5800 file_size = 1152KiB
+  }
 }
 output away {
   file = "away.glb"
-  // GAP: mounts = bake
-  budget { materials = 2 draw_calls = 2 draw_calls_worst = 2 }
+  mounts = bake
+  budget {
+    materials = 2 draw_calls = 2 draw_calls_worst = 2
+    texture_bytes = 1280KiB vertices = 5800 file_size = 1152KiB
+  }
   set {
     jersey_color = #f1f2ed
     trim_color = #aa3f28
@@ -766,34 +794,6 @@ output away {
   }
 }
 
-// kits/home-<main>.gltf and kits/away-<main>.gltf: one small glTF per school
-// and side, each with its own atlas, all sharing kits/athlete.bin.
-// GAP (table-driven outputs (for_each, buffer, image)):
-// output kits_home {
-//   for_each = schools
-//   file = "kits/home-{row.key}.gltf"
-//   buffer = "kits/athlete.bin"
-//   image = jpeg(89)
-//   mounts = bake
-//   budget { materials = 2 draw_calls = 2 draw_calls_worst = 2 }
-//   set {
-//     jersey_color = row.main
-//     trim_color = row.trim
-//     pants_color = row.away
-//   }
-// }
-// GAP (table-driven outputs (for_each, buffer, image)):
-// output kits_away {
-//   for_each = schools
-//   file = "kits/away-{row.key}.gltf"
-//   buffer = "kits/athlete.bin"
-//   image = jpeg(89)
-//   mounts = bake
-//   budget { materials = 2 draw_calls = 2 draw_calls_worst = 2 }
-//   set {
-//     jersey_color = row.away
-//     trim_color = row.main
-//     pants_color = row.main
-//     sock_color = #e5e8dd
-//   }
-// }
+// kits/home-<main>.gltf and kits/away-<main>.gltf, left out (see above): one
+// small glTF per school and side, each with its own atlas, all sharing
+// kits/athlete.bin. The text of the sample is kept in testdata/syntax/athlete.gw.

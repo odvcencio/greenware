@@ -380,3 +380,77 @@ func TestBuildHelmetGeometryOnly(t *testing.T) {
 		t.Errorf("accept on the full look: exit %d\n%s\n%s", code, o.String(), e.String())
 	}
 }
+
+const athleteSrc = "../../examples/athlete/athlete.gw"
+
+// `greenware build` builds the whole athlete under the default policy, with no
+// helper: three outputs, two levels each, a census row for every file, and the
+// audit in the record.
+func TestBuildAthlete(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "out")
+	code, out, errOut := exec(t, "build", athleteSrc, "--out-dir", dir, "--json")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s\n%s", code, out, errOut)
+	}
+	rep := oneJSON(t, out)
+	if rep["ok"] != true || rep["written"] != true {
+		t.Fatalf("report: %v", rep)
+	}
+	census := rep["census"].([]any)
+	if len(census) != 6 {
+		t.Fatalf("%d census rows", len(census))
+	}
+	first := census[0].(map[string]any)
+	if first["output"] != "match" || first["file_bytes"].(float64) != 988516 || first["triangles"].(float64) != 6262 || first["images"].(float64) != 1 {
+		t.Errorf("first census row %v", first)
+	}
+	for _, name := range []string{"athlete.glb", "athlete-lod1.glb", "home.glb", "home-lod1.glb", "away.glb", "away-lod1.glb", "athlete.build.json"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("missing %s", name)
+		}
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "athlete.build.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rec struct {
+		Census []any
+		Audit  []struct{ Points int }
+		Cost   struct {
+			Total uint64 `json:"total_work"`
+		}
+	}
+	if err := json.Unmarshal(b, &rec); err != nil || len(rec.Census) != 6 || len(rec.Audit) != 6 || rec.Audit[0].Points != 98 || rec.Cost.Total == 0 || rec.Cost.Total > 20_000_000 {
+		t.Errorf("record %v %+v", err, rec)
+	}
+	// The project is the nearest greenware.mod; an explicit root that does not
+	// hold the file is a usage error.
+	if code, _, e := exec(t, "check", athleteSrc, "--project", "../../testdata"); code != 1 || !strings.Contains(e, "not inside the project root") {
+		t.Errorf("a project root that does not hold the file: exit %d %s", code, e)
+	}
+	if code, _, e := exec(t, "check", athleteSrc, "--project", "../../examples"); code != 0 {
+		t.Errorf("explicit root: exit %d %s", code, e)
+	}
+}
+
+func TestRuntimePointsFlag(t *testing.T) {
+	src := "../../testdata/diag/GW-RUNTIME-PARTIAL.gw"
+	code, _, e := exec(t, "build", src, "--out-dir", filepath.Join(t.TempDir(), "o"), "--runtime-points", "3")
+	if code != 0 || !strings.Contains(e, "GW-RUNTIME-PARTIAL") {
+		t.Errorf("exit %d %s", code, e)
+	}
+	if code, _, e := exec(t, "build", src, "--runtime-points", "0"); code != 2 || !strings.Contains(e, "runtime-points") {
+		t.Errorf("zero points: exit %d %s", code, e)
+	}
+}
+
+// The diagnostic fixtures that need a neighbouring file are reproduced by
+// `greenware check` from their own directory.
+func TestCheckProjectFixtures(t *testing.T) {
+	for code, frag := range map[string]string{"GW-MOUNT": "head_top", "GW-TABLE-ROW": "row 1, column main"} {
+		c, _, e := exec(t, "check", "../../testdata/diag/"+code+".gw")
+		if c != 1 || !strings.Contains(e, "error "+code+":") || !strings.Contains(e, frag) {
+			t.Errorf("%s: exit %d %s", code, c, e)
+		}
+	}
+}

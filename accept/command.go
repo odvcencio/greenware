@@ -216,18 +216,22 @@ func stagedFiles(f *ast.File) map[string][]stagedLevel {
 			continue
 		}
 		levels := []stagedLevel{{lod: 0, file: lit.Value}}
+		// `lods` defaults to files (language reference 6.5).
+		files := true
 		if s := ast.FindSetting(o.Settings, "lods"); s != nil {
-			if n, ok := s.Value.(*ast.Name); ok && n.Name == "files" {
-				ext := filepath.Ext(lit.Value)
-				stem := strings.TrimSuffix(lit.Value, ext)
-				lods := append([]*ast.Lod(nil), f.Lods...)
-				sort.Slice(lods, func(i, j int) bool { return lods[i].Level < lods[j].Level })
-				for _, l := range lods {
-					sl := stagedLevel{lod: l.Level, file: fmt.Sprintf("%s-lod%d%s", stem, l.Level, ext)}
-					sl.maxError, sl.known = lengthOf(ast.FindSetting(l.Settings, "max_error"))
-					sl.distance, _ = lengthOf(ast.FindSetting(l.Settings, "distance"))
-					levels = append(levels, sl)
-				}
+			n, ok := s.Value.(*ast.Name)
+			files = ok && n.Name == "files"
+		}
+		if files {
+			ext := filepath.Ext(lit.Value)
+			stem := strings.TrimSuffix(lit.Value, ext)
+			lods := append([]*ast.Lod(nil), f.Lods...)
+			sort.Slice(lods, func(i, j int) bool { return lods[i].Level < lods[j].Level })
+			for _, l := range lods {
+				sl := stagedLevel{lod: l.Level, file: fmt.Sprintf("%s-lod%d%s", stem, l.Level, ext)}
+				sl.maxError, sl.known = lengthOf(ast.FindSetting(l.Settings, "max_error"))
+				sl.distance, _ = lengthOf(ast.FindSetting(l.Settings, "distance"))
+				levels = append(levels, sl)
 			}
 		}
 		plan[o.Name.Name] = levels

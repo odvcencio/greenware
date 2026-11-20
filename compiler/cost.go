@@ -179,6 +179,9 @@ func ticketUnits(name string) uint64 {
 			return t.Units
 		}
 	}
+	if u, ok := athleteUnits(name); ok {
+		return u
+	}
 	panic("compiler: unregistered ticket " + name)
 }
 
@@ -256,6 +259,9 @@ type Policy struct {
 	// MaxTotalWork is the `total_work` ceiling in work units. Zero means
 	// DefaultMaxTotalWork.
 	MaxTotalWork uint64
+	// RuntimePoints is the `runtime_points` limit of `check runtime` (language
+	// reference 7.3). Zero means DefaultRuntimePoints.
+	RuntimePoints int
 }
 
 func (p Policy) limit() uint64 {
@@ -670,7 +676,7 @@ type resolvedOutput struct {
 
 // schedule lists the tickets of the planned run in reservation order:
 // by phase in table order, then output name, then level, then expect ordinal.
-func schedule(outs []resolvedOutput, acc []acceptLevel) []Charge {
+func schedule(outs []resolvedOutput, acc []acceptLevel, pol Policy) []Charge {
 	sorted := append([]resolvedOutput(nil), outs...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].name < sorted[j].name })
 	var cs []Charge
@@ -691,7 +697,18 @@ func schedule(outs []resolvedOutput, acc []acceptLevel) []Charge {
 	}
 	for _, o := range sorted {
 		for _, a := range atlasesUsed(o.r) {
-			addRow(TicketPaint, o.name, a.Name)
+			if isRigged(o.r) {
+				addRow(TicketPaintLarge, o.name, a.Name)
+			} else {
+				addRow(TicketPaint, o.name, a.Name)
+			}
+		}
+	}
+	for _, o := range sorted {
+		if isRigged(o.r) {
+			for _, b := range mountBuilds(o.r, pol.RuntimePoints) {
+				addRow(TicketMount, o.name, b)
+			}
 		}
 	}
 	for _, o := range sorted {
@@ -699,7 +716,7 @@ func schedule(outs []resolvedOutput, acc []acceptLevel) []Charge {
 			add(TicketRig, o.name, nil, nil)
 		}
 	}
-	for _, phase := range []string{TicketSurface, TicketWeights, TicketMorph, TicketClip, TicketEncode} {
+	for _, phase := range []string{TicketSurface, TicketWeights, TicketMorph, TicketClip, TicketAudit, TicketFit, TicketEncode} {
 		if phase == TicketClip {
 			for _, o := range sorted {
 				if rigCountsOf(o.r).clips > 0 {
@@ -719,11 +736,37 @@ func schedule(outs []resolvedOutput, acc []acceptLevel) []Charge {
 				}
 				continue
 			}
-			ticket := phase
-			if phase == TicketSurface && usesBranchClass(o.r) {
-				ticket = TicketSurfaceBranches
+			if phase == TicketAudit || phase == TicketFit {
+				if !isRigged(o.r) {
+					continue
+				}
+				n := 0
+				switch {
+				case phase == TicketAudit && o.r.RigCheck != nil:
+					n = 1
+				case phase == TicketFit:
+					n = fitMountCount(o.r)
+				}
+				for lv := 0; lv < o.levels; lv++ {
+					for k := 0; k < n; k++ {
+						if phase == TicketFit {
+							cs = append(cs, Charge{Ticket: phase, Output: o.name, Row: fitRow(o.r, k), Level: intp(lv), Units: ticketUnits(phase)})
+						} else {
+							add(phase, o.name, intp(lv), nil)
+						}
+					}
+				}
+				continue
 			}
-			if phase == TicketEncode && len(atlasesUsed(o.r)) > 0 {
+			ticket := phase
+			switch {
+			case phase == TicketSurface && isRigged(o.r):
+				ticket = TicketSurfaceRig
+			case phase == TicketSurface && usesBranchClass(o.r):
+				ticket = TicketSurfaceBranches
+			case phase == TicketEncode && isRigged(o.r):
+				ticket = TicketEncodeLarge
+			case phase == TicketEncode && len(atlasesUsed(o.r)) > 0:
 				ticket = TicketEncodeImages
 			}
 			for lv := 0; lv < o.levels; lv++ {
@@ -745,6 +788,20 @@ func schedule(outs []resolvedOutput, acc []acceptLevel) []Charge {
 	return cs
 }
 
+// fitRow names the k-th mount of an output that carries a fit check.
+func fitRow(r *resolve.Resolved, k int) string {
+	n := 0
+	for _, g := range mountModes(r) {
+		if g.m.HasFit {
+			if n == k {
+				return g.m.Name
+			}
+			n++
+		}
+	}
+	return ""
+}
+
 type accKey struct {
 	output string
 	level  int
@@ -752,7 +809,7 @@ type accKey struct {
 
 // classBound returns what a ticket's operand exceeds, or "" when it fits. It
 // reads only facts known before the operation runs.
-func classBound(c Charge, outs map[string]resolvedOutput, snapshotBytes []int, acc map[accKey]acceptLevel) string {
+func classBound(c Charge, outs map[string]resolvedOutput, snapshotBytes []int, acc map[accKey]acceptLevel, pol Policy) string {
 	switch c.Ticket {
 	case TicketSnapshot:
 		total := 0
@@ -809,6 +866,8 @@ func classBound(c Charge, outs map[string]resolvedOutput, snapshotBytes []int, a
 		}
 	case TicketRig, TicketWeights, TicketMorph, TicketClip:
 		return rigClassBound(c, outs)
+	case TicketPaintLarge, TicketAudit, TicketFit:
+		return athleteClassBound(c, outs[c.Output], pol)
 	case TicketMeasure:
 		if a := acc[accKey{c.Output, *c.Level}]; a.nonImage > maxMeasureExpects {
 			return fmt.Sprintf("output %s level %d has %d non-image expectations; the class allows %d", c.Output, *c.Level, a.nonImage, maxMeasureExpects)

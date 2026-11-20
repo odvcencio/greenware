@@ -29,6 +29,11 @@ const (
 	CodeClipKey      = "GW-CLIP-KEY"
 	CodeRigLimit     = "GW-RIG-LIMIT"
 	CodeRigBand      = "GW-RIG-BAND"
+	CodeMount        = "GW-MOUNT"
+	CodeTableRow     = "GW-TABLE-ROW"
+	CodeRigGround    = "GW-RIG-GROUND"
+	CodeRuntimePart  = "GW-RUNTIME-PARTIAL"
+	CodeRigTorn      = "GW-RIG-TORN"
 )
 
 // Entry documents one code.
@@ -71,6 +76,11 @@ var catalogue = []Entry{
 	{CodeClipKey, Error, "A clip's keys cannot be written: a key time that is negative, repeated or reversed, a key later than the clip's duration, a `key` row mixing translations and rotations, or times that float32 rounding makes equal. Nothing is sorted, merged or repaired.", "testdata/diag/GW-CLIP-KEY.gw", false},
 	{CodeRigLimit, Error, "A pose of a clip leaves a joint's hard limit (a `limit` block), or the test is undefined at the pose (a pure 180 degree swing). The compiler measures swing and twist at every key and never clamps a pose.", "testdata/diag/GW-RIG-LIMIT.gw", false},
 	{CodeRigBand, Warning, "A pose of a clip leaves a joint's natural band (the ranges written on the joint). It is a warning: the pose is written as authored.", "testdata/diag/GW-RIG-BAND.gw", false},
+	{CodeMount, Error, "A mount cannot be made: the host has no socket of that name, the gear asset has no plug of the socket's kind (or none named like the socket among several), the mount's `set` selects no single gear output or more than one, or the mounted gear penetrates the host or comes closer than the `fit` clearance. The message names the mount, the gear output and, for a fit failure, the clip, key, runtime point and the measured and required clearance.", "testdata/diag/GW-MOUNT.gw", false},
+	{CodeTableRow, Error, "A row of a table cannot be decoded against its column types: a missing, repeated or undeclared key, a null, array or nested value, a value of the wrong JSON type, an unsafe `{row.key}` file component, or a column with no type. The message names the table, the zero-based row and the column.", "testdata/diag/GW-TABLE-ROW.gw", false},
+	{CodeRigGround, Error, "The lowest skinned vertex of a non-airborne clip key lies outside the `ground` band of `check rig` (default -5 mm to 20 mm) at some runtime point. The message names the output, level, clip, key time, runtime point and the measured height.", "testdata/diag/GW-RIG-GROUND.gw", false},
+	{CodeRuntimePart, Warning, "The runtime points `check runtime` asks for are more than the `runtime_points` limit allows, so the audit ran the default, every named case and one axis at a time. The message lists the omitted combinations.", "testdata/diag/GW-RUNTIME-PARTIAL.gw", false},
+	{CodeRigTorn, Error, "More than the `torn` share of the geometric edges of the posed skin are longer than three times or shorter than a quarter of their bind length at some key. The message names the output, level, clip, key time, runtime point and the share.", "testdata/diag/GW-RIG-TORN.gw", false},
 }
 
 // Catalogue returns every code in a fixed order. The caller must not change

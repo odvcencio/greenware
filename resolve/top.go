@@ -404,8 +404,25 @@ func (r *run) outputs() {
 	for _, o := range r.f.Outputs {
 		fs := r.fields(k, o.Settings, r.globals, o.Name.Span)
 		out := Output{Name: o.Name.Name}
+		selected := r.ref != nil && r.ref.Base == o
+		if selected {
+			out.Name = r.ref.Name
+		}
 		if v, ok := field(fs, "file"); ok && v.Valid() {
 			out.File = v.Str
+			if selected {
+				var ds []diag.Diagnostic
+				out.File, ds = r.ref.fileName(out.File)
+				for _, d := range ds {
+					r.report(d)
+				}
+			}
+		}
+		if v, ok := field(fs, "mounts"); ok && v.Valid() {
+			out.Mounts = v.Str
+		}
+		if tn, _ := forEachTable(o); tn != "" {
+			out.ForEach = tn
 		}
 		if v, ok := field(fs, "lods"); ok {
 			out.LODs = v.Str
@@ -420,6 +437,14 @@ func (r *run) outputs() {
 			if s.Value == nil {
 				continue
 			}
+			if col, isRow := rowRef(s.Value); isRow {
+				if selected {
+					if ci := r.ref.Table.Col(col); ci >= 0 {
+						out.Set = append(out.Set, Field{Name: s.Name, Value: r.ref.Table.Rows[r.ref.Row][ci]})
+					}
+				}
+				continue
+			}
 			out.Set = append(out.Set, Field{Name: s.Name, Value: r.quietEval(func() units.Value { return r.eval(s.Value, r.globals) })})
 		}
 		if o.Budget != nil {
@@ -430,14 +455,19 @@ func (r *run) outputs() {
 }
 
 // checkOutputSets validates the `set` block of every output against the
-// parameters (name, type, range) without evaluating the output's geometry.
+// parameters (name, type, range) without evaluating the output's geometry. A
+// table-driven output is checked once per row.
 func (r *run) checkOutputSets() {
-	for _, o := range r.f.Outputs {
-		if len(o.Set) == 0 {
+	refs, ds := Outputs(r.f)
+	r.diags = append(r.diags, ds...)
+	for i := range refs {
+		ref := &refs[i]
+		if len(ref.Base.Set) == 0 {
 			continue
 		}
-		sub := &run{f: r.f, syms: r.syms, d: r.d, overs: map[string]*Override{}, output: o.Name.Name, resolved: &Resolved{}}
-		ovs := setOverrides(o)
+		sub := &run{f: r.f, syms: r.syms, d: r.d, overs: map[string]*Override{}, output: ref.Base.Name.Name, resolved: &Resolved{}, ref: ref}
+		ovs, ds := ref.overrides()
+		sub.diags = append(sub.diags, ds...)
 		for i := range ovs {
 			if _, dup := sub.overs[ovs[i].Name]; dup {
 				continue // already reported by the output's own run

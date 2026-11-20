@@ -15,7 +15,13 @@ import (
 
 // diagnose runs the whole front end on a source.
 func diagnose(src string) []diag.Diagnostic {
-	f, ds := ast.Lower(lang.Parse([]byte(src)))
+	return diagnoseIn(src, nil)
+}
+
+// diagnoseIn is diagnose with a project, for a source that imports a project
+// file or reads a table.
+func diagnoseIn(src string, proj *ast.Project) []diag.Diagnostic {
+	f, ds := ast.LowerWith(lang.Parse([]byte(src)), ast.Options{Project: proj})
 	_, more := resolve.EvaluateAll(f)
 	return diag.Dedup(append(ds, more...))
 }
@@ -35,7 +41,10 @@ func TestCatalogueFixtures(t *testing.T) {
 			}
 			// GW-RIG-LIMIT and GW-RIG-BAND measure poses, which only the
 			// compiler does; compiler/rig_test.go checks their fixtures.
-			if e.Code == diag.CodeRigLimit || e.Code == diag.CodeRigBand {
+			// So do GW-RIG-GROUND, GW-RIG-TORN and GW-RUNTIME-PARTIAL, which the
+			// compiler's audit reports.
+			if e.Code == diag.CodeRigLimit || e.Code == diag.CodeRigBand || e.Code == diag.CodeRigGround ||
+				e.Code == diag.CodeRigTorn || e.Code == diag.CodeRuntimePart {
 				if _, err := os.Stat(filepath.Join("..", e.Fixture)); err != nil {
 					t.Fatalf("fixture: %v", err)
 				}
@@ -45,7 +54,12 @@ func TestCatalogueFixtures(t *testing.T) {
 			if err != nil {
 				t.Fatalf("fixture: %v", err)
 			}
-			ds := diagnose(string(src))
+			// The fixtures of GW-MOUNT and GW-TABLE-ROW read a neighbouring file.
+			proj, err := ast.OpenProject(filepath.Join("..", e.Fixture), "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			ds := diagnoseIn(string(src), proj)
 			found := false
 			for _, d := range ds {
 				if d.Code == e.Code {

@@ -9,9 +9,15 @@ type File struct {
 	EditionSpan diag.Span
 	HasEdition  bool
 
-	Asset     *Asset
-	Meta      *Meta
-	Imports   []*Import
+	Asset   *Asset
+	Meta    *Meta
+	Imports []*Import
+	// Mounts and Tables are the mount and table declarations, in source order.
+	Mounts []*Mount
+	Tables []*Table
+	// Project is where this file's project imports and table data are read
+	// from; nil when the file was lowered from bytes alone.
+	Project   *Project
 	Params    []*Param
 	Lets      []*Let
 	Checks    []*Check
@@ -142,11 +148,14 @@ type Require struct {
 	Message Expr
 }
 
-// Check is a check block. Only `check params` is read.
+// Check is a check block: `check params` holds require rows; `check rig` and
+// `check runtime` hold settings, and `check runtime` named cases.
 type Check struct {
 	Name     Ident
 	Span     diag.Span
 	Requires []*Require
+	Settings []*Setting
+	Cases    []*CheckCase
 }
 
 // Material is a pbr or selena material. A selena material carries its

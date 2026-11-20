@@ -52,7 +52,11 @@ type record struct {
 	SourceSHA256 string         `json:"source_sha256"`
 	InputSHA256  string         `json:"input_sha256"`
 	Outputs      []recordOutput `json:"outputs"`
-	Unsupported  []string       `json:"unsupported"`
+	// Census holds one row of measured figures for every output and level.
+	Census []Census `json:"census"`
+	// Audit holds the measurements of the rig audit, one entry per level.
+	Audit       []*AuditReport `json:"audit,omitempty"`
+	Unsupported []string       `json:"unsupported"`
 	// Cost is the ticket receipt (CostVersion). It is in the record, not in
 	// any GLB, so the files' bytes do not depend on the policy.
 	Cost *Receipt `json:"cost,omitempty"`
@@ -75,7 +79,7 @@ func (p *Product) Record() []byte {
 	rec := record{
 		Schema: RecordSchema, Generator: Generator,
 		SourceSHA256: p.SourceSHA256, InputSHA256: p.InputSHA256,
-		Outputs: []recordOutput{}, Unsupported: append([]string{}, p.Unsupported...),
+		Outputs: []recordOutput{}, Census: p.Census(), Audit: p.Audits(), Unsupported: append([]string{}, p.Unsupported...),
 		Cost: p.Receipt,
 	}
 	for _, o := range p.Outputs {

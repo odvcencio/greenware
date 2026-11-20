@@ -53,6 +53,8 @@ type evaluator struct {
 	lodKnown bool
 	d        units.Defaults
 	measures []Measure
+	// rd is the rig of the file, prepared on first use.
+	rd *rigDoc
 }
 
 func (ev *evaluator) record(name, text string, num *float64) {
@@ -503,6 +505,9 @@ func (ev *evaluator) handleArg(e ast.Expr, what string) (*handle, *evalErr) {
 // calls -------------------------------------------------------------------
 
 func (ev *evaluator) call(c *ast.Call) (val, *evalErr) {
+	if v, handled, err := ev.rigCall(c); handled {
+		return v, err
+	}
 	switch c.Func {
 	case "node", "socket":
 		args, err := bind(c, "name")

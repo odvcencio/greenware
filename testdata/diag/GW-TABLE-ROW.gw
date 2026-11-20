@@ -1,0 +1,22 @@
+greenware 1
+
+// A table row that does not decode against its column type. The column `main`
+// is a colour, because the output assigns it to a colour parameter; row 1 of
+// the file holds "green". The code names the table, the row and the column.
+
+asset a { root = a }
+
+param shirt : color = #123456
+
+table schools = json {
+  path = "GW-TABLE-ROW.json"
+  columns = (key, main)
+}
+
+part a { sphere ball { radius = 0.1m } }
+
+output team {
+  for_each = schools
+  file = "team-{row.key}.glb"
+  set { shirt = row.main }
+}

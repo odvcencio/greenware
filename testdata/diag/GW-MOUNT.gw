@@ -1,0 +1,34 @@
+greenware 1
+
+// A mount that names a socket the asset does not have. The skeleton's only
+// socket is `crown`; the mount asks for `head_top`. `greenware check` reports
+// the code at the socket name. The file imports GW-MOUNT.gear.gw from its own
+// directory.
+
+import "GW-MOUNT.gear.gw" as cap
+
+asset a { root = a idle = rest }
+
+skeleton s {
+  joint base {
+    at = (0, 0, 0)
+    socket crown { kind = hat at = (0, 1.7, 0) }
+  }
+}
+
+part a {
+  joint = base
+  sphere ball { radius = 0.1m at = (0, 1, 0) }
+}
+
+mount headgear {
+  asset = cap
+  socket = head_top
+}
+
+clip rest {
+  duration = 1s
+  pose { base = rot(0, 0, 0) }
+}
+
+output demo { file = "a.glb" }

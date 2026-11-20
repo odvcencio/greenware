@@ -1,0 +1,13 @@
+greenware 1
+
+// The gear of GW-MOUNT.gw: a cap with a plug of the kind `hat`.
+
+asset cap { root = cap }
+
+plug head_top { kind = hat at = (0, 1.7, 0) }
+
+part cap {
+  sphere dome { radius = 0.12m at = (0, 1.78, 0) }
+}
+
+output cap { file = "cap.glb" }

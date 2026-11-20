@@ -98,6 +98,10 @@ type Output struct {
 	Profile  string  `json:"profile"`
 	Set      []Field `json:"set,omitempty"`
 	Budget   []Field `json:"budget,omitempty"`
+	// Mounts is "runtime" or "bake" when the output overrides its mounts' modes.
+	Mounts string `json:"mounts,omitempty"`
+	// ForEach names the table of a table-driven output.
+	ForEach string `json:"for_each,omitempty"`
 }
 
 // Look counts what the source decides about the drawn result, without
@@ -134,6 +138,14 @@ type Resolved struct {
 	// Rig is the evaluated skeleton, skin, morphs and clips; nil when the
 	// file declares none.
 	Rig *Rig `json:"rig,omitempty"`
+	// Gears are the project files the file imports; Mounts the resolved mounts.
+	Gears  []GearImport `json:"gears,omitempty"`
+	Mounts []Mount      `json:"mounts,omitempty"`
+	// RigCheck and RuntimeCheck are `check rig` and `check runtime`.
+	RigCheck     *RigCheck     `json:"rig_check,omitempty"`
+	RuntimeCheck *RuntimeCheck `json:"runtime_check,omitempty"`
+	// Pins are the project files and table files read, sorted by path.
+	Pins []ast.Pin `json:"pins,omitempty"`
 	// Budget is the effective budget: the document's, with the output's
 	// fields replacing the matching ones.
 	Budget  []Field  `json:"budget,omitempty"`
@@ -178,39 +190,39 @@ type Override struct {
 // blocks of the outputs for known names, types and ranges, without building
 // each output's full result; EvaluateAll does that.
 func Evaluate(f *ast.File, overrides []Override) (*Resolved, []diag.Diagnostic) {
-	return evaluate(f, "", overrides, true)
+	return evaluate(f, "", overrides, true, nil)
 }
 
 // EvaluateOutput evaluates the file with the named output's `set` block as
-// overrides and its own budget applied.
+// overrides and its own budget applied. A table-driven output is named
+// `output[key]`, one per row (see Outputs).
 func EvaluateOutput(f *ast.File, name string) (*Resolved, []diag.Diagnostic) {
-	for _, o := range f.Outputs {
-		if o.Name.Name == name {
-			return evaluate(f, name, setOverrides(o), false)
-		}
+	ref, ds := lookupOutput(f, name)
+	if ref == nil {
+		return nil, append(ds, diag.New(diag.CodeUnknownName, diag.Span{}, "the file has no output named %q", name))
 	}
-	return nil, []diag.Diagnostic{diag.New(diag.CodeUnknownName, diag.Span{}, "the file has no output named %q", name)}
+	return evaluateRef(f, ref, false, ds)
+}
+
+func evaluateRef(f *ast.File, ref *OutputRef, shallow bool, pre []diag.Diagnostic) (*Resolved, []diag.Diagnostic) {
+	ovs, ds := ref.overrides()
+	r, more := evaluate(f, ref.Name, ovs, shallow, ref)
+	return r, diag.Dedup(append(append(pre, ds...), more...))
 }
 
 // EvaluateAll evaluates the defaults and then every output. The first result
-// is the defaults; the rest follow the order of the outputs. The diagnostics
-// are merged, sorted and free of repeats.
+// is the defaults; the rest follow the order of the outputs, a table-driven
+// output once per row. The diagnostics are merged, sorted and free of repeats.
 func EvaluateAll(f *ast.File) ([]*Resolved, []diag.Diagnostic) {
 	var out []*Resolved
 	var all []diag.Diagnostic
 	d, ds := Evaluate(f, nil)
 	out, all = append(out, d), append(all, ds...)
-	for _, o := range f.Outputs {
-		r, ds := evaluate(f, o.Name.Name, setOverrides(o), false)
+	refs, ds := Outputs(f)
+	all = append(all, ds...)
+	for i := range refs {
+		r, ds := evaluateRef(f, &refs[i], false, nil)
 		out, all = append(out, r), append(all, ds...)
 	}
 	return out, diag.Dedup(all)
-}
-
-func setOverrides(o *ast.Output) []Override {
-	var out []Override
-	for _, s := range o.Set {
-		out = append(out, Override{Name: s.Name, NameSpan: s.NameSpan, Expr: s.Value, Span: s.Span})
-	}
-	return out
 }

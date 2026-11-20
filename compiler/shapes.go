@@ -52,6 +52,11 @@ func (e *elab) shape(n *resolve.Node, c wctx) {
 	var m *mesh.Mesh
 	var ok bool
 	var err error
+	// A shape the level keeps is tessellated as at level 0.
+	if saved := e.maxErr; saved > 0 && e.kept(n, name, c) {
+		e.maxErr = 0
+		defer func() { e.maxErr = saved }()
+	}
 	switch n.Kind {
 	case "cylinder":
 		m, err = e.cylinder(n)
@@ -86,6 +91,23 @@ func (e *elab) shape(n *resolve.Node, c wctx) {
 		c.meta = e.shapeMeta(n, c, name)
 	}
 	e.emit(c, mat, m)
+}
+
+// kept reports whether the level's `keep` list names the shape or a part that
+// holds it.
+func (e *elab) kept(n *resolve.Node, name string, c wctx) bool {
+	if len(e.keep) == 0 {
+		return false
+	}
+	if e.keep[name] || (n.Name != "" && e.keep[n.Name]) {
+		return true
+	}
+	for _, h := range c.chain {
+		if e.keep[h] {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *elab) spanOfShape(n *resolve.Node) diag.Span { return e.spanOf(n.Name) }

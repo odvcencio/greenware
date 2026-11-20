@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"sort"
+	"strings"
 
 	"m31labs.dev/greenware/ast"
 	"m31labs.dev/greenware/diag"
@@ -41,6 +42,13 @@ func (r *run) imports() {
 		switch {
 		case im.Qualifier == "" || !isName(im.Qualifier):
 			r.report(diag.New(diag.CodeType, im.QualSpan, "`%s` is not a name a qualifier can have; write `as name`", im.Qualifier))
+			continue
+		}
+		if !strings.HasPrefix(im.Path, std.Prefix) && !std.IsPlanned(im.Path) {
+			if g := r.loadGear(im); g != nil {
+				r.gears[im.Qualifier] = g
+				r.resolved.Gears = append(r.resolved.Gears, *g)
+			}
 			continue
 		}
 		lib := r.loadLibrary(im)

@@ -28,6 +28,9 @@ type Options struct {
 	GeometryOnly bool
 	// Library lowers a library file: it needs no asset declaration.
 	Library bool
+	// Project says where project imports and table files are read from. Nil
+	// means none: such an import is reported as outside the subset.
+	Project *Project
 }
 
 // Lower turns a parsed tree into a File and the diagnostics found on the way:
@@ -41,7 +44,7 @@ func Lower(tree *lang.Tree) (*File, []diag.Diagnostic) {
 // LowerWith is Lower with options.
 func LowerWith(tree *lang.Tree, opts Options) (*File, []diag.Diagnostic) {
 	l := &lowerer{tree: tree, geom: opts.GeometryOnly, lib: opts.Library}
-	f := &File{Source: tree.Source(), Broken: tree.HasErrors()}
+	f := &File{Source: tree.Source(), Broken: tree.HasErrors(), Project: opts.Project}
 	for _, d := range tree.Diagnostics() {
 		l.report(diag.New(diag.CodeSyntax, diag.Span{Start: d.Span.Start, End: d.Span.End}, "%s", d.Message))
 	}
@@ -245,7 +248,19 @@ func (l *lowerer) declaration(f *File, n *lang.Node) {
 		}
 	case "skeleton_decl", "skin_decl", "morph_decl", "clip_decl":
 		f.Rigs = append(f.Rigs, l.rigDecl(n))
-	case "table_decl", "mesh_decl", "view_decl", "mount_decl", "variant_decl":
+	case "table_decl":
+		if l.geom {
+			l.skip("table " + n.Field("name").Text())
+			return
+		}
+		f.Tables = append(f.Tables, l.table(n))
+	case "mount_decl":
+		if l.geom {
+			l.skip("mount " + n.Field("name").Text())
+			return
+		}
+		f.Mounts = append(f.Mounts, l.mount(n))
+	case "mesh_decl", "view_decl", "variant_decl":
 		kw := n.Children()[0]
 		l.unsupported(kw, "`"+kw.Text()+"`")
 	default:
@@ -370,6 +385,10 @@ func (l *lowerer) settings(items []*lang.Node, k *registry.Kind) ([]*Setting, []
 			continue
 		}
 		seen[s.Name] = s
+		if l.geom && k != nil && k.Name == "output" && (s.Name == "for_each" || s.Name == "mounts") {
+			l.skip("`" + s.Name + "` settings of outputs")
+			continue
+		}
 		if l.geom && s.Name == "cell" && k != nil && (k.Name == "part" || k.IsShape) {
 			l.skip("`cell` settings (atlas cells)")
 			continue
@@ -474,7 +493,11 @@ func (l *lowerer) check(n *lang.Node) *Check {
 	if c.Name.Name != "params" {
 		switch c.Name.Name {
 		case "rig", "runtime":
-			l.unsupported(n.Field("name"), "`check "+c.Name.Name+"`")
+			if l.geom {
+				l.skip("`check " + c.Name.Name + "`")
+				return c
+			}
+			l.checkBody(c, n.Field("body"), "check "+c.Name.Name)
 		default:
 			l.report(diag.New(diag.CodeUnknownName, c.Name.Span, "unknown check `%s`", c.Name.Name).
 				WithEdit("write params", c.Name.Span, "params"))

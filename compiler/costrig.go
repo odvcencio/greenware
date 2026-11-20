@@ -39,6 +39,8 @@ const (
 	TicketWeights = "weights"
 	TicketMorph   = "morph"
 	TicketClip    = "clip"
+	// TicketMount buys building the gear a mount selects; see costathlete.go.
+	TicketMount = "mount"
 )
 
 const (

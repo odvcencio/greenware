@@ -113,7 +113,11 @@ func (e *elab) checkLimits(c *resolve.RigClip, rl *rigLevel) {
 			}
 			if v := rl.sd.band[ji]; v.AnySet {
 				for _, x := range rl.sk.Check(ji, q, v) {
-					e.report(diag.CodeRigBand, c.Span, "the clip `%s` at %s leaves the natural band of `%s`: %s", c.Name, fmtTime(s.Time), name, describeViolation(x))
+					d := diag.New(diag.CodeRigBand, c.Span, "the clip `%s` at %s leaves the natural band of `%s`: %s", c.Name, fmtTime(s.Time), name, describeViolation(x))
+					if rc := e.r.RigCheck; rc != nil && rc.BandsError {
+						d.Severity = diag.Error
+					}
+					e.diags = append(e.diags, d)
 				}
 			}
 		}

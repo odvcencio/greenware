@@ -86,7 +86,7 @@ func TestRigLoweringDiagnostics(t *testing.T) {
 		{"morph field", "greenware 1\nasset a { root = a }\nmorph m { wieght = 1 }\npart a { }\n", diag.CodeUnknownField, "wieght"},
 		{"clip row name", "greenware 1\nasset a { root = a }\nclip c { kay (0s, (0, 0, 0)) }\npart a { }\n", diag.CodeUnknownField, "kay"},
 		{"skin field", "greenware 1\nasset a { root = a }\nskin { max_influence = 2 }\npart a { }\n", diag.CodeUnknownField, "max_influence"},
-		{"mount stays unsupported", "greenware 1\nasset a { root = a }\nmount m { asset = x socket = y }\npart a { }\n", diag.CodeUnsupported, "mount"},
+		{"variant stays unsupported", "greenware 1\nasset a { root = a }\nvariant v { }\npart a { }\n", diag.CodeUnsupported, "variant"},
 		{"rows in a joint", "greenware 1\nasset a { root = a }\nskeleton { joint j { at = (0, 0, 0) key (0s, (0, 0, 0)) } }\npart a { }\n", diag.CodeUnknownField, "takes no rows"},
 		{"waive", "greenware 1\nasset a { root = a }\nskeleton { joint j { at = (0, 0, 0) waive GW-RIG-BAND \"because\" } }\npart a { }\n", diag.CodeUnsupported, "waive"},
 	}

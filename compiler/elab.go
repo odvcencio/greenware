@@ -81,6 +81,15 @@ type elab struct {
 	// metres: the kernel's ChordError of each shape's retessellated counts.
 	lodErr float64
 	drop   map[string]bool // lookup only
+	keep   map[string]bool // lookup only: geometry that keeps its level 0 tessellation
+
+	// mounts are the mounts of this output, with their gear built.
+	mounts    []*mountGear
+	gearProds map[string]*OutputProduct // lookup only: gear outputs the audit built
+	policy    Policy
+	oname     string
+	// audits are the audit reports of this output, by level.
+	audits []*AuditReport
 
 	// imgs holds the images painted for this output; notes are the facts the
 	// source asked for and the file does not carry.
