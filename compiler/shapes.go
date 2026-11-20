@@ -72,8 +72,10 @@ func (e *elab) shape(n *resolve.Node, c wctx) {
 		m, err = e.ellipsoid(n)
 	case "tube":
 		m, err = e.tube(n)
+	case "box":
+		m, err = e.box(n)
 	default:
-		e.report(diag.CodeUnsupported, e.spanOfShape(n), "the shape `%s` is not supported yet by the compiler (cylinder, sphere, sweep, lathe, loft, ellipsoid and tube are)", n.Kind)
+		e.report(diag.CodeUnsupported, e.spanOfShape(n), "the shape `%s` is not supported yet by the compiler (box, cylinder, sphere, sweep, lathe, loft, ellipsoid and tube are)", n.Kind)
 		return
 	}
 	if err != nil {
