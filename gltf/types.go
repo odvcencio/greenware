@@ -93,9 +93,16 @@ type Primitive struct {
 
 // MorphTarget holds per-vertex deltas added to the base attributes. Each
 // slice is empty or has the same length as the base Positions.
+//
+// Sparse asks Encode to write the POSITION and NORMAL deltas as glTF sparse
+// accessors, which store only the vertices that move. Decode sets it when a
+// target's accessor was sparse. It changes the bytes written, not the
+// meaning: Positions and Normals are always the full dense arrays. See
+// SparseSaves and Primitive.AutoSparse.
 type MorphTarget struct {
 	Positions []float32
 	Normals   []float32
+	Sparse    bool
 }
 
 // Skin binds joint nodes to the meshes that use it. InverseBindMatrices is

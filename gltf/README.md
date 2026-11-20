@@ -31,8 +31,12 @@ back, err := gltf.Decode(glb)
   NORMAL deltas, mesh weights, target names), animations (translation, rotation,
   scale and weights; LINEAR, STEP and CUBICSPLINE), and material alpha mode,
   double-sided, emissive factor and texCoord.
-- Not covered: cameras, sparse accessors, other vertex attributes, quantized
-  animation output, external buffers. See the package comment for each choice.
+- Sparse morph targets: set `MorphTarget.Sparse` (or call `Primitive.AutoSparse`) and
+  POSITION and NORMAL deltas are written as sparse accessors that list only the
+  vertices that move. Decode reads them back into the same dense arrays and keeps
+  the flag. `SparseSaves` gives the byte counts so a caller can choose.
+- Not covered: cameras, sparse accessors anywhere but morph targets, other vertex
+  attributes, quantized animation output, external buffers. See the package comment for each choice.
 
 ## Canonical output
 
@@ -47,6 +51,7 @@ rejected. The writer does not merge duplicate vertices.
     go test -run xxx -fuzz FuzzDecode -fuzztime 30s .
     go test -update -run TestGolden .   # only after an intended format change
 
-`testdata/triangle.glb` and `testdata/rigged.glb` are the golden files. Their SHA-256
-values are in `gltf_test.go` and `rig_test.go`. Rewrite both with
-`go test -update -run 'TestGolden|TestRigGolden' .`.
+`testdata/triangle.glb`, `testdata/rigged.glb` and `testdata/rigged-sparse.glb` are the
+golden files. Their SHA-256 values are in `gltf_test.go`, `rig_test.go` and
+`sparse_test.go`. Rewrite them with
+`go test -update -run 'TestGolden|TestRigGolden|TestSparseGolden' .`.

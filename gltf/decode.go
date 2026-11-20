@@ -270,6 +270,15 @@ func (d *decoder) accessor(path string, idx int, typ string, comps ...int) (*spa
 // accessor is accepted (the caller scales the integers); when it is false a
 // normalized accessor is an error.
 func (d *decoder) accessorN(path string, idx int, typ string, normOK bool, comps ...int) (*span, error) {
+	return d.accessorX(path, idx, typ, normOK, false, comps...)
+}
+
+// accessorX is accessorN with a choice for sparse accessors. When sparseOK is
+// false a sparse accessor is an error. When it is true a sparse accessor is
+// accepted: the span covers the base bufferView, or has nil data when the
+// accessor has none (the caller then starts from zeros and applies the
+// sparse part itself).
+func (d *decoder) accessorX(path string, idx int, typ string, normOK, sparseOK bool, comps ...int) (*span, error) {
 	if idx < 0 || idx >= len(d.j.Accessors) {
 		return nil, errf(path, "accessor %d out of range (have %d)", idx, len(d.j.Accessors))
 	}
@@ -296,14 +305,18 @@ func (d *decoder) accessorN(path string, idx int, typ string, normOK bool, comps
 	if a.Normalized && !normOK {
 		return nil, at(path, ap+".normalized", "normalized data is not supported")
 	}
-	if len(a.Sparse) > 0 && string(a.Sparse) != "null" {
-		return nil, at(path, ap+".sparse", "sparse accessors are not supported")
-	}
-	if a.BufferView == nil {
-		return nil, at(path, ap+".bufferView", "missing; zero-filled accessors are not supported")
+	sparse := hasSparse(a)
+	if sparse && !sparseOK {
+		return nil, at(path, ap+".sparse", "sparse accessors are not supported here (only morph target POSITION and NORMAL)")
 	}
 	if a.Count < 1 || a.Count > 1<<32 {
 		return nil, at(path, ap+".count", "%d is out of range", a.Count)
+	}
+	if a.BufferView == nil {
+		if sparse {
+			return &span{count: int(a.Count)}, nil
+		}
+		return nil, at(path, ap+".bufferView", "missing; zero-filled accessors are not supported")
 	}
 	v, data, err := d.view(path, *a.BufferView)
 	if err != nil {
@@ -594,28 +607,18 @@ func (d *decoder) build() (*Document, error) {
 				tp := fmt.Sprintf("%s.targets[%d]", pp, t)
 				var mt MorphTarget
 				if a, ok := tg["POSITION"]; ok {
-					sp, err := d.accessor(tp+".POSITION", a, "VEC3", compFloat)
+					v, sp, err := d.morphFloats(tp+".POSITION", a, nv)
 					if err != nil {
 						return nil, err
 					}
-					if sp.count != nv {
-						return nil, errf(tp+".POSITION", "count %d differs from POSITION count %d", sp.count, nv)
-					}
-					if mt.Positions, err = sp.floats(tp+".POSITION", 3); err != nil {
-						return nil, err
-					}
+					mt.Positions, mt.Sparse = v, mt.Sparse || sp
 				}
 				if a, ok := tg["NORMAL"]; ok {
-					sp, err := d.accessor(tp+".NORMAL", a, "VEC3", compFloat)
+					v, sp, err := d.morphFloats(tp+".NORMAL", a, nv)
 					if err != nil {
 						return nil, err
 					}
-					if sp.count != nv {
-						return nil, errf(tp+".NORMAL", "count %d differs from POSITION count %d", sp.count, nv)
-					}
-					if mt.Normals, err = sp.floats(tp+".NORMAL", 3); err != nil {
-						return nil, err
-					}
+					mt.Normals, mt.Sparse = v, mt.Sparse || sp
 				}
 				out.Targets = append(out.Targets, mt)
 			}

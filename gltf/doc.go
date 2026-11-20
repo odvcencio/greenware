@@ -9,6 +9,9 @@
 //	func Encode(doc *Document) ([]byte, error)
 //	func Decode(b []byte) (*Document, error)
 //	func (d *Document) Validate() error
+//	func SparseSaves(positions, normals []float32) (denseBytes, sparseBytes int)
+//	func (p *Primitive) AutoSparse()
+//	func (d *Document) AutoSparse()
 //
 // Errors are *Error values. Path names the JSON location, for example
 // "meshes[0].primitives[0].indices"; header and chunk faults use the path
@@ -44,7 +47,9 @@
 //   - JOINTS_0 is unsigned byte when every joint index of the primitive is
 //     255 or below, else unsigned short. WEIGHTS_0 is float32.
 //   - Morph target POSITION deltas carry exact float32 min and max, like
-//     POSITION. Each animation sampler input carries its exact min and max
+//     POSITION. A target with MorphTarget.Sparse set is written with sparse
+//     accessors (see "Sparse morph targets" below); all other output is
+//     unchanged. Each animation sampler input carries its exact min and max
 //     (glTF requires them). Interpolation is always written; "" becomes
 //     "LINEAR".
 //   - Material fields at their defaults are not written: emissiveFactor,
@@ -67,9 +72,11 @@
 //     "targetNames" extras member of the right length (moved to
 //     Mesh.TargetNames), skins, and animations (float32 times and values;
 //     translation, rotation, scale and weights paths).
-//   - Sparse accessors, quantized animation output, external buffers and
-//     cameras are not read; sparse accessors and external buffers that the
-//     codec needs are errors, cameras are dropped silently.
+//   - Sparse accessors on morph target POSITION and NORMAL are read, over a
+//     base bufferView or over zeros. Sparse accessors anywhere else (base
+//     attributes, indices, skin data, animation input or output), quantized
+//     animation output and external buffers are not read and are errors that
+//     name the JSON path; cameras are dropped silently.
 //   - Node matrices are decomposed into Translation, Rotation and Scale. A
 //     matrix with shear, a zero scale, or a last row other than 0 0 0 1 is an
 //     error. A node with both a matrix and T/R/S is an error.
@@ -79,6 +86,38 @@
 //   - Absent materials factors take the glTF defaults (all 1). Empty lists
 //     decode as nil, and Encode treats an empty list like a nil one.
 //   - Names with invalid UTF-8 are written with U+FFFD in their place.
+//
+// # Sparse morph targets
+//
+// Set MorphTarget.Sparse and Encode writes the POSITION and NORMAL deltas of
+// that target as sparse accessors: no base bufferView, and a "sparse" object
+// with count, an indices bufferView and a values bufferView. Each view is
+// 4-byte aligned and has no target. Indices are ascending and name only the
+// vertices whose delta is not exactly zero in all three components (negative
+// zero counts as zero). They are unsigned short when the largest index is
+// below 65536, else unsigned int. The accessor keeps its full count, and the
+// POSITION min and max stay exact over the whole dense array. Per target the
+// data comes in this order: POSITION indices, POSITION values, NORMAL
+// indices, NORMAL values. Accessor numbers do not change, only bufferView
+// numbers.
+//
+// glTF forbids a sparse count of 0. An attribute with no non-zero delta is
+// therefore written as an ordinary dense accessor of zeros, even when Sparse
+// is set; it decodes with Sparse false for that attribute. Sparse is
+// per target: if either attribute is sparse in a file, Decode sets Sparse and
+// Encode then writes both attributes sparse.
+//
+// SparseSaves(positions, normals) returns the dense and sparse binary sizes
+// of one target, and Primitive.AutoSparse (also Document.AutoSparse) sets
+// Sparse on each target whose sparse size is smaller.
+//
+// Decode checks a sparse accessor: sparse.count is from 1 to the accessor
+// count and the accessor count matches the primitive's vertex count; indices
+// use component type 5121, 5123 or 5125, are strictly increasing and below
+// the accessor count; the indices and values views exist, have no byteStride,
+// are aligned and lie inside the buffer; values are finite. Values replace
+// the base value (they are not added). Faults name the path, for example
+// "meshes[0].primitives[0].targets[0].POSITION".
 //
 // # Rig checks
 //

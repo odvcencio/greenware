@@ -30,6 +30,9 @@ type accRec struct {
 	view, comp, count int
 	typ               string
 	min, max          []float32
+	// Sparse accessors have view -1 (no base bufferView). comp2 is the
+	// component type of the indices; idxView and valView are their views.
+	comp2, sparseCount, idxView, valView int
 }
 
 // primRefs holds accessor numbers, -1 when absent. targets has {POSITION,
@@ -163,14 +166,12 @@ func Encode(doc *Document) ([]byte, error) {
 			for _, tg := range p.Targets {
 				ref := [2]int{-1, -1}
 				if len(tg.Positions) > 0 {
-					tmn, tmx := minMax3(tg.Positions)
-					if ref[0], err = e.addAcc(floatBytes(tg.Positions), targetArray,
-						accRec{comp: compFloat, count: n, typ: "VEC3", min: tmn, max: tmx}); err != nil {
+					if ref[0], err = e.addMorphAcc(tg.Positions, n, tg.Sparse, true); err != nil {
 						return nil, err
 					}
 				}
 				if len(tg.Normals) > 0 {
-					if ref[1], err = e.addAcc(floatBytes(tg.Normals), targetArray, accRec{comp: compFloat, count: n, typ: "VEC3"}); err != nil {
+					if ref[1], err = e.addMorphAcc(tg.Normals, n, tg.Sparse, false); err != nil {
 						return nil, err
 					}
 				}
@@ -586,13 +587,18 @@ func Encode(doc *Document) ([]byte, error) {
 		items := make([]string, len(e.accs))
 		for i, a := range e.accs {
 			f := fields{}
-			f.add("bufferView", strconv.Itoa(a.view))
+			if a.view >= 0 {
+				f.add("bufferView", strconv.Itoa(a.view))
+			}
 			f.add("componentType", strconv.Itoa(a.comp))
 			f.add("count", strconv.Itoa(a.count))
 			f.add("type", jstr(a.typ))
 			if a.min != nil {
 				f.add("min", jnums(a.min))
 				f.add("max", jnums(a.max))
+			}
+			if a.view < 0 {
+				f.add("sparse", sparseJSON(a))
 			}
 			items[i] = f.String()
 		}
