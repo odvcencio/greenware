@@ -1,0 +1,27 @@
+greenware 1
+
+asset two {
+  root = two
+  length = m
+  angle = deg
+  up = y
+  forward = -z
+}
+
+param height : length = 4m in 1m..3m
+
+let half = hieght / 2
+
+part two {
+  cylinder {
+    radius = 0.1m
+    height = height
+    segments = 8
+    caps = on
+  }
+}
+
+output main {
+  file = "two.glb"
+  lods = files
+}

@@ -1,0 +1,82 @@
+greenware 1
+
+// A small fence post used by the toolchain tests.
+
+asset post {
+  title = "Fence post"
+  root = post
+  length = m
+  angle = deg
+  up = y
+  forward = -z
+}
+
+param height : length = 1.5m in 0.5m..2m
+param radius : length = 0.04m in 0.03m..0.1m
+param cap : switch = on
+param slope : angle = 5deg in 0deg..15deg
+
+let cap_height = radius * 2
+
+material wood = pbr { base = #8b5a2b roughness = 0.9 metallic = 0 }
+material paint = pbr { base = #aa3322 roughness = 0.5 metallic = 0 }
+
+part post {
+  material = wood
+  cylinder shaft {
+    at = (0, height / 2, 0)
+    radius = radius
+    height = height
+    segments = 12
+    caps = on
+  }
+  part finial {
+    material = paint
+    sphere ball {
+      at = (0, height, 0)
+      radius = cap_height
+      segments = 12
+    }
+    socket flag {
+      kind = anchor
+      at = (0, height + cap_height, 0)
+    }
+  }
+  part rail {
+    cylinder bar {
+      at = (0, height * 0.7, 0)
+      axis = x
+      radius = 0.015m
+      height = 0.6m
+      segments = 8
+      caps = on
+    }
+  }
+  when cap {
+    part lid {
+      cylinder disc {
+        at = (0, height, 0)
+        radius = radius * 1.2
+        height = 0.01m
+        segments = 12
+        caps = on
+      }
+    }
+  }
+}
+
+budget {
+  triangles = 800
+  draw_calls = 3
+}
+
+output stadium {
+  file = "post.glb"
+  lods = files
+}
+
+output practice {
+  file = "post-practice.glb"
+  lods = files
+  set { cap = off }
+}

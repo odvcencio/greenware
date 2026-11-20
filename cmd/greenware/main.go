@@ -4,6 +4,7 @@
 //	greenware check <file> [--project DIR] [--geometry-only] [--json]
 //	greenware fmt <file> [--check] [--write] [--json]
 //	greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
+//	greenware fix | diff | describe | ir | init | lock | explain | search | trace (package tools; see docs/reference/commands.md)
 //
 // With --json the command writes exactly one JSON value to standard output.
 // Exit status: 0 on success, 1 when the diagnostics hold an error (or fmt
@@ -34,7 +35,7 @@ const usage = `usage:
   greenware check <file> [--project DIR] [--geometry-only] [--json]
   greenware fmt <file> [--check] [--write] [--json]
   greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
-`
+` + toolsUsage
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -148,6 +149,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	cmd, rest := args[0], args[1:]
+	if h, ok := toolCommands[cmd]; ok {
+		return h(rest, stdout, stderr)
+	}
 	var allowed map[string]bool
 	switch cmd {
 	case "build":

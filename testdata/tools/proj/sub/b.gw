@@ -1,0 +1,28 @@
+greenware 1
+
+asset hinge {
+  root = hinge
+  length = m
+  angle = deg
+  up = y
+  forward = -z
+}
+
+param pin_radius : length = 0.01m in 0.005m..0.05m
+
+material brass = pbr { base = #b5a642 roughness = 0.4 metallic = 1 }
+
+part hinge {
+  material = brass
+  cylinder pin {
+    radius = pin_radius
+    height = 0.1m
+    segments = 8
+    caps = on
+  }
+}
+
+output main {
+  file = "hinge.glb"
+  lods = files
+}

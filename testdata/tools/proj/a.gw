@@ -1,0 +1,37 @@
+greenware 1
+
+asset gate {
+  title = "Gate"
+  root = gate
+  length = m
+  angle = deg
+  up = y
+  forward = -z
+}
+
+meta {
+  author = "M31 Labs"
+  license = "CC0-1.0"
+}
+
+param width : length = 1m in 0.5m..2m
+param latch_height : length = 0.9m in 0.5m..1.2m
+
+material iron = pbr { base = #444444 roughness = 0.6 metallic = 1 }
+
+part gate {
+  material = iron
+  cylinder latch {
+    at = (0, latch_height, 0)
+    axis = x
+    radius = 0.01m
+    height = width
+    segments = 8
+    caps = on
+  }
+}
+
+output main {
+  file = "gate.glb"
+  lods = files
+}

@@ -1,0 +1,17 @@
+greenware 1
+
+asset unit {
+  root = unit
+}
+
+param height : length = 1m in 0.5m..3m
+
+let lift = sin(30) * 1m
+
+part unit {
+  cylinder {
+    radius = 0.1m
+    height = height + lift
+  }
+}
+output main { file = "unit.glb" }
