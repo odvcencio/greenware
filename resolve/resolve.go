@@ -1,0 +1,196 @@
+// Package resolve checks a lowered file and evaluates it.
+//
+// Evaluate binds every name, orders lets by their dependencies (a let may use
+// one declared later; a cycle is an error), evaluates every constant
+// expression at the parameter values in force, and returns concrete values:
+// lengths in metres and angles in radians, as float64. It reports the
+// diagnostics of the front end: unknown names and fields, duplicates, type
+// and unit errors, parameter ranges, failed requirements and the budget
+// limits that the source alone decides.
+//
+// Arrays and mirrors are not expanded here. A resolved array or mirror keeps
+// its fields and its contents as written, evaluated for the first copy:
+// `side` is 1 inside a mirror and an array's `index` is 0.
+package resolve
+
+import (
+	"m31labs.dev/greenware/ast"
+	"m31labs.dev/greenware/diag"
+	"m31labs.dev/greenware/units"
+)
+
+// Field is one evaluated field of a node.
+type Field struct {
+	Name  string      `json:"name"`
+	Value units.Value `json:"value"`
+	// Default is true when the source did not set the field and the value
+	// is the registry default.
+	Default bool `json:"default,omitempty"`
+}
+
+// Row is one evaluated row, such as a point of a path or a lathe profile.
+type Row struct {
+	Name   string        `json:"name"`
+	Values []units.Value `json:"values"`
+}
+
+// Node is one evaluated declaration: a part, shape, socket, material, level
+// of detail or collider.
+type Node struct {
+	Kind string `json:"kind"`
+	Name string `json:"name,omitempty"`
+	// Pair is the reflected name of a declaration inside a mirror.
+	Pair   string  `json:"pair,omitempty"`
+	Fields []Field `json:"fields,omitempty"`
+	Rows   []Row   `json:"rows,omitempty"`
+	// Condition is set on a `when` node that depends on a runtime parameter:
+	// its value at the defaults. A bake `when` leaves no node; only the
+	// chosen branch remains.
+	Condition *units.Value `json:"condition,omitempty"`
+	Children  []*Node      `json:"children,omitempty"`
+	Else      []*Node      `json:"else,omitempty"`
+}
+
+// Get returns a field's value.
+func (n *Node) Get(name string) (units.Value, bool) {
+	for _, f := range n.Fields {
+		if f.Name == name {
+			return f.Value, true
+		}
+	}
+	return units.Bad(), false
+}
+
+// Param is an evaluated parameter.
+type Param struct {
+	Name    string       `json:"name"`
+	Type    string       `json:"type"`
+	Runtime bool         `json:"runtime,omitempty"`
+	Value   units.Value  `json:"value"`
+	Lo      *units.Value `json:"lo,omitempty"`
+	Hi      *units.Value `json:"hi,omitempty"`
+	Doc     string       `json:"doc,omitempty"`
+	// Overridden is true when an override, not the default, gave the value.
+	Overridden bool `json:"overridden,omitempty"`
+}
+
+// Let is an evaluated top-level let.
+type Let struct {
+	Name  string      `json:"name"`
+	Value units.Value `json:"value"`
+}
+
+// Output describes an output declaration.
+type Output struct {
+	Name     string  `json:"name"`
+	File     string  `json:"file"`
+	LODs     string  `json:"lods"`
+	Manifest bool    `json:"manifest"`
+	Profile  string  `json:"profile"`
+	Set      []Field `json:"set,omitempty"`
+	Budget   []Field `json:"budget,omitempty"`
+}
+
+// Look counts what the source decides about the drawn result, without
+// building geometry: the distinct materials in use and the draws that
+// merging by exported node and material gives.
+type Look struct {
+	// Materials lists the materials reachable in any look, in declaration order.
+	Materials      []string `json:"materials"`
+	DrawCalls      int      `json:"draw_calls"`
+	DrawCallsWorst int      `json:"draw_calls_worst"`
+}
+
+// Resolved is the result of evaluating a file at one choice of parameters.
+type Resolved struct {
+	// Output is the output the values were chosen for; empty for the defaults.
+	Output      string  `json:"output,omitempty"`
+	Asset       []Field `json:"asset"`
+	Meta        []Field `json:"meta,omitempty"`
+	Params      []Param `json:"params"`
+	Lets        []Let   `json:"lets"`
+	Materials   []*Node `json:"materials"`
+	Root        *Node   `json:"root"`
+	Definitions []*Node `json:"definitions,omitempty"`
+	Lods        []*Node `json:"lods,omitempty"`
+	Collision   []*Node `json:"collision,omitempty"`
+	// Budget is the effective budget: the document's, with the output's
+	// fields replacing the matching ones.
+	Budget  []Field  `json:"budget,omitempty"`
+	Look    Look     `json:"look"`
+	Outputs []Output `json:"outputs"`
+}
+
+// Param returns the named parameter's value.
+func (r *Resolved) Param(name string) (units.Value, bool) {
+	for _, p := range r.Params {
+		if p.Name == name {
+			return p.Value, true
+		}
+	}
+	return units.Bad(), false
+}
+
+// Let returns the named let's value.
+func (r *Resolved) Let(name string) (units.Value, bool) {
+	for _, l := range r.Lets {
+		if l.Name == name {
+			return l.Value, true
+		}
+	}
+	return units.Bad(), false
+}
+
+// Override replaces a parameter's value. Give Expr (evaluated in the
+// document scope at the defaults) or Value. NameSpan and Span locate
+// diagnostics: they may be zero for an override that does not come from
+// source.
+type Override struct {
+	Name     string
+	NameSpan diag.Span
+	Expr     ast.Expr
+	Value    *units.Value
+	Span     diag.Span
+}
+
+// Evaluate evaluates the file with the overrides applied to the parameters.
+// With no overrides it gives the default values. It also checks the `set`
+// blocks of the outputs for known names, types and ranges, without building
+// each output's full result; EvaluateAll does that.
+func Evaluate(f *ast.File, overrides []Override) (*Resolved, []diag.Diagnostic) {
+	return evaluate(f, "", overrides, true)
+}
+
+// EvaluateOutput evaluates the file with the named output's `set` block as
+// overrides and its own budget applied.
+func EvaluateOutput(f *ast.File, name string) (*Resolved, []diag.Diagnostic) {
+	for _, o := range f.Outputs {
+		if o.Name.Name == name {
+			return evaluate(f, name, setOverrides(o), false)
+		}
+	}
+	return nil, []diag.Diagnostic{diag.New(diag.CodeUnknownName, diag.Span{}, "the file has no output named %q", name)}
+}
+
+// EvaluateAll evaluates the defaults and then every output. The first result
+// is the defaults; the rest follow the order of the outputs. The diagnostics
+// are merged, sorted and free of repeats.
+func EvaluateAll(f *ast.File) ([]*Resolved, []diag.Diagnostic) {
+	var out []*Resolved
+	var all []diag.Diagnostic
+	d, ds := Evaluate(f, nil)
+	out, all = append(out, d), append(all, ds...)
+	for _, o := range f.Outputs {
+		r, ds := evaluate(f, o.Name.Name, setOverrides(o), false)
+		out, all = append(out, r), append(all, ds...)
+	}
+	return out, diag.Dedup(all)
+}
+
+func setOverrides(o *ast.Output) []Override {
+	var out []Override
+	for _, s := range o.Set {
+		out = append(out, Override{Name: s.Name, NameSpan: s.NameSpan, Expr: s.Value, Span: s.Span})
+	}
+	return out
+}

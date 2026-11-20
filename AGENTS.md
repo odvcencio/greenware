@@ -7,3 +7,4 @@
 5. Build with `CGO_ENABLED=0`. Run heavy tests with `tailnet-run` or `local-heavy`.
 
 6. Development uses `go.work` (root, `det/`, `gltf/`, with replaces to the local folders). Consumers do not see it: the root `go.mod` requires the tagged `det/v0.1.0` and `gltf/v0.1.0`. Release builds run with `GOWORK=off`.
+7. `tailnet-run` sets `GOWORK=off`. On a Mac run `export GOWORK=$PWD/go.work` first, or the local `det` and `gltf` modules are not found until the vanity path serves the tags.
