@@ -170,7 +170,7 @@ lod 1 {
 func TestUnsupportedIsRefusedNotSubstituted(t *testing.T) {
 	for _, c := range []struct{ name, src, want string }{
 		{"cone", strings.Replace(featureSource, "sphere { radius = 0.1 segments = 8 }\n  }\n  array lattice", "cone { radius = 0.1 height = 1 }\n  }\n  array lattice", 1), "cone"},
-		{"rotation", strings.Replace(featureSource, "at = (0, 1, 0)\n    material = tint", "at = (0, 1, 0) rot = (0, 90, 0)\n    material = tint", 1), "rot"},
+		{"socket rotation", strings.Replace(featureSource, "kind = tip at = (1, 0.5, 0)", "kind = tip at = (1, 0.5, 0) rot = (0, 90, 0)", 1), "rot"},
 	} {
 		p, ds := Build(lowerSource(t, []byte(c.src)), "")
 		if p != nil {

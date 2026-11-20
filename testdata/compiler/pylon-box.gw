@@ -1,0 +1,38 @@
+greenware 1
+
+// The end-zone pylon of the shipped game, written with `box`, `rot` and
+// inches: a 4 in square foam prism, 18 in tall. The numbers are those of the
+// game's own pylon.gw (width 1ft / 3, height 1.5ft). The prism is turned 45
+// degrees about y so that its corners lie on the x and z axes, as the game's
+// four-sided cylinder has them.
+
+asset pylon {
+  title = "End-zone pylon (box)"
+  root = pylon
+  length = m
+  angle = deg
+  up = y
+  forward = -z
+}
+
+param width : length = 4in in 70mm..150mm
+param height : length = 18in in 0.3m..0.6m
+
+material foam = pbr { base = #ff5a14 roughness = 0.75 metallic = 0 }
+
+part pylon {
+  material = foam
+  box {
+    at = (0, height / 2, 0)
+    size = (width, height, width)
+    rot = (0, 45deg, 0)
+  }
+  socket corner {
+    kind = anchor
+    at = (0, height, 0)
+  }
+}
+
+output stadium {
+  file = "pylon-box.glb"
+}

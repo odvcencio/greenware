@@ -247,7 +247,8 @@ func isTuple(n *resolve.Node, name string, want float64) bool {
 }
 
 // noFrameFields reports GW-UNSUPPORTED for a rotation, scale or pivot that is
-// not the identity. It returns false when it reported.
+// not the identity. It returns false when it reported. Parts, instances and
+// shapes are placed by frame.go; a socket is a point and keeps no frame.
 func (e *elab) noFrameFields(n *resolve.Node, what string) bool {
 	ok := true
 	for _, f := range []struct {
@@ -255,7 +256,7 @@ func (e *elab) noFrameFields(n *resolve.Node, what string) bool {
 		want float64
 	}{{"rot", 0}, {"scale", 1}, {"pivot", 0}} {
 		if !isTuple(n, f.name, f.want) {
-			e.unsupported(n.Name, "`%s` on %s is not supported yet: the first compiler places parts by `at` only", f.name, what)
+			e.unsupported(n.Name, "`%s` on %s is not supported yet: a socket is a point, so the compiler reads its `at` only", f.name, what)
 			ok = false
 		}
 	}
@@ -342,17 +343,13 @@ func (e *elab) walk(n *resolve.Node, c wctx) {
 	case "when":
 		e.report(diag.CodeUnsupported, e.spanOf(""), "a `when` on a runtime parameter must be the whole body of a part (`part mask { when facemask == cage { ... } }`): the part is the node that shows or hides the branch")
 	default:
-		e.shape(n, c)
+		e.shapeNode(n, c)
 	}
 }
 
 // part walks a part. The root is always a node of its own.
 func (e *elab) part(n *resolve.Node, c wctx, isRoot bool) {
 	name := effName(n, c.refl)
-	if !e.noFrameFields(n, "a part") {
-		return
-	}
-	at := vec3(n, "at")
 	if f, ok := n.Get("material"); ok && f.Valid() {
 		c.mat = f.Str
 	}
@@ -362,7 +359,7 @@ func (e *elab) part(n *resolve.Node, c wctx, isRoot bool) {
 	if e.drop[name] || (n.Name != name && e.drop[n.Name]) {
 		c.dropped = true
 	}
-	c.a = placeAt(c.a, at)
+	c.a = placeNode(c.a, n, true)
 	if f, ok := n.Get("joint"); ok && f.Valid() && f.Kind == unitsRef {
 		c.joint = e.jointName(f.Str, c.refl)
 	}
@@ -435,13 +432,10 @@ func (e *elab) instance(n *resolve.Node, c wctx) {
 		e.unsupported(of.Str, "the part `%s` that an instance places was not found", of.Str)
 		return
 	}
-	if !e.noFrameFields(n, "an instance") {
-		return
-	}
 	if e.drop[n.Name] && n.Name != "" {
 		c.dropped = true
 	}
-	c.a = placeAt(c.a, vec3(n, "at"))
+	c.a = placeNode(c.a, n, false)
 	e.part(def, c, false)
 }
 
