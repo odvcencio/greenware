@@ -491,7 +491,13 @@ func buildOutputWith(file *ast.File, r *resolve.Resolved, oname string, pol Poli
 		if !ok || e.failed() {
 			return nil, diag.Dedup(e.diags), nil
 		}
+		if out.Grid > 0 {
+			snapDoc(l.doc, out.Grid)
+		}
 		glb, err := gltf.Encode(l.doc)
+		if err == nil && out.Grid > 0 {
+			glb, err = snapGLB(glb, out.Grid)
+		}
 		if err != nil {
 			e.report(diag.CodeDomain, osp, "level %d could not be written as glTF: %v", lv, err)
 			return nil, e.diags, nil

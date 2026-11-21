@@ -174,3 +174,12 @@ Where the source differs from the game's bake, and why:
 - `check rig` takes the ground band -60..40 mm: the game roots each clip with a
   closed form that is exact for `ready` and off by +28 mm (`catch`) and -56 mm
   (`kick`) for others. `athlete.accept.gw` holds `ready` to -5..20 mm.
+
+## `grid`: the same bytes on every machine
+
+`output ... { grid = 20 }` snaps every number written to the GLB to a multiple of 2^-20 (about a micron in metres), so a build and the game's Go bake write the same bytes even when one machine rounds a product differently in the last place. `grid` is a whole number from 1 to 30; another value is `GW-FIELD-RANGE`. Absent, nothing is snapped and the file does not change.
+
+The rule is `snap(v) = round(v * 2^n) / 2^n`, halves away from zero, never `-0`.
+
+1. Before the file is written: mesh positions, UVs, skin weights and morph target deltas. After snapping, the largest weight of each vertex takes up the remainder, so the four still sum to exactly 1 (for `n` up to 24; a finer grid does not fit a 32-bit float). A sparse morph target keeps the vertices whose snapped delta is not zero.
+2. After the file is written: every dense float accessor that has no bounds and no sparse part (normals, clip values, inverse bind matrices). Accessors with bounds (positions, clip times) keep them, and their data stays equal to the bounds. Clip times are not snapped.

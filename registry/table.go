@@ -597,6 +597,7 @@ var kinds = []*Kind{
 			unsupported("variant", tLabel, "variants"),
 			{Name: "for_each", Type: tLabel, Doc: "A table: one output per row. `{row.column}` in `file` and `row.column` in `set` read the row."},
 			{Name: "mounts", Type: enum("runtime", "bake"), Doc: "Overrides the mode of every mount of the asset for this output; absent uses each mount's own mode."},
+			{Name: "grid", Type: tInteger, Min: fp(1), Max: fp(30), Doc: "Snap every number written to the GLB to a multiple of 2^-grid (1 to 30), so another build of the same asset, on any machine or in another tool, writes the same bytes. Absent: no snapping."},
 			unsupported("buffer", tString, "split glTF: package gltf writes GLB only, and the split kit files are codec fixtures, not game outputs"),
 			unsupported("image", tLabel, "image encodings: jpeg(q) needs a deterministic baseline JPEG encoder, which only the split kit files would use"),
 		},

@@ -89,3 +89,16 @@ func lowerProjectSource(t testing.TB, path string, src []byte) *ast.File {
 	}
 	return f
 }
+
+// loadProjectWith is loadProject with one text replacement in the source.
+func loadProjectWith(t testing.TB, path, old, new string) *ast.File {
+	t.Helper()
+	src, err := os.ReadFile(filepath.FromSlash(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), old) {
+		t.Fatalf("%s does not contain %q", path, old)
+	}
+	return lowerProjectSource(t, path, []byte(strings.Replace(string(src), old, new, 1)))
+}

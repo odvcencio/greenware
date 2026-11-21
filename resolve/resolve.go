@@ -104,6 +104,9 @@ type Output struct {
 	Budget   []Field `json:"budget,omitempty"`
 	// Mounts is "runtime" or "bake" when the output overrides its mounts' modes.
 	Mounts string `json:"mounts,omitempty"`
+	// Grid is n when the output snaps every written number to a multiple of
+	// 2^-n; 0 when it does not.
+	Grid int `json:"grid,omitempty"`
 	// ForEach names the table of a table-driven output.
 	ForEach string `json:"for_each,omitempty"`
 }

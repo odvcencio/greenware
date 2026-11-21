@@ -421,6 +421,9 @@ func (r *run) outputs() {
 		if v, ok := field(fs, "mounts"); ok && v.Valid() {
 			out.Mounts = v.Str
 		}
+		if v, ok := field(fs, "grid"); ok && v.Valid() {
+			out.Grid = int(v.Num)
+		}
 		if tn, _ := forEachTable(o); tn != "" {
 			out.ForEach = tn
 		}
