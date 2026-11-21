@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"m31labs.dev/greenware/datapkg"
 	"m31labs.dev/greenware/diag"
 )
 
@@ -50,10 +51,13 @@ type Span struct {
 
 // ExpectReport is the result of one expect at one output and level.
 type ExpectReport struct {
-	Span     Span      `json:"span"`
-	Message  string    `json:"message"`
-	Verdict  Verdict   `json:"verdict"`
-	Detail   string    `json:"detail,omitempty"`
+	Span    Span    `json:"span"`
+	Message string  `json:"message"`
+	Verdict Verdict `json:"verdict"`
+	Detail  string  `json:"detail,omitempty"`
+	// Code is the diagnostic code of a refusal that has its own, GW-UNIT; it is
+	// empty otherwise and the diagnostic is GW-ACCEPT.
+	Code     string    `json:"code,omitempty"`
 	Measures []Measure `json:"measures"`
 }
 
@@ -80,11 +84,15 @@ type Totals struct {
 
 // Report is the outcome of one acceptance document.
 type Report struct {
-	Schema string        `json:"schema"`
-	Accept string        `json:"accept"`
-	Of     string        `json:"of,omitempty"`
-	Totals Totals        `json:"totals"`
-	Levels []LevelReport `json:"levels"`
+	Schema string `json:"schema"`
+	Accept string `json:"accept"`
+	Of     string `json:"of,omitempty"`
+	// Inputs lists the data packages the acceptance file imported and read:
+	// contract, profile and sha256 as a build records them. Absent when the
+	// file imports none.
+	Inputs []datapkg.Input `json:"inputs,omitempty"`
+	Totals Totals          `json:"totals"`
+	Levels []LevelReport   `json:"levels"`
 }
 
 func (r *Report) tally() {
@@ -135,7 +143,11 @@ func (r *Report) JSON() ([]byte, error) {
 }
 
 func newDiag(sev diag.Severity, sp Span, msg string) diag.Diagnostic {
-	d := diag.New(CodeAccept, diag.Span{Start: sp.Start, End: sp.End}, "%s", msg)
+	return newCodeDiag(CodeAccept, sev, sp, msg)
+}
+
+func newCodeDiag(code string, sev diag.Severity, sp Span, msg string) diag.Diagnostic {
+	d := diag.New(code, diag.Span{Start: sp.Start, End: sp.End}, "%s", msg)
 	d.Severity = sev // the code is an error; an expect that cannot be measured is a warning
 	return d
 }

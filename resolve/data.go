@@ -137,42 +137,58 @@ func (r *run) dataRef(n *ast.Qualified, di *dataImport) units.Value {
 	if di.pkg == nil {
 		return units.Bad()
 	}
-	spans := make([]diag.Span, len(n.Parts))
+	out, used, d := LookupData(n, di.pkg)
+	if d != nil {
+		r.report(*d)
+		return units.Bad()
+	}
+	for j := used; j < len(n.Parts)-1; j++ {
+		out = r.member(out, n.Parts[j+1], partSpan(n, j+1))
+	}
+	return out
+}
+
+// partSpan is the span of the i-th dotted part of a qualified name.
+func partSpan(n *ast.Qualified, i int) diag.Span {
 	at := n.Span().Start
-	for i, p := range n.Parts {
-		spans[i] = diag.Span{Start: at, End: at + len(p)}
+	for _, p := range n.Parts[:i] {
 		at += len(p) + 1
 	}
+	return diag.Span{Start: at, End: at + len(n.Parts[i])}
+}
+
+// LookupData reads the field a qualified name `q.a.b` names in pkg, where q is
+// the import's qualifier. It returns the value and used, the number of path
+// parts after the qualifier that the field took (a longer name is a member
+// read on the value, which the caller decides). A name that is not a field is
+// a GW-UNKNOWN-NAME diagnostic at that part with the nearest name as the fix;
+// a group of fields is GW-TYPE. The compiler and the accept evaluator share it.
+func LookupData(n *ast.Qualified, pkg *datapkg.Package) (units.Value, int, *diag.Diagnostic) {
 	path := n.Parts[1:]
 	for i := range path {
 		prefix := path[:i+1]
-		if v, ok := di.pkg.Value(prefix...); ok {
-			out := DataValue(v)
-			for j := i + 1; j < len(path); j++ {
-				out = r.member(out, path[j], spans[j+1])
-			}
-			return out
+		if v, ok := pkg.Value(prefix...); ok {
+			return DataValue(v), i + 1, nil
 		}
-		if _, group := di.pkg.Group(prefix...); group {
+		if _, group := pkg.Group(prefix...); group {
 			continue
 		}
-		sp := spans[i+1]
+		sp := partSpan(n, i+1)
 		parent := path[:i]
-		kids, _ := di.pkg.Group(parent...)
+		kids, _ := pkg.Group(parent...)
 		where := n.Parts[0]
 		if i > 0 {
 			where += "." + strings.Join(parent, ".")
 		}
-		d := diag.New(diag.CodeUnknownName, sp, "`%s` is not a field of `%s` in the data package %s", path[i], where, di.pkg.Logical)
+		d := diag.New(diag.CodeUnknownName, sp, "`%s` is not a field of `%s` in the data package %s", path[i], where, pkg.Logical)
 		if s, ok := registry.Suggest(path[i], kids); ok {
 			d = d.WithEdit("write "+s, sp, s)
 		} else if len(kids) > 0 {
 			d.Message += "; it has " + strings.Join(kids, ", ")
 		}
-		r.report(d)
-		return units.Bad()
+		return units.Bad(), 0, &d
 	}
-	kids, _ := di.pkg.Group(path...)
-	r.report(diag.New(diag.CodeType, n.Span(), "`%s` is a group of fields in the data package %s, not a value; name one of %s", strings.Join(n.Parts, "."), di.pkg.Logical, strings.Join(kids, ", ")))
-	return units.Bad()
+	kids, _ := pkg.Group(path...)
+	d := diag.New(diag.CodeType, n.Span(), "`%s` is a group of fields in the data package %s, not a value; name one of %s", strings.Join(n.Parts, "."), pkg.Logical, strings.Join(kids, ", "))
+	return units.Bad(), 0, &d
 }

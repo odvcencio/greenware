@@ -26,6 +26,28 @@ A length converts to metres exactly, as a rational number, and becomes a float64
 
 The package is found from the project root, not from the importing file's folder, and never from outside the project. A `.gw` file import (`import "helmet.gw" as helmet`) and a library (`std/...`) are unchanged: a path with `@` and no `.gw` suffix is a data package.
 
+## In an acceptance file
+
+An acceptance file (`.accept.gw`, run by `greenware accept`) can declare the same import, so an expect reads the shared value instead of a number written a second time:
+
+```text
+import "example/world@1" as world
+
+accept crate {
+  of = "crate.gw"
+  outputs = [crate]
+  expect (abs(bounds(node(body)).max.x - bounds(node(body)).min.x - world.crate.width) < 0.1mm, "the body is as wide as the package says")
+}
+```
+
+`world.crate.width` is a length in metres, so it works in any expression that takes a length (`abs(gap(node(goalpost), axis = x, at = (0, 7m, 0)) - world.goal_post.inside_width) < 1mm + 2 * lod_error`). `testdata/world/example/crate.accept.gw` is the worked example.
+
+- The lock, schema and data file are found from the project root and checked exactly as for an asset (the four checks under "Resolution and checks"). The root is the nearest `greenware.mod` above the acceptance file, or `--project DIR`. The acceptance file's own import is what is read: the asset's imports are not.
+- The import errors are the same: `GW-LOCK` (stale pin), `GW-IMPORT-DATA`, `GW-IMPORT-CONTRACT` and `GW-UNIT` (a data value of the wrong unit), at the import's path string in the acceptance file. A path that is not a field is `GW-UNKNOWN-NAME` at that name with the nearest field as the fix, and a group is `GW-TYPE`. All are found before any expect runs, so with one of them nothing is evaluated and `greenware accept` exits 2.
+- An expression that mixes dimensions after reading a field (a length minus an angle) makes that expect refused, with the code `GW-UNIT` on its diagnostic and `"code": "GW-UNIT"` on the expect in the JSON report.
+- A package is read once for the whole file. The report (JSON and text) lists every imported package as `inputs` with `contract`, `profile` and `sha256`, in the same form as a build's record. A file with no data import has no `inputs`, and its report is unchanged.
+- An import of a `.gw` file or a library in an acceptance file is `GW-UNSUPPORTED`. The asset is named by `of` as before.
+
 ## The three files
 
 A package is a lock file, a schema file and a data file. All three are strict JSON (RFC 8259) in UTF-8. Each file is at most 2 MiB. A duplicate key, a comment, a trailing comma, a byte order mark, text after the value, a lone surrogate escape or a nesting deeper than 32 levels is an error. Nothing defaults, and no field is optional.

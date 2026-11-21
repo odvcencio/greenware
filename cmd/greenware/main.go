@@ -3,7 +3,7 @@
 //	greenware build <file> [--output NAME] [--out-dir DIR | -o DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]
 //	greenware check <file> [--project DIR] [--geometry-only] [--json]
 //	greenware fmt <file> [--check] [--write] [--json]
-//	greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
+//	greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--project DIR]
 //	greenware print <file> [--output NAME] [--level N] [--scale S] [--out FILE] [--force] [--project DIR] [--json]
 //	greenware version [--json]   (also --version and -v)
 //	greenware fix | diff | describe | ir | init | lock | explain | search | trace (package tools; see docs/reference/commands.md)
@@ -36,7 +36,7 @@ const usage = `usage:
   greenware build <file> [--output NAME] [--out-dir DIR | -o DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]
   greenware check <file> [--project DIR] [--geometry-only] [--json]
   greenware fmt <file> [--check] [--write] [--json]
-  greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]
+  greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--project DIR]
 ` + printUsage + lspUsage + toolsUsage + versionUsage
 
 func main() {

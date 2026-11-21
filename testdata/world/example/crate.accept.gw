@@ -1,0 +1,19 @@
+greenware 1
+
+// The owner's acceptance for crate.gw, reading the same package the asset
+// reads: the crate's width is the shared value, not a number written again.
+// The accept report lists the package in `inputs`. The package is invented;
+// nothing here is football data.
+
+import "example/world@1" as world
+
+accept crate {
+  of = "crate.gw"
+  outputs = [crate]
+
+  // The outer side faces of the body, measured on the decoded triangles.
+  expect (bounds(node(body)).max.x - bounds(node(body)).min.x > world.crate.width - 0.1mm, "the body is as wide as the package says")
+  expect (bounds(node(body)).max.x - bounds(node(body)).min.x < world.crate.width + 0.1mm, "the body is no wider than the package says")
+  expect (abs(bounds(node(body)).max.z - bounds(node(body)).min.z - world.crate.depth) < 0.1mm, "the body is as deep as the package says")
+  expect (abs(bounds(node(body)).max.y - world.crate.height) < 0.1mm, "the body is as high as the package says")
+}

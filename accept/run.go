@@ -63,7 +63,17 @@ type Inputs map[Key]Product
 // refused, and one warning per expect that was unavailable. Diagnostic spans
 // are byte offsets in the acceptance source.
 func Run(acc *ast.Accept, inputs Inputs) (*Report, []diag.Diagnostic) {
+	return RunWith(acc, inputs, nil)
+}
+
+// RunWith is Run for an acceptance file that imports data packages. data comes
+// from LoadData and has passed Check; nil means the file imports none. The
+// report lists the data inputs.
+func RunWith(acc *ast.Accept, inputs Inputs, data *Data) (*Report, []diag.Diagnostic) {
 	rep := &Report{Schema: Schema, Accept: acc.Name.Name}
+	if data != nil {
+		rep.Inputs = data.Inputs
+	}
 	var ds []diag.Diagnostic
 	if s := ast.FindSetting(acc.Settings, "of"); s != nil {
 		if lit, ok := s.Value.(*ast.StringLit); ok {
@@ -83,7 +93,7 @@ func Run(acc *ast.Accept, inputs Inputs) (*Report, []diag.Diagnostic) {
 					lr.Distance = jsonNum(prod.Distance)
 				}
 				sc := newScene(prod.Doc)
-				ev := &evaluator{sc: sc, output: out, lod: lod, lodErr: prod.LODError, lodKnown: !prod.LODErrorUnknown, d: units.DefaultUnits()}
+				ev := &evaluator{sc: sc, output: out, lod: lod, lodErr: prod.LODError, lodKnown: !prod.LODErrorUnknown, d: units.DefaultUnits(), data: data}
 				walkItems(acc.Items, ev, &lr, &ds)
 			} else {
 				lr.Problem = prod.Problem
@@ -145,6 +155,7 @@ func spanOf(s diag.Span) Span { return Span{s.Start, s.End} }
 
 func runExpect(x *ast.Expect, ev *evaluator) ExpectReport {
 	ev.measures = nil
+	ev.dataUsed = false
 	er := ExpectReport{Span: spanOf(x.Span), Measures: []Measure{}}
 	switch m := x.Message.(type) {
 	case *ast.StringLit:
@@ -157,7 +168,7 @@ func runExpect(x *ast.Expect, ev *evaluator) ExpectReport {
 	case err != nil && err.unavailable:
 		er.Verdict, er.Detail = Unavailable, err.msg
 	case err != nil:
-		er.Verdict, er.Detail = Refused, err.msg
+		er.Verdict, er.Detail, er.Code = Refused, err.msg, err.code
 	case ok:
 		er.Verdict = Pass
 	default:
@@ -193,6 +204,9 @@ func expectDiag(lr *LevelReport, er ExpectReport) (diag.Diagnostic, bool) {
 	sev := diag.Error
 	if er.Verdict == Unavailable {
 		sev = diag.Warning
+	}
+	if er.Code != "" {
+		return newCodeDiag(er.Code, sev, er.Span, b.String()), true
 	}
 	return newDiag(sev, er.Span, b.String()), true
 }

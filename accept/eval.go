@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"m31labs.dev/greenware/ast"
+	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/units"
 )
@@ -15,6 +16,9 @@ import (
 type evalErr struct {
 	unavailable bool
 	msg         string
+	// code is the diagnostic code when the refusal has one of its own: GW-UNIT
+	// for an expression that mixes dimensions after reading a data field.
+	code string
 }
 
 func refuse(format string, a ...any) *evalErr {
@@ -53,6 +57,10 @@ type evaluator struct {
 	lodKnown bool
 	d        units.Defaults
 	measures []Measure
+	// data holds the acceptance file's data imports; nil when it has none.
+	data *Data
+	// dataUsed is set once the current expect has read a data field.
+	dataUsed bool
 	// rd is the rig of the file, prepared on first use.
 	rd *rigDoc
 }
@@ -188,7 +196,11 @@ func describe(v val) string {
 }
 
 func (ev *evaluator) uerr(err *units.Error) *evalErr {
-	return refuse("%s", err.Msg)
+	e := refuse("%s", err.Msg)
+	if err.Kind == units.ErrUnit && ev.dataUsed {
+		e.code = diag.CodeUnit
+	}
+	return e
 }
 
 func (ev *evaluator) eval(e ast.Expr) (val, *evalErr) {
@@ -204,6 +216,17 @@ func (ev *evaluator) eval(e ast.Expr) (val, *evalErr) {
 	case *ast.Name:
 		return ev.name(x.Name)
 	case *ast.Qualified:
+		if dv, rest, ok := ev.data.value(x); ok {
+			ev.dataUsed = true
+			v := uval(dv)
+			for _, p := range rest {
+				var err *evalErr
+				if v, err = ev.member(v, p); err != nil {
+					return val{}, err
+				}
+			}
+			return v, nil
+		}
 		v, err := ev.name(x.Parts[0])
 		if err != nil {
 			return val{}, err

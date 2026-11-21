@@ -305,7 +305,7 @@ goalpost/post/sweep  316 triangles, closed true, 124821.601 cm3, bounds (-100.00
 
 ## Other commands
 
-`greenware build <file> [--output NAME] [--out-dir DIR | -o DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]` writes the GLB files and a build record. `greenware fmt <file> [--check] [--write] [--json]` formats a file. `greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json]` runs an acceptance file on built files; it exits 3 when no check failed but some could not be measured. Their exit status is 0 success, 1 an error diagnostic (or an unformatted file under `fmt --check`), 2 a usage or read error.
+`greenware build <file> [--output NAME] [--out-dir DIR | -o DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]` writes the GLB files and a build record. `greenware fmt <file> [--check] [--write] [--json]` formats a file. `greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--project DIR]` runs an acceptance file on built files; it exits 3 when no check failed but some could not be measured. The acceptance file may import a data package (`import "football/world@1" as world`) and read `world.goal_post.inside_width` in an expect; the lock is found from the project root (`--project`, else the nearest `greenware.mod`), a stale pin or a bad field is a diagnostic in the acceptance file and exits 2 with nothing evaluated, and the report lists the data under `inputs` (see data-package.md). Their exit status is 0 success, 1 an error diagnostic (or an unformatted file under `fmt --check`), 2 a usage or read error.
 
 ## greenware version
 

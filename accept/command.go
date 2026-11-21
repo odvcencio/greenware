@@ -24,7 +24,7 @@ const (
 	ExitUnavailable = 3
 )
 
-const usage = `usage: greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--lod0-error LEN] [--geometry-only]
+const usage = `usage: greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--lod0-error LEN] [--geometry-only] [--project DIR]
 
 Runs the acceptance file on the decoded GLB files that the source's output
 blocks name, in DIR, at every level. It compiles nothing.
@@ -33,15 +33,22 @@ blocks name, in DIR, at every level. It compiles nothing.
   --json             write the report as JSON on stdout
   --lod0-error LEN   level 0's lod_error, such as 2.99mm, when the GLB does not record it
   --geometry-only    read the source as greenware build --geometry-only does
+  --project DIR      project root for the acceptance file's data imports
+                     (default: the nearest greenware.mod above the file)
 
-exit status: 0 all pass, 1 any fail or refused, 2 usage or unreadable input,
-3 none failed but some could not be measured (for example outline)
+An acceptance file may import a data package, import "football/world@1" as
+world, and read its fields in an expect (world.goal_post.inside_width). A stale
+pin or a bad import or field is a diagnostic in the acceptance file and nothing
+is evaluated.
+
+exit status: 0 all pass, 1 any fail or refused, 2 usage, unreadable input or a
+diagnostic in either file (including a data import or field), 3 none failed but some could not be measured (for example outline)
 `
 
 // Command implements `greenware accept`. It returns the exit status.
 func Command(args []string, stdout, stderr io.Writer) int {
 	var pos []string
-	var glbDir, lod0 string
+	var glbDir, lod0, projectRoot string
 	var asJSON, haveDir, geomOnly bool
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -70,6 +77,13 @@ func Command(args []string, stdout, stderr io.Writer) int {
 				return ExitUsage
 			}
 			glbDir, haveDir = v, true
+		case a == "--project" || strings.HasPrefix(a, "--project="):
+			v, ok := value("--project")
+			if !ok {
+				fmt.Fprintf(stderr, "greenware accept: --project needs a folder\n\n%s", usage)
+				return ExitUsage
+			}
+			projectRoot = v
 		case a == "--lod0-error" || strings.HasPrefix(a, "--lod0-error="):
 			v, ok := value("--lod0-error")
 			if !ok {
@@ -113,9 +127,26 @@ func Command(args []string, stdout, stderr io.Writer) int {
 		printDiags(stderr, srcPath, srcText, srcDiags)
 		return ExitUsage
 	}
-	accAST, accDiags := ast.Lower(lang.Parse(accText))
+	var proj *ast.Project
+	if p, err := ast.OpenProject(accPath, projectRoot); err == nil {
+		proj = p
+	} else if projectRoot != "" {
+		fmt.Fprintf(stderr, "greenware accept: %v\n", err)
+		return ExitUsage
+	}
+	accAST, accDiags := ast.LowerWith(lang.Parse(accText), ast.Options{Project: proj})
 	if accAST.Broken || diag.HasErrors(accDiags) {
 		printDiags(stderr, accPath, accText, accDiags)
+		return ExitUsage
+	}
+	data, dataDiags := LoadData(accAST)
+	if len(dataDiags) == 0 {
+		for _, acc := range accAST.Accepts {
+			dataDiags = append(dataDiags, data.Check(acc)...)
+		}
+	}
+	if diag.HasErrors(dataDiags) {
+		printDiags(stderr, accPath, accText, dataDiags)
 		return ExitUsage
 	}
 	if len(accAST.Accepts) == 0 {
@@ -128,7 +159,7 @@ func Command(args []string, stdout, stderr io.Writer) int {
 	exit := ExitPass
 	for _, acc := range accAST.Accepts {
 		inputs := loadInputs(acc, plan, glbDir, lod0Err)
-		rep, ds := Run(acc, inputs)
+		rep, ds := RunWith(acc, inputs, data)
 		reports = append(reports, rep)
 		if !asJSON {
 			writeText(stdout, rep)
@@ -311,6 +342,9 @@ func recordedLODError(doc *gltf.Document) (float64, bool) {
 // writeText prints one line per expect, grouped by output and level.
 func writeText(w io.Writer, r *Report) {
 	fmt.Fprintf(w, "accept %s\n", r.Accept)
+	for _, in := range r.Inputs {
+		fmt.Fprintf(w, "input %s profile %s sha256 %s\n", in.Contract, in.Profile, in.SHA256)
+	}
 	for _, l := range r.Levels {
 		head := fmt.Sprintf("output %s lod %d", l.Output, l.LOD)
 		if l.File != "" {
