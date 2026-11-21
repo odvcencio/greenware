@@ -1,0 +1,92 @@
+athleteparity: output match, file athlete.glb, looks from game commit b79b609, clip ready at t=0
+
+== LEDGER ==
+athlete.glb body: 4465 indexed vertices, 6262 triangles, 48 shapes, 10 morph targets
+
+part (body only)                   now t/v         R t/v         B t/v         F t/v
+jersey torso, collar, belt      138/136      2400/1450     1200/740       420/280   
+caps and cuffs                  432/352      1800/1100      800/500       280/190   
+arms, tape, play card           272/206      2200/1350      900/580       320/220   
+hands or gloves                 328/230      1800/1100      360/250       120/90    
+hips, thighs, knee plates       768/532      3200/1900     1500/940       560/375   
+lower legs, socks, bands        432/352      1200/750       520/350       200/140   
+face and neck                  1200/863      1800/1150      420/290       120/90    
+shell, pads, strap, crest         0/0        2800/1700      970/620       380/250   
+cage and clips                    0/0        1400/850       350/250        64/52    
+boots and collars               360/306      1400/890       520/350       200/140   
+other opaque gear                 0/0         400/260       120/90         24/20    
+visor (transparent)               0/0          64/51         24/21          0/0     
+(unassigned)                   2332/1488  
+
+target       verts moved       max yd
+mass               1549       0.0416
+pads                352       0.0248
+belly               469       0.0373
+tall               4465       0.1296
+short              4465       0.0972
+neck-long          1314       0.0480
+limb-lean           950       0.0180
+neck-short         1314       0.0320
+chest-deep          401       0.0414
+brow                380       0.0134
+
+not in any part: body/biceps_l, body/biceps_r, body/fingers_l, body/fingers_r, body/glove_l, body/glove_r, body/head, body/jersey, body/laces_l, body/laces_r, body/mouth, body/pants, body/piping_l, body/piping_r, body/sock_stripe_l, body/sock_stripe_r, body/wrist_tape_l, body/wrist_tape_r
+
+== SILHOUETTE ==
+wearer                     height helmet | shoulder ribs waist seat thigh height (front, helmet widths) | ribs waist seat thigh (side depth) | helmet/shoulder shoulder/waist
+lineman (OL starter)       1.959 0.000 | 3.50 0.00 0.00 0.00 1.13 7.26 | 0.00 0.00 0.00 1.23 | 0.29  n/a
+receiver (WR starter)      1.883 0.000 | 3.17 0.00 0.00 0.00 0.91 6.98 | 0.00 0.00 0.00 0.99 | 0.32  n/a
+OL/DL median               1.971 0.000 | 3.53 0.00 0.00 0.00 1.14 7.30 | 0.00 0.00 0.00 1.24 | 0.28  n/a
+TE/LB median               1.942 0.000 | 3.41 0.00 0.00 0.00 1.07 7.19 | 0.00 0.00 0.00 1.16 | 0.29  n/a
+RB median                  1.859 0.000 | 3.17 0.00 0.00 0.00 0.96 6.89 | 0.00 0.00 0.00 1.05 | 0.32  n/a
+WR/CB median               1.858 0.000 | 3.13 0.00 0.00 0.00 0.89 6.88 | 0.00 0.00 0.00 0.98 | 0.32  n/a
+QB median                  1.925 0.000 | 3.34 0.00 0.00 0.00 1.01 7.13 | 0.00 0.00 0.00 1.10 | 0.30  n/a
+
+warnings: 7
+  warning: 18 shapes are in no ledger part (counted in the unassigned row)
+  warning: morph target "leg-power" is not in the file: its weight is ignored in every look
+  warning: morph target "waist-seat" is not in the file: its weight is ignored in every look
+  warning: no shape maps to shell "torso": the widths cut from it are 0 (shapes are matched by leaf name; see ShellName)
+  warning: no shape maps to shell "helmet": the widths cut from it are 0 (shapes are matched by leaf name; see ShellName)
+  warning: no shape maps to shell "hips": the widths cut from it are 0 (shapes are matched by leaf name; see ShellName)
+  warning: the figure has no helmet width: the columns in helmet widths use 0.270 yd (-helmet-yd)
+
+== COMPARE: athlete.glb minus the Go bake ==
+tolerances: ledger rows within 5 percent (triangles and vertices); silhouette columns within 0.03 H (helmet widths)
+
+ledger, 'now' column
+part                               Go t/v    Greenware    d tris   tris %   d verts  verts %  verdict
+jersey torso, collar, belt     928/481      138/136         -790    -85.1      -345    -71.7  FAIL
+caps and cuffs                 568/304      432/352         -136    -23.9       +48    +15.8  FAIL
+arms, tape, play card          544/300      272/206         -272    -50.0       -94    -31.3  FAIL
+hands or gloves               1412/734      328/230        -1084    -76.8      -504    -68.7  FAIL
+hips, thighs, knee plates     1404/730      768/532         -636    -45.3      -198    -27.1  FAIL
+lower legs, socks, bands       616/332      432/352         -184    -29.9       +20     +6.0  FAIL
+face and neck                 2172/1116    1200/863         -972    -44.8      -253    -22.7  FAIL
+shell, pads, strap, crest     4908/2575       0/0          -4908   -100.0     -2575   -100.0  FAIL
+cage and clips                   0/0          0/0             +0     +0.0        +0     +0.0  PASS
+boots and collars              464/264      360/306         -104    -22.4       +42    +15.9  FAIL
+other opaque gear                0/0          0/0             +0     +0.0        +0     +0.0  PASS
+visor (transparent)              0/0          0/0             +0     +0.0        +0     +0.0  PASS
+(unassigned)                            -  2332/1488    (Greenware shapes in no ledger part; the Go bake has none)
+ledger: 9 of 12 rows outside tolerance
+
+silhouette: difference, then relative percent; '*' marks a column outside tolerance
+wearer                      ht yd  helm yd    shldr     ribs    waist     seat    thigh     ht/H   ribs-d  waist-d   seat-d  thigh-d     h/sh     sh/w
+lineman (OL starter)      -0.066*  -0.270*    +0.02   -2.00*   -1.94*   -1.86*   -0.04*   -0.24*   -1.40*   -1.36*   -1.24*    -0.02    -0.00      n/a
+                            -3.2%  -100.0%    +0.6%  -100.0%  -100.0%  -100.0%    -3.6%    -3.2%  -100.0%  -100.0%  -100.0%    -1.9%    -1.5%      n/a
+receiver (WR starter)     -0.067*  -0.270*   -0.04*   -1.69*   -1.43*   -1.48*    -0.02   -0.24*   -1.16*   -1.02*   -1.03*    -0.03    +0.01      n/a
+                            -3.4%  -100.0%    -1.2%  -100.0%  -100.0%  -100.0%    -2.7%    -3.4%  -100.0%  -100.0%  -100.0%    -2.5%    +1.7%      n/a
+OL/DL median              -0.066*  -0.270*    +0.02   -2.02*   -1.98*   -1.89*   -0.04*   -0.25*   -1.42*   -1.38*   -1.25*    -0.03    -0.01      n/a
+                            -3.3%  -100.0%    +0.6%  -100.0%  -100.0%  -100.0%    -3.2%    -3.3%  -100.0%  -100.0%  -100.0%    -2.3%    -2.3%      n/a
+TE/LB median              -0.066*  -0.270*    +0.00   -1.92*   -1.75*   -1.74*   -0.04*   -0.25*   -1.33*   -1.21*   -1.17*    -0.03    +0.00      n/a
+                            -3.3%  -100.0%    +0.1%  -100.0%  -100.0%  -100.0%    -4.0%    -3.3%  -100.0%  -100.0%  -100.0%    -2.4%    +1.0%      n/a
+RB median                 -0.066*  -0.270*    -0.02   -1.76*   -1.55*   -1.57*   -0.08*   -0.24*   -1.21*   -1.09*   -1.07*   -0.07*    +0.01      n/a
+                            -3.4%  -100.0%    -0.8%  -100.0%  -100.0%  -100.0%    -7.7%    -3.4%  -100.0%  -100.0%  -100.0%    -6.3%    +1.9%      n/a
+WR/CB median              -0.066*  -0.270*   -0.04*   -1.67*   -1.40*   -1.45*   -0.03*   -0.25*   -1.14*   -1.00*   -1.01*    -0.02    -0.00      n/a
+                            -3.4%  -100.0%    -1.4%  -100.0%  -100.0%  -100.0%    -3.3%    -3.5%  -100.0%  -100.0%  -100.0%    -2.2%    -0.0%      n/a
+QB median                 -0.066*  -0.270*    -0.01   -1.84*   -1.64*   -1.65*    -0.01   -0.25*   -1.27*   -1.15*   -1.12*    -0.01    -0.00      n/a
+                            -3.3%  -100.0%    -0.2%  -100.0%  -100.0%  -100.0%    -1.3%    -3.4%  -100.0%  -100.0%  -100.0%    -0.9%    -0.3%      n/a
+silhouette: 71 of 84 judged cells outside tolerance
+
+FAIL

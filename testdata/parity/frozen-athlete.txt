@@ -1,0 +1,67 @@
+athleteparity: output match, file athlete.glb, looks from game commit b79b609, clip ready at t=0
+
+== LEDGER ==
+athlete.glb body: 4465 indexed vertices, 6262 triangles, 48 shapes, 10 morph targets
+
+part (body only)                   now t/v         R t/v         B t/v         F t/v
+jersey torso, collar, belt      138/136      2400/1450     1200/740       420/280   
+caps and cuffs                  432/352      1800/1100      800/500       280/190   
+arms, tape, play card           272/206      2200/1350      900/580       320/220   
+hands or gloves                 328/230      1800/1100      360/250       120/90    
+hips, thighs, knee plates       768/532      3200/1900     1500/940       560/375   
+lower legs, socks, bands        432/352      1200/750       520/350       200/140   
+face and neck                  1200/863      1800/1150      420/290       120/90    
+shell, pads, strap, crest         0/0        2800/1700      970/620       380/250   
+cage and clips                    0/0        1400/850       350/250        64/52    
+boots and collars               360/306      1400/890       520/350       200/140   
+other opaque gear                 0/0         400/260       120/90         24/20    
+visor (transparent)               0/0          64/51         24/21          0/0     
+(unassigned)                   2332/1488  
+
+target       verts moved       max yd
+mass               1549       0.0416
+pads                352       0.0248
+belly               469       0.0373
+tall               4465       0.1296
+short              4465       0.0972
+neck-long          1314       0.0480
+limb-lean           950       0.0180
+neck-short         1314       0.0320
+chest-deep          401       0.0414
+brow                380       0.0134
+
+not in any part: body/biceps_l, body/biceps_r, body/fingers_l, body/fingers_r, body/glove_l, body/glove_r, body/head, body/jersey, body/laces_l, body/laces_r, body/mouth, body/pants, body/piping_l, body/piping_r, body/sock_stripe_l, body/sock_stripe_r, body/wrist_tape_l, body/wrist_tape_r
+
+== SILHOUETTE ==
+wearer                     height helmet | shoulder ribs waist seat thigh height (front, helmet widths) | ribs waist seat thigh (side depth) | helmet/shoulder shoulder/waist
+lineman (OL starter)       1.959 0.000 | 3.50 0.00 0.00 0.00 1.13 7.26 | 0.00 0.00 0.00 1.23 | 0.29  n/a
+receiver (WR starter)      1.883 0.000 | 3.17 0.00 0.00 0.00 0.91 6.98 | 0.00 0.00 0.00 0.99 | 0.32  n/a
+OL/DL median               1.971 0.000 | 3.53 0.00 0.00 0.00 1.14 7.30 | 0.00 0.00 0.00 1.24 | 0.28  n/a
+TE/LB median               1.942 0.000 | 3.41 0.00 0.00 0.00 1.07 7.19 | 0.00 0.00 0.00 1.16 | 0.29  n/a
+RB median                  1.859 0.000 | 3.17 0.00 0.00 0.00 0.96 6.89 | 0.00 0.00 0.00 1.05 | 0.32  n/a
+WR/CB median               1.858 0.000 | 3.13 0.00 0.00 0.00 0.89 6.88 | 0.00 0.00 0.00 0.98 | 0.32  n/a
+QB median                  1.925 0.000 | 3.34 0.00 0.00 0.00 1.01 7.13 | 0.00 0.00 0.00 1.10 | 0.30  n/a
+
+== GATE ==
+silhouette gate (deep consult 1, section C): median OL/DL against median WR, 96 px renders
+
+equal scale (51.58 px per yard for every figure); standing height OL/DL 1.971 yd, WR 1.861 yd
+metric                   view   OL/DL px    WR px  diff px   need  verdict
+waist width (front)      front     51.67    46.67     5.00      3  PASS
+thigh thickness (side)   side      21.75    17.50     4.25      2  PASS
+lower rib depth (side)   side      22.67    16.67     6.00      2  PASS
+
+equal height (each figure drawn at its own height); standing height OL/DL 1.971 yd, WR 1.861 yd
+metric                   view   OL/DL px    WR px  diff px   need  verdict
+waist width (front)      front     49.00    46.67     2.33      3  FAIL
+thigh thickness (side)   side      20.80    17.25     3.55      2  PASS
+lower rib depth (side)   side      21.67    16.67     5.00      2  PASS
+
+warnings: 7
+  warning: 18 shapes are in no ledger part (counted in the unassigned row)
+  warning: morph target "leg-power" is not in the file: its weight is ignored in every look
+  warning: morph target "waist-seat" is not in the file: its weight is ignored in every look
+  warning: no shape maps to shell "torso": the widths cut from it are 0 (shapes are matched by leaf name; see ShellName)
+  warning: no shape maps to shell "helmet": the widths cut from it are 0 (shapes are matched by leaf name; see ShellName)
+  warning: no shape maps to shell "hips": the widths cut from it are 0 (shapes are matched by leaf name; see ShellName)
+  warning: the figure has no helmet width: the columns in helmet widths use 0.270 yd (-helmet-yd)

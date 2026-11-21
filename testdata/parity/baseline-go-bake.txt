@@ -1,0 +1,70 @@
+# Baseline: the Go bake of the game's athlete (parity target).
+# Game commit 3848013, Oscar's Mac (arm64). Copied from the Hyphae report
+# hypha://m31labs/greenware/reports/athlete-parity/baseline-go-bake.
+# The first block is `go run ./cmd/bakeathletes -ledger`, the second is
+# `go run ./cmd/bakeathletes -silhouette -`.
+
+athlete.glb body: 6836 indexed vertices, 13016 triangles, 72 shells, 7 morph targets
+
+part (body only)                   now t/v         R t/v         B t/v         F t/v
+jersey torso, collar, belt      928/481      2400/1450     1200/740       420/280   
+caps and cuffs                  568/304      1800/1100      800/500       280/190   
+arms, tape, play card           544/300      2200/1350      900/580       320/220   
+hands or gloves                1412/734      1800/1100      360/250       120/90    
+hips, thighs, knee plates      1404/730      3200/1900     1500/940       560/375   
+lower legs, socks, bands        616/332      1200/750       520/350       200/140   
+face and neck                  2172/1116     1800/1150      420/290       120/90    
+shell, pads, strap, crest      4908/2575     2800/1700      970/620       380/250   
+cage and clips                    0/0        1400/850       350/250        64/52    
+boots and collars               464/264      1400/890       520/350       200/140   
+other opaque gear                 0/0         400/260       120/90         24/20    
+visor (transparent)               0/0          64/51         24/21          0/0     
+
+gear piece             part                             tris    verts
+cleat-high-l           boots and collars                  80       42
+cleat-high-r           boots and collars                  80       42
+cleat-mid-l            boots and collars                  80       42
+cleat-mid-r            boots and collars                  80       42
+crest                  shell, pads, strap, crest         144      148
+eyeblack-patch         face and neck                     376      192
+eyeblack-stripe        face and neck                     376      192
+glove-padded-l         hands or gloves                   894      463
+glove-padded-r         hands or gloves                   894      463
+glove-receiver-l       hands or gloves                   706      367
+glove-receiver-r       hands or gloves                   706      367
+mask-cage              cage and clips                   1584      864
+mask-open cage         cage and clips                   1536      828
+mask-three-bar         cage and clips                   1536      828
+mask-two-bar           cage and clips                   1056      576
+playcard-l             arms, tape, play card             140       74
+playcard-r             arms, tape, play card             140       74
+tape-team-l            arms, tape, play card              44       24
+tape-team-r            arms, tape, play card              44       24
+tape-white-l           arms, tape, play card              44       24
+tape-white-r           arms, tape, play card              44       24
+towel-l                other opaque gear                  80       54
+towel-r                other opaque gear                  80       54
+visor                  visor (transparent)                64       51
+
+outfits over 2376 roster slots, opaque triangles with shown gear: mean 15885, p90 16780, max 17156; visor shown on 898 (38%)
+ceilings, opaque maximum per player: R 20400, B 7660, F 2688 triangles
+
+target       verts moved       max yd
+mass               1333       0.0327
+belly               328       0.0370
+pads                469       0.0252
+chest-deep          198       0.0274
+limb-lean           956       0.0150
+waist-seat          350       0.0193
+leg-power           426       0.0210
+
+vertices with a UV outside every atlas region: 0
+
+wearer                     height helmet | shoulder ribs waist seat thigh height (front, helmet widths) | ribs waist seat thigh (side depth) | helmet/shoulder shoulder/waist
+lineman (OL starter)       2.025 0.270 | 3.48 2.00 1.94 1.86 1.17 7.50 | 1.40 1.36 1.24 1.25 | 0.29 1.79
+receiver (WR starter)      1.950 0.270 | 3.21 1.69 1.43 1.48 0.93 7.22 | 1.16 1.02 1.03 1.02 | 0.31 2.25
+OL/DL median               2.037 0.270 | 3.51 2.02 1.98 1.89 1.18 7.55 | 1.42 1.38 1.25 1.27 | 0.29 1.77
+TE/LB median               2.008 0.270 | 3.41 1.92 1.75 1.74 1.11 7.44 | 1.33 1.21 1.17 1.19 | 0.29 1.94
+RB median                  1.925 0.270 | 3.19 1.76 1.55 1.57 1.04 7.13 | 1.21 1.09 1.07 1.12 | 0.31 2.06
+WR/CB median               1.924 0.270 | 3.17 1.67 1.40 1.45 0.92 7.13 | 1.14 1.00 1.01 1.00 | 0.32 2.26
+QB median                  1.991 0.270 | 3.35 1.84 1.64 1.65 1.02 7.38 | 1.27 1.15 1.12 1.11 | 0.30 2.04
