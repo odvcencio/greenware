@@ -736,7 +736,7 @@ budget {
   // Ten targets, above the default of 8. Targets are stored sparse (only the
   // vertices a target moves): the match file is 988,516 B, not about 1.7 MB.
   morphs = 10
-  vertices = 4600            // measured 4,465
+  vertices = 4800            // measured 4,781 with each array copy resolved with its own index (it was 4,465 when index was 0 in every copy)
   file_size = 1MiB           // measured 988,516 B: 94% of it
 }
 

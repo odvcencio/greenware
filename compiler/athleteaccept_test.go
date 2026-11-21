@@ -53,7 +53,7 @@ func TestAthleteAcceptance(t *testing.T) {
 	}
 	want := map[string]string{
 		"15 joints": "pass", "seven morph targets": "pass", "the four lookup channels and two of the body clips": "pass",
-		"31 animations": "pass", "the 17 other body clips of the historical file": "pass", "the 8 footwork clips of the game's bake": "pass",
+		"32 animations": "pass", "the 17 other body clips of the historical file": "pass", "the 8 footwork clips of the game's bake": "pass",
 		"48 extreme runtime points": "pass", "pelvis at 0.969486 yd": "pass",
 		"the lowest sole vertex is at most 5 mm below the ground": "pass", "the lowest sole vertex is at most 20 mm above the ground": "pass",
 		"the head_gear socket stays on the centre line": "pass", "head_gear is above the pelvis": "pass",

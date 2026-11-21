@@ -51,7 +51,7 @@ func TestAthleteRigNumbers(t *testing.T) {
 		f.Joints, f.Vertices, f.Triangles, f.Influences, f.Morphs, f.Animations, f.AnimKeys, f.Size, f.Draws)
 	g := op.Files[1]
 	t.Logf("athlete L1: %d vertices, %d triangles, %d bytes", g.Vertices, g.Triangles, g.Size)
-	if f.Joints != 15 || f.Influences != 2 || f.Morphs != 7 || f.Animations != 31 {
+	if f.Joints != 15 || f.Influences != 2 || f.Morphs != 7 || f.Animations != 32 {
 		t.Errorf("joints %d influences %d morphs %d animations %d", f.Joints, f.Influences, f.Morphs, f.Animations)
 	}
 	var order []string
@@ -70,8 +70,8 @@ func TestAthleteRigNumbers(t *testing.T) {
 	for _, a := range d.Animations {
 		anims = append(anims, a.Name)
 	}
-	// The 27 body clips of clips/football.gw and clips/solved.gw and the four lookup channels, by name.
-	if got := strings.Join(anims, " "); got != "backpedal block carry catch caught-l caught-r crossover-l crossover-r cut-l cut-r field-x field-z handoff heading hip-flip-l hip-flip-r juke kick kick-slide ready run shuffle-l shuffle-r sprint stance stance-height stumble tackle throw wrap-l wrap-r" {
+	// The 27 body clips of clips/football.gw and clips/solved.gw, the four lookup channels and the `bind` clip of bind.gw, by name.
+	if got := strings.Join(anims, " "); got != "backpedal bind block carry catch caught-l caught-r crossover-l crossover-r cut-l cut-r field-x field-z handoff heading hip-flip-l hip-flip-r juke kick kick-slide ready run shuffle-l shuffle-r sprint stance stance-height stumble tackle throw wrap-l wrap-r" {
 		t.Errorf("animations %q", got)
 	}
 	// The four wrappers sit above the root node, outermost first.
@@ -181,13 +181,15 @@ func TestAthleteReadyStandsOnTheGround(t *testing.T) {
 			t.Errorf("ready at %g s: the lowest vertex is %.4f m, outside -5 mm..20 mm", tm, lo)
 		}
 	}
-	// The unplayed file shows the same pose as the first key.
+	// The unplayed file shows the bind pose (`idle = bind`, as the game's bake
+	// writes its nodes): the soles of the bind shape sit 0.035 yd, 32 mm, above
+	// the ground.
 	lo := 1e9
 	for _, v := range ev.posed("", 0, nil) {
 		lo = math.Min(lo, v[1])
 	}
-	if lo < -0.005 || lo > 0.020 {
-		t.Errorf("display pose: lowest vertex %.4f m", lo)
+	if lo < 0.030 || lo > 0.034 {
+		t.Errorf("display pose: lowest vertex %.4f m, want the bind shape's 0.032 m", lo)
 	}
 }
 

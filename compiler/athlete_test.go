@@ -54,11 +54,11 @@ func TestAthleteCensus(t *testing.T) {
 	}
 	want := map[string]Census{
 		// match is the game's Go bake's body (13,016 triangles, 6,836 vertices, 7
-		// build targets) with the 27 clips of clips/football.gw and clips/solved.gw and
+		// build targets) with the 27 clips of clips/football.gw and clips/solved.gw, the `bind` clip of bind.gw and
 		// the 4 lookup channels; home and away add the old helmet gear.
-		"match/0": {Images: 1, ImageDecodedBytes: 1000000, Vertices: 6836, Triangles: 13016, Draws: 1, Materials: 1, Joints: 15, Influences: 2, MorphTargets: 7, Animations: 31, AnimationKeys: 8802},
-		"home/0":  {Images: 3, ImageDecodedBytes: 1262144, Vertices: 8048, Triangles: 14782, Draws: 2, Materials: 2, Joints: 15, Influences: 2, MorphTargets: 7, Animations: 31, AnimationKeys: 8802},
-		"away/0":  {Images: 3, ImageDecodedBytes: 1262144, Vertices: 8048, Triangles: 14782, Draws: 2, Materials: 2, Joints: 15, Influences: 2, MorphTargets: 7, Animations: 31, AnimationKeys: 8802},
+		"match/0": {Images: 1, ImageDecodedBytes: 1048576, Vertices: 6836, Triangles: 13016, Draws: 1, Materials: 1, Joints: 15, Influences: 2, MorphTargets: 7, Animations: 32, AnimationKeys: 8804},
+		"home/0":  {Images: 3, ImageDecodedBytes: 1310720, Vertices: 8048, Triangles: 14782, Draws: 2, Materials: 2, Joints: 15, Influences: 2, MorphTargets: 7, Animations: 32, AnimationKeys: 8804},
+		"away/0":  {Images: 3, ImageDecodedBytes: 1310720, Vertices: 8048, Triangles: 14782, Draws: 2, Materials: 2, Joints: 15, Influences: 2, MorphTargets: 7, Animations: 32, AnimationKeys: 8804},
 	}
 	for key, w := range want {
 		var out string
@@ -389,10 +389,11 @@ func TestAthleteAudit(t *testing.T) {
 			if o.Name == "match" {
 				wantPoints = 50 // x 2 gear outputs on a runtime mount
 			}
-			// 556 poses a point: the bind pose and the 555 keys of the 27 body clips
-			// (the four lookup channels are not skeletal).
-			if a.Points != wantPoints || a.Poses != wantPoints*556 || a.Partial {
-				t.Errorf("%s level %d: %d points, %d poses, partial %v; want %d points of 556 poses", o.Name, f.Level, a.Points, a.Poses, a.Partial, wantPoints)
+			// 558 poses a point: the bind pose, the 555 keys of the 27 body clips and
+			// the 2 keys of the `bind` clip that `idle` names (the four lookup
+			// channels are not skeletal).
+			if a.Points != wantPoints || a.Poses != wantPoints*558 || a.Partial {
+				t.Errorf("%s level %d: %d points, %d poses, partial %v; want %d points of 558 poses", o.Name, f.Level, a.Points, a.Poses, a.Partial, wantPoints)
 			}
 			// The band the file declares (check rig { ground }): the game's clips as they are.
 			if a.GroundLowest.Value < -0.060 || a.GroundHighest.Value > 0.040 {

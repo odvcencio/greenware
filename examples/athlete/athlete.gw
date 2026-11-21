@@ -49,7 +49,7 @@ asset athlete {
   angle = deg
   up = y
   forward = -z               // the player faces -z
-  idle = ready               // the clip a renderer shows before any other: no bind pose on screen
+  idle = bind                // the nodes hold the bind pose, as the game's bake writes them (bind.gw)
   generator = "Federation Athletics character workshop"
   mesh_name = "Football uniform"
   // Plain nodes above the skeleton, outermost first. The game samples clips on
@@ -57,6 +57,7 @@ asset athlete {
   wrappers = ["field lateral", "field depth", "stance height", "body heading"]
   use_clips { of = football }
   use_clips { of = solved }
+  use_clips { of = bindpose }
 }
 
 meta {
@@ -71,6 +72,7 @@ import "../helmet/helmet.gw" as helmet
 // The game's body clips (ready, stance, run, ... kick), ported from pose.go, are a clip library.
 import "clips/football.gw" as football
 import "clips/solved.gw" as solved
+import "bind.gw" as bindpose
 
 // ---- Parameters ---------------------------------------------------------
 // Runtime parameters become morph weights
@@ -209,36 +211,36 @@ painter flat(base: color) {
 }
 
 texture kit = atlas {
-  grid = (5, 5)
-  cell_size = 100px
-  inset = 7%
+  // The game's atlas (cmd/bakeathletes layout.go): 1024 texels square, a rectangle for each piece that carries a
+  // design (the jersey, the sleeves, the helmet, the pants, the socks, the arms, the face) and 64 texel solid
+  // cells along the bottom, each with a margin of 6 texels (8 on a solid cell). A shape's (u, v) spans its
+  // rectangle inside the margin; the image itself is 512 x 512. The numbers are the game's cell numbers.
+  size = 1024px
+  texels = 512px   // the image is baked at half the layout's size: the rectangles are in layout units
   seed = 55
-  // The cells of the game's atlas that the body uses, in its order (cmd/bakeathletes
-  // layout.go). The game has a cell for each side of the thigh and of the sleeve,
-  // because its right-hand ring stacks are not mirrored; a mirrored copy keeps its
-  // original's UVs, so one thigh cell and one sleeve cell serve both sides here.
-  cell torso { index = 0  paint = cloth(jersey_color, folds = on) }
-  cell sleeve { index = 1  paint = cloth(jersey_color) }
-  cell shell { index = 2  paint = sheen(jersey_color) }
-  cell hips { index = 3  paint = cloth(pants_color, folds = on) }
-  cell thigh { index = 4  paint = cloth(pants_color, folds = on) }
-  cell socks { index = 5  paint = cloth(sock_color) }
-  cell skin { index = 6  paint = cloth(skin_tone, skin = on) }
-  cell mask { index = 7  paint = sheen(#48545a) }
-  cell gear { index = 8  paint = cloth(#242b30, dark = on) }
-  cell mouth { index = 9  paint = flat(#713d32) }
-  cell ear { index = 10  paint = flat(#242b30) }
-  cell white { index = 11  paint = cloth(#fbefd4) }
-  cell collar { index = 12  paint = sheen(trim_color) }
-  cell pants { index = 13  paint = cloth(pants_color, folds = on) }
-  cell cleat { index = 14  paint = cloth(#242b30, dark = on) }
-  cell rubber { index = 15  paint = cloth(#242b30, dark = on) }
-  cell knee { index = 16  paint = sheen(trim_color) }
-  cell belt { index = 17  paint = cloth(#242b30, dark = on) }
-  cell upperarm { index = 18  paint = cloth(skin_tone, skin = on) }
-  cell forearm { index = 19  paint = cloth(skin_tone, skin = on) }
-  cell face { index = 20  paint = cloth(skin_tone, skin = on) }
-  fill = flat(jersey_color)  // cells 21 to 24 are unused
+  cell torso { index = 0  x = 0 y = 0 w = 512 h = 512 margin = 6  paint = cloth(jersey_color, folds = on) }
+  cell sleeve_r { index = 1  x = 512 y = 0 w = 256 h = 256 margin = 6  paint = cloth(jersey_color) }
+  cell shell { index = 2  x = 512 y = 256 w = 512 h = 256 margin = 6  paint = sheen(jersey_color) }
+  cell hips { index = 3  x = 0 y = 512 w = 256 h = 256 margin = 6  paint = cloth(pants_color, folds = on) }
+  cell thigh { index = 4  x = 256 y = 512 w = 256 h = 256 margin = 6  paint = cloth(pants_color, folds = on) }
+  cell thigh_r { index = 5  x = 512 y = 512 w = 256 h = 256 margin = 6  paint = cloth(pants_color, folds = on) }
+  cell socks { index = 6  x = 768 y = 512 w = 128 h = 256 margin = 6  paint = cloth(sock_color) }
+  cell skin { index = 7  x = 0 y = 768 w = 64 h = 64 margin = 8  paint = cloth(skin_tone, skin = on) }
+  cell mask { index = 8  x = 64 y = 768 w = 64 h = 64 margin = 8  paint = sheen(#48545a) }
+  cell gear { index = 9  x = 128 y = 768 w = 64 h = 64 margin = 8  paint = cloth(#242b30, dark = on) }
+  cell mouth { index = 11  x = 256 y = 768 w = 64 h = 64 margin = 8  paint = flat(#713d32) }
+  cell ear { index = 12  x = 320 y = 768 w = 64 h = 64 margin = 8  paint = flat(#242b30) }
+  cell white { index = 13  x = 384 y = 768 w = 64 h = 64 margin = 8  paint = cloth(#fbefd4) }
+  cell collar { index = 14  x = 448 y = 768 w = 64 h = 64 margin = 8  paint = sheen(trim_color) }
+  cell pants { index = 15  x = 512 y = 768 w = 64 h = 64 margin = 8  paint = cloth(pants_color, folds = on) }
+  cell cleat { index = 17  x = 640 y = 768 w = 64 h = 64 margin = 8  paint = cloth(#242b30, dark = on) }
+  cell rubber { index = 18  x = 704 y = 768 w = 64 h = 64 margin = 8  paint = cloth(#242b30, dark = on) }
+  cell knee { index = 19  x = 768 y = 768 w = 64 h = 64 margin = 8  paint = sheen(trim_color) }
+  cell belt { index = 20  x = 832 y = 768 w = 64 h = 64 margin = 8  paint = cloth(#242b30, dark = on) }
+  cell sleeve { index = 21  x = 768 y = 0 w = 256 h = 256 margin = 6  paint = cloth(jersey_color) }
+  cell upperarm { index = 22  x = 0 y = 832 w = 256 h = 96 margin = 6  paint = cloth(skin_tone, skin = on) }
+  cell forearm { index = 23  x = 0 y = 928 w = 256 h = 96 margin = 6  paint = cloth(skin_tone, skin = on) }
+  cell face { index = 24  x = 256 y = 832 w = 128 h = 96 margin = 6  paint = cloth(skin_tone, skin = on) }
   encode = png
 }
 
@@ -262,6 +264,8 @@ part body {
 
   // ---- Trunk. hips, torso and face carry a seam so a design runs once round; belt and collar are plain stacks. ----
   loft hips {
+    normals = faces
+    v_by = length
     joint = pelvis
     cell = hips
     segments = 32
@@ -273,6 +277,7 @@ part body {
   }
   // The belt stands a few millimetres proud of the hips and the jersey's hem, with as many sides as the torso.
   loft belt {
+    normals = faces
     joint = pelvis
     cell = belt
     segments = 32
@@ -282,6 +287,8 @@ part body {
     ring (0, 1.104, 0.005, 0.207, 0.142)
   }
   loft torso {
+    normals = faces
+    v_by = length
     joint = chest
     cell = torso
     segments = 32
@@ -299,6 +306,7 @@ part body {
     ring (0, 1.668, 0.016, 0.112, 0.105)
   }
   loft collar {
+    normals = faces
     joint = chest
     cell = collar
     segments = 18
@@ -310,6 +318,7 @@ part body {
   }
   // A football neck: thick at the base where the trapezius meets the pads, narrowing under the jaw.
   loft neck {
+    normals = faces
     joint = head
     cell = skin
     segments = 14
@@ -321,6 +330,8 @@ part body {
   }
   // The face has a cell of its own, so it takes the shade the helmet's shell casts over the brow and down the sides.
   loft face {
+    normals = faces
+    v_by = length
     joint = head
     cell = face
     segments = 18
@@ -332,16 +343,18 @@ part body {
     ring (0, 1.867, -0.036, 0.114, 0.11)
     ring (0, 1.923, -0.024, 0.091, 0.09)
   }
-  ellipsoid nose { joint = head cell = skin centre = (0, 1.791, -0.161) radii = (0.027, 0.037, 0.03) segments = 12 rings = 8 seam = off weld_caps = on }
-  ellipsoid mouthguard { joint = head cell = mouth centre = (0, 1.747, -0.153) radii = (0.05, 0.009, 0.008) segments = 12 rings = 8 seam = off weld_caps = on }
+  ellipsoid nose { normals = faces joint = head cell = skin centre = (0, 1.791, -0.161) radii = (0.027, 0.037, 0.03) segments = 12 rings = 8 seam = off weld_caps = on }
+  ellipsoid mouthguard { normals = faces joint = head cell = mouth centre = (0, 1.747, -0.153) radii = (0.05, 0.009, 0.008) segments = 12 rings = 8 seam = off weld_caps = on }
   // The face's planes under the cage: a brow over the eyes and a chin, and a cheekbone either side.
-  ellipsoid brow { joint = head cell = skin centre = (0, 1.842, -0.149) radii = (0.072, 0.013, 0.02) segments = 12 rings = 8 seam = off weld_caps = on }
-  ellipsoid chin { joint = head cell = skin centre = (0, 1.722, -0.131) radii = (0.038, 0.024, 0.026) segments = 12 rings = 8 seam = off weld_caps = on }
-  ellipsoid chinpad { joint = head cell = white centre = (0, 1.71, -0.132) radii = (0.058, 0.026, 0.025) segments = 14 rings = 7 seam = off weld_caps = on }
-  ellipsoid bumper { joint = head cell = rubber centre = (0, 1.786, 0.136) radii = (0.07, 0.012, 0.008) segments = 12 rings = 5 seam = off weld_caps = on }
+  ellipsoid brow { normals = faces joint = head cell = skin centre = (0, 1.842, -0.149) radii = (0.072, 0.013, 0.02) segments = 12 rings = 8 seam = off weld_caps = on }
+  ellipsoid chin { normals = faces joint = head cell = skin centre = (0, 1.722, -0.131) radii = (0.038, 0.024, 0.026) segments = 12 rings = 8 seam = off weld_caps = on }
+  ellipsoid chinpad { normals = faces joint = head cell = white centre = (0, 1.71, -0.132) radii = (0.058, 0.026, 0.025) segments = 14 rings = 7 seam = off weld_caps = on }
+  ellipsoid bumper { normals = faces joint = head cell = rubber centre = (0, 1.786, 0.136) radii = (0.07, 0.012, 0.008) segments = 12 rings = 5 seam = off weld_caps = on }
 
   // ---- Helmet shell: the control levels run through a Catmull-Rom curve (athletebody.HelmetLevels, 4 steps between levels), so the crown is a smooth dome. Open at the crown. ----
   loft helmet {
+    normals = faces
+    v_by = length
     joint = head
     cell = shell
     segments = 48
@@ -376,6 +389,9 @@ part body {
   }
   // A rubber bead finishes the rim: 49 points round level 0 (the last repeats the first), pushed out 2.5 mm.
   tube helmetrim {
+    diagonal = flip
+    normals = faces
+    v_by = point
     joint = head
     cell = rubber
     radius = 0.0055
@@ -389,16 +405,20 @@ part body {
 
   mirror {
     plane = x
+    reflect = inputs   // each right-hand shape is built again from reflected inputs, as the game builds its right side
 
     // The helmet's cheek pads, inside the shell either side of the jaw.
-    ellipsoid (cheekpad_l, cheekpad_r) { joint = head cell = gear centre = (0.122, 1.762, -0.052) radii = (0.016, 0.05, 0.06) segments = 12 rings = 8 seam = off weld_caps = on }
-    ellipsoid (eye_l, eye_r) { joint = head cell = white centre = (0.048, 1.824, -0.162) radii = (0.022, 0.006, 0.004) segments = 12 rings = 8 seam = off weld_caps = on }
-    ellipsoid (pupil_l, pupil_r) { joint = head cell = gear centre = (0.046, 1.824, -0.166) radii = (0.008, 0.006, 0.003) segments = 12 rings = 8 seam = off weld_caps = on }
-    ellipsoid (cheek_l, cheek_r) { joint = head cell = skin centre = (0.06, 1.786, -0.128) radii = (0.03, 0.02, 0.02) segments = 12 rings = 8 seam = off weld_caps = on }
+    ellipsoid (cheekpad_l, cheekpad_r) { normals = faces joint = head cell = gear centre = (0.122, 1.762, -0.052) radii = (0.016, 0.05, 0.06) segments = 12 rings = 8 seam = off weld_caps = on }
+    ellipsoid (eye_l, eye_r) { normals = faces joint = head cell = white centre = (0.048, 1.824, -0.162) radii = (0.022, 0.006, 0.004) segments = 12 rings = 8 seam = off weld_caps = on }
+    ellipsoid (pupil_l, pupil_r) { normals = faces joint = head cell = gear centre = (0.046, 1.824, -0.166) radii = (0.008, 0.006, 0.003) segments = 12 rings = 8 seam = off weld_caps = on }
+    ellipsoid (cheek_l, cheek_r) { normals = faces joint = head cell = skin centre = (0.06, 1.786, -0.128) radii = (0.03, 0.02, 0.02) segments = 12 rings = 8 seam = off weld_caps = on }
     // The ear cup is padding inside the shell; a small vent behind it; the chin strap runs from the shell's jaw to the cup.
-    ellipsoid (earcup_l, earcup_r) { joint = head cell = gear centre = (0.127, 1.805, 0.014) radii = (0.013, 0.04, 0.03) segments = 12 rings = 8 seam = off weld_caps = on }
-    ellipsoid (earhole_l, earhole_r) { joint = head cell = ear centre = (0.145, 1.8, 0.03) radii = (0.0035, 0.0055, 0.006) segments = 12 rings = 8 seam = off weld_caps = on }
+    ellipsoid (earcup_l, earcup_r) { normals = faces joint = head cell = gear centre = (0.127, 1.805, 0.014) radii = (0.013, 0.04, 0.03) segments = 12 rings = 8 seam = off weld_caps = on }
+    ellipsoid (earhole_l, earhole_r) { normals = faces joint = head cell = ear centre = (0.145, 1.8, 0.03) radii = (0.0035, 0.0055, 0.006) segments = 12 rings = 8 seam = off weld_caps = on }
     tube (chinstrap_l, chinstrap_r) {
+      diagonal = flip
+      normals = faces
+      v_by = point
       joint = head
       cell = white
       radius = 0.0062
@@ -414,11 +434,14 @@ part body {
       mode = linear
       count = 2
       step = (0, -0.063, 0)
-      ellipsoid { joint = head cell = mask centre = (0.145, 1.868, -0.032) radii = (0.007, 0.014, 0.012) segments = 8 rings = 5 seam = off weld_caps = on }
+      ellipsoid { normals = faces joint = head cell = mask centre = (0.145, 1.868, -0.032) radii = (0.007, 0.014, 0.012) segments = 8 rings = 5 seam = off weld_caps = on }
     }
 
     // The sleeve cap over the deltoid is squared: broad almost to its top, then a short flat plate.
     loft (shoulderpad_l, shoulderpad_r) {
+      mirror_cell = sleeve_r
+      normals = faces
+      v_by = length
       joint = arml
       cell = sleeve
       segments = 18
@@ -434,6 +457,8 @@ part body {
     }
     // The bare arms have cells of their own, so the material knows where a texel sits on the arm.
     loft (upperarm_l, upperarm_r) {
+      normals = faces
+      v_by = length
       joint = arml
       cell = upperarm
       segments = 14
@@ -445,6 +470,8 @@ part body {
       ring (0.314, 1.447, 0.005, 0.075, 0.08)
     }
     loft (forearm_l, forearm_r) {
+      normals = faces
+      v_by = length
       joint = elbowl
       cell = forearm
       segments = 14
@@ -456,20 +483,23 @@ part body {
       ring (0.334, 1.299, -0.012, 0.045, 0.047)
     }
     // The bare hand: palm and back, a thumb apart on the inside, four fingers. The game staggers the fingers in height
-    // (0.939, 0.934, 0.939, 0.944); an array copy moves only by "step" (the array's "index" is 0 in every copy),
-    // so here they stand level at the mean, 0.9365: at most 7 mm off.
-    ellipsoid (hand_l, hand_r) { joint = handl cell = skin centre = (0.343, 0.987, -0.026) radii = (0.048, 0.079, 0.033) segments = 12 rings = 8 seam = off weld_caps = on }
-    ellipsoid (palm_l, palm_r) { joint = handl cell = skin centre = (0.342, 1.003, -0.05) radii = (0.039, 0.046, 0.012) segments = 12 rings = 8 seam = off weld_caps = on }
-    ellipsoid (thumb_l, thumb_r) { joint = handl cell = skin centre = (0.3, 0.985, -0.045) radii = (0.013, 0.032, 0.016) segments = 7 rings = 5 seam = off weld_caps = on }
+    // (0.939, 0.934, 0.939, 0.944): the array names its "index" n and each copy is resolved with its own n.
+    ellipsoid (hand_l, hand_r) { normals = faces joint = handl cell = skin centre = (0.343, 0.987, -0.026) radii = (0.048, 0.079, 0.033) segments = 12 rings = 8 seam = off weld_caps = on }
+    ellipsoid (palm_l, palm_r) { normals = faces joint = handl cell = skin centre = (0.342, 1.003, -0.05) radii = (0.039, 0.046, 0.012) segments = 12 rings = 8 seam = off weld_caps = on }
+    ellipsoid (thumb_l, thumb_r) { normals = faces joint = handl cell = skin centre = (0.3, 0.985, -0.045) radii = (0.013, 0.032, 0.016) segments = 7 rings = 5 seam = off weld_caps = on }
     array (finger_l, finger_r) {
       mode = linear
       count = 4
       step = (0.018, 0, 0)
-      ellipsoid { joint = handl cell = skin centre = (0.311, 0.9365, -0.025) radii = (0.010, 0.034, 0.015) segments = 7 rings = 5 seam = off weld_caps = on }
+      index = n
+      ellipsoid { normals = faces joint = handl cell = skin centre = (0.311, 0.934 + abs(n - 1) * 0.005, -0.025) radii = (0.010, 0.034, 0.015) segments = 7 rings = 5 seam = off weld_caps = on }
     }
 
     // The thigh carries the pant stripe down its outside; the thigh pad rides its surface.
     loft (thigh_l, thigh_r) {
+      mirror_cell = thigh_r
+      normals = faces
+      v_by = length
       joint = legl
       cell = thigh
       segments = 28
@@ -482,8 +512,10 @@ part body {
       ring (0.136, 1.006, 0.014, 0.121, 0.129)
       ring (0.129, 1.057, 0.008, 0.097, 0.106)
     }
-    ellipsoid (thighpad_l, thighpad_r) { joint = legl cell = pants centre = (0.161, 0.662, -0.089) radii = (0.079, 0.105, 0.048) segments = 12 rings = 8 seam = off weld_caps = on }
+    ellipsoid (thighpad_l, thighpad_r) { normals = faces joint = legl cell = pants centre = (0.161, 0.662, -0.089) radii = (0.079, 0.105, 0.048) segments = 12 rings = 8 seam = off weld_caps = on }
     loft (shin_l, shin_r) {
+      normals = faces
+      v_by = length
       joint = kneel
       cell = socks
       segments = 16
@@ -497,6 +529,7 @@ part body {
     }
     // The sock's knee band and pad stand clear of the shin, with the sock's sides, so the shin never shows through their edges.
     loft (kneeband_l, kneeband_r) {
+      normals = faces
       joint = kneel
       cell = white
       segments = 16
@@ -506,6 +539,7 @@ part body {
       ring (0.145, 0.515, 0, 0.083, 0.082)
     }
     loft (kneepad_l, kneepad_r) {
+      normals = faces
       joint = kneel
       cell = knee
       segments = 16
@@ -515,6 +549,7 @@ part body {
       ring (0.145, 0.466, 0.019, 0.09, 0.093)
     }
     loft (cleat_l, cleat_r) {
+      normals = faces
       joint = anklel
       cell = cleat
       segments = 16
@@ -527,6 +562,7 @@ part body {
       ring (0.145, 0.177, 0.009, 0.051, 0.065)
     }
     loft (sole_l, sole_r) {
+      normals = faces
       joint = anklel
       cell = rubber
       segments = 14
@@ -535,19 +571,43 @@ part body {
       ring (0.145, 0.035, -0.062, 0.073, 0.16)
       ring (0.145, 0.051, -0.062, 0.076, 0.165)
     }
-    array (lace_l, lace_r) {
-      mode = linear
-      count = 3
-      step = (0, 0, 0.03)
-      tube {
-        joint = anklel
-        cell = white
-        radius = 0.0035
-        segments = 4
-        seam = off
-        point (0.115, 0.106, -0.1)
-        point (0.175, 0.11, -0.109)
-      }
+  }
+
+  // The laces are written out for each foot, not mirrored: the game builds a lace from the foot's outer point to its
+  // inner one (s * 0.145 - 0.03 to s * 0.145 + 0.03), so the right foot's tube runs the other way along x from the
+  // left's. A mirror would reverse the point order and make every lace vertex a different vertex.
+  array lace_l {
+    mode = linear
+    count = 3
+    step = (0, 0, 0.03)
+    tube {
+      diagonal = flip
+      normals = faces
+      v_by = point
+      joint = anklel
+      cell = white
+      radius = 0.0035
+      segments = 4
+      seam = off
+      point (0.115, 0.106, -0.1)
+      point (0.175, 0.11, -0.109)
+    }
+  }
+  array lace_r {
+    mode = linear
+    count = 3
+    step = (0, 0, 0.03)
+    tube {
+      diagonal = flip
+      normals = faces
+      v_by = point
+      joint = ankler
+      cell = white
+      radius = 0.0035
+      segments = 4
+      seam = off
+      point (-0.175, 0.106, -0.1)
+      point (-0.115, 0.11, -0.109)
     }
   }
 }
@@ -880,7 +940,7 @@ budget {
   triangles = 14000          // measured 13,016
   bones = 15
   influences = 2
-  texture_bytes = 1MiB       // match: one 500 x 500 RGBA image, 1,000,000 B decoded
+  texture_bytes = 1MiB       // match: one 512 x 512 RGBA image, 1,048,576 B decoded
   materials = 1
   draw_calls = 1              // the match file; the helmet gear is its own model
   draw_calls_worst = 1
@@ -888,7 +948,7 @@ budget {
   // (only the vertices a target moves).
   morphs = 7
   vertices = 7400            // measured 6,836
-  file_size = 1344KiB        // measured 1,230,188 B: 89% of it, with 31 animations
+  file_size = 1344KiB        // measured 1,229,112 B: 89% of it, with 32 animations
 }
 
 // Re-tessellation, not decimation: every shape is parametric. Fewer segments

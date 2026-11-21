@@ -401,7 +401,7 @@ func TestBuildAthlete(t *testing.T) {
 		t.Fatalf("%d census rows", len(census))
 	}
 	first := census[0].(map[string]any)
-	if first["output"] != "match" || first["file_bytes"].(float64) != 1230188 || first["triangles"].(float64) != 13016 || first["vertices"].(float64) != 6836 || first["images"].(float64) != 1 {
+	if first["output"] != "match" || first["file_bytes"].(float64) != 1229112 || first["triangles"].(float64) != 13016 || first["vertices"].(float64) != 6836 || first["images"].(float64) != 1 {
 		t.Errorf("first census row %v", first)
 	}
 	for _, name := range []string{"athlete.glb", "athlete-lod1.glb", "home.glb", "home-lod1.glb", "away.glb", "away-lod1.glb", "athlete.build.json"} {

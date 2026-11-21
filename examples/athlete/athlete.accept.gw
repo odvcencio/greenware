@@ -37,8 +37,8 @@ accept athlete {
   expect (morph_count() == 7, "seven morph targets: mass, belly, pads, chest-deep, limb-lean, waist-seat, leg-power")
   expect (animations_present("ready", "run", "field-x", "field-z", "stance-height", "heading") == 6, "the four lookup channels and two of the body clips")
 
-  // The game's bake has 27 body clips and the four wrapper lookup channels.
-  expect (animation_count() == 31, "31 animations")
+  // The game's bake has 27 body clips and the four wrapper lookup channels; the file adds the `bind` clip that `idle` names.
+  expect (animation_count() == 32, "32 animations")
   expect (animations_present("stance", "carry", "sprint", "block", "throw", "catch", "handoff", "juke", "tackle", "wrap-l", "wrap-r", "caught-l", "caught-r", "cut-l", "cut-r", "stumble", "kick") == 17, "the 17 other body clips of the historical file")
   expect (animations_present("backpedal", "shuffle-l", "shuffle-r", "crossover-l", "crossover-r", "hip-flip-l", "hip-flip-r", "kick-slide") == 8, "the 8 footwork clips of the game's bake")
 

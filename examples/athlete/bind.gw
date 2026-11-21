@@ -1,0 +1,15 @@
+greenware 1
+
+// The bind pose as a clip: every joint at its bind rotation, the root at its bind height. The athlete's `idle`
+// names it, so the joint nodes of the file hold the bind pose, as the game's bake writes them (its rig audit
+// measures every clip against the nodes). The game never plays it. It is a file of its own, outside clips/, so the
+// clip library the solver protocol records stays the game's clips.
+clip bind {
+  duration = 0.1s
+  keys = 2
+  loop = on
+  pose {
+    root = (0, 1yd, 0)
+  }
+}
+
