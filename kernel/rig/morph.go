@@ -79,6 +79,63 @@ func Inflate(pos []Vec, shape []int, parts []int, lines [][]Vec, by float64) {
 	}
 }
 
+// Girth widens the rings of the selected shapes about the centre of each ring,
+// by amounts that depend on height. For a position p, c is the point of the
+// shape's centre line at p's height (CentreAtHeight), and at(p's height)
+// returns the fractional changes of the horizontal offsets: side scales
+// p.x - c.x, front scales p.z - c.z where p.z is below c.z, and back scales it
+// elsewhere. Heights never change. A shape without a centre line is left alone.
+// An error from at stops the operation and is returned.
+func Girth(pos []Vec, shape []int, parts []int, lines [][]Vec, at func(y float64) (side, front, back float64, err error)) error {
+	sel := selection(parts)
+	type amounts struct{ side, front, back float64 }
+	cache := map[float64]amounts{} // lookup only
+	for i, p := range pos {
+		if !sel[shape[i]] || shape[i] >= len(lines) || len(lines[shape[i]]) == 0 {
+			continue
+		}
+		a, ok := cache[p[1]]
+		if !ok {
+			side, front, back, err := at(p[1])
+			if err != nil {
+				return err
+			}
+			a = amounts{side, front, back}
+			cache[p[1]] = a
+		}
+		c := CentreAtHeight(lines[shape[i]], p[1])
+		dz := a.back
+		if p[2] < c[2] {
+			dz = a.front
+		}
+		pos[i][0] += float64((p[0] - c[0]) * a.side)
+		pos[i][2] += float64((p[2] - c[2]) * dz)
+	}
+	return nil
+}
+
+// CentreAtHeight returns the point of the polyline at height y (the second
+// coordinate): on the first segment whose heights include y, or the end nearer
+// to y when none does. A level segment never matches.
+func CentreAtHeight(line []Vec, y float64) Vec {
+	if len(line) == 1 {
+		return line[0]
+	}
+	for k := 0; k+1 < len(line); k++ {
+		a, b := line[k], line[k+1]
+		lo, hi := math.Min(a[1], b[1]), math.Max(a[1], b[1])
+		if hi > lo && y >= lo && y <= hi {
+			t := (y - a[1]) / (b[1] - a[1])
+			return mesh.Add(a, mesh.Scale(mesh.Sub(b, a), t))
+		}
+	}
+	first, last := line[0], line[len(line)-1]
+	if math.Abs(y-first[1]) <= math.Abs(y-last[1]) {
+		return first
+	}
+	return last
+}
+
 func selection(parts []int) map[int]bool {
 	sel := map[int]bool{} // lookup only
 	for _, p := range parts {

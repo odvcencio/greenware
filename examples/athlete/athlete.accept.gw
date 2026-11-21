@@ -7,17 +7,21 @@ greenware 1
 //
 // What this file measures today, and what it does not:
 //
-//   - The census facts (joints, targets, animation names) and the 96-point
-//     product are measured and pass, except where the source has not caught up
-//     with the spec: the 17 body clips of std/clips/football are not shipped
-//     (the supplied source writes six animations, so the 23-animation and
-//     17-name expects FAIL until that library exists).
-//   - The combined point (height 1.08, build 1, belly 0, pads 0.5, Brannoc)
-//     is posed on `ready` key 0: the pelvis at 0.969486 yd x 1.08, the lowest
-//     sole vertex inside the ground band, and the head_gear frame.
+//   - The census facts (joints, targets, animation names) and the 48-point
+//     product are measured and pass. The athlete installs the game's 27 body
+//     clips (clips/football.gw and clips/solved.gw) and writes the four lookup
+//     channels itself: 31 animations. The historical 23 (19 body clips and the
+//     four channels) was the count of the old Python file; the game's bake has
+//     27 body clips now.
+//   - The body is the game's Go bake's (seven build targets, no height
+//     parameter: the game scales a player as a whole model), so there are seven
+//     morph targets and the combined point is build 1, belly 0, pads 0.5,
+//     Brannoc. It is posed on `ready` key 0: the pelvis at 0.969486 yd, the
+//     lowest sole vertex inside the ground band, and the head_gear frame.
 //   - The helmet clearance is measured on the baked outputs (home, away), where
-//     the helmet is part of the file. It FAILS: the ported shell's lower front
-//     rim lies inside the head loft, so the gap is 0 mm, not 2 mm. For `match`
+//     the old helmet gear is part of the file. It FAILS: the gear's shell and the
+//     body's own helmet shell (the game's, with the same control levels) are
+//     the same surface, so the gap is 0 mm, not 2 mm. For `match`
 //     the helmet is its own file, which is not an input here, so the measure
 //     is unavailable with that reason (exit status 3 when nothing else fails).
 //   - Not measured at all: the waist section, seam and hip probes and the
@@ -30,25 +34,25 @@ accept athlete {
   lods = all
 
   expect (joint_count() == 15, "15 joints")
-  expect (morph_count() == 10, "ten morph targets: mass, pads, belly, tall, short, neck-long, limb-lean, neck-short, chest-deep, brow")
-  expect (animations_present("ready", "run", "field-x", "field-z", "stance-height", "heading") == 6, "the six clips this source writes")
+  expect (morph_count() == 7, "seven morph targets: mass, belly, pads, chest-deep, limb-lean, waist-seat, leg-power")
+  expect (animations_present("ready", "run", "field-x", "field-z", "stance-height", "heading") == 6, "the four lookup channels and two of the body clips")
 
-  // The historical file has 23 animations: 19 body clips and four wrapper
-  // lookup channels. The other 17 body clips come from std/clips/football.
-  expect (animation_count() == 23, "23 animations")
+  // The game's bake has 27 body clips and the four wrapper lookup channels.
+  expect (animation_count() == 31, "31 animations")
   expect (animations_present("stance", "carry", "sprint", "block", "throw", "catch", "handoff", "juke", "tackle", "wrap-l", "wrap-r", "caught-l", "caught-r", "cut-l", "cut-r", "stumble", "kick") == 17, "the 17 other body clips of the historical file")
+  expect (animations_present("backpedal", "shuffle-l", "shuffle-r", "crossover-l", "crossover-r", "hip-flip-l", "hip-flip-r", "kick-slide") == 8, "the 8 footwork clips of the game's bake")
 
-  // 2^4 corners x 3 species of the file's own parameters, times two helmet
-  // shells (classic, aero) = 96 extreme points.
-  expect (runtime_points() * 2 == 96, "96 extreme runtime points")
+  // 2^3 corners x 3 species of the file's own parameters, times two helmet
+  // shells (classic, aero) = 48 extreme points.
+  expect (runtime_points() * 2 == 48, "48 extreme runtime points")
 
   // `ready`, key 0, at the combined point. The root's up value is 0.969486 yd
-  // x 1.08 with no added root offset, in metres.
-  expect (abs(posed_position(pelvis, clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc).y - 0.969486 * 1.08 * 0.9144m) < 0.01mm, "pelvis at 1.047045 yd")
-  expect (posed_lowest(clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc) >= -5mm, "the lowest sole vertex is at most 5 mm below the ground")
-  expect (posed_lowest(clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc) <= 20mm, "the lowest sole vertex is at most 20 mm above the ground")
-  expect (abs(posed_position(head_gear, clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc).x) < 1mm, "the head_gear socket stays on the centre line")
-  expect (posed_position(head_gear, clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc).y > posed_position(pelvis, clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc).y + 0.5m, "head_gear is above the pelvis")
+  // with no added root offset, in metres.
+  expect (abs(posed_position(pelvis, clip = ready, time = 0s, build = 1, belly = 0, pads = 0.5, species = brannoc).y - 0.969486 * 0.9144m) < 0.01mm, "pelvis at 0.969486 yd")
+  expect (posed_lowest(clip = ready, time = 0s, build = 1, belly = 0, pads = 0.5, species = brannoc) >= -5mm, "the lowest sole vertex is at most 5 mm below the ground")
+  expect (posed_lowest(clip = ready, time = 0s, build = 1, belly = 0, pads = 0.5, species = brannoc) <= 20mm, "the lowest sole vertex is at most 20 mm above the ground")
+  expect (abs(posed_position(head_gear, clip = ready, time = 0s, build = 1, belly = 0, pads = 0.5, species = brannoc).x) < 1mm, "the head_gear socket stays on the centre line")
+  expect (posed_position(head_gear, clip = ready, time = 0s, build = 1, belly = 0, pads = 0.5, species = brannoc).y > posed_position(pelvis, clip = ready, time = 0s, build = 1, belly = 0, pads = 0.5, species = brannoc).y + 0.5m, "head_gear is above the pelvis")
 
   // The defaults also stand on the ground, at both ends of `ready` and in the
   // unplayed display pose.

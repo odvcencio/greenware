@@ -648,6 +648,11 @@ func (r *run) pins() {
 			seen[p.Path] = p.SHA256
 		}
 	}
+	for _, c := range r.clipLibs {
+		for _, p := range c.pins {
+			seen[p.Path] = p.SHA256
+		}
+	}
 	if len(r.f.Tables) > 0 {
 		tables, _ := loadTables(r.f)
 		for _, t := range tables {

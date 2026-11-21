@@ -18,8 +18,10 @@ import (
 // where d2 is the squared distance from p to the nearest bone segment of c,
 // g is `own` when c carries weight on p before the solve and 1 otherwise, and
 // the row is then divided by its sum. The bone segments of c run from c to
-// each of its children; a leaf runs from c along its parent's bone direction
-// for the length of that bone (a lone joint is a point). The candidates of p
+// each of its children; a leaf runs from c to the centroid of the positions
+// that carry weight on it, each counted by its weight (a leaf that carries
+// nothing runs along its parent's bone direction for the length of that bone,
+// and a lone joint is a point). The candidates of p
 // are the joints that carry weight on p before the solve and every joint at
 // most `reach` steps from one of them in the joint tree.
 //
@@ -90,9 +92,11 @@ func (e *NoConvergence) Error() string {
 // segment is one straight piece of a bone.
 type segment struct{ a, b Vec }
 
-// boneSegments returns the segments of every joint, in joint order.
-func boneSegments(sk *Skeleton) [][]segment {
+// boneSegments returns the segments of every joint, in joint order. b gives the
+// weights the positions carry before the solve.
+func boneSegments(sk *Skeleton, b *Bound) [][]segment {
 	out := make([][]segment, len(sk.Joints))
+	cen := carriedCentroids(sk, b)
 	for j := range sk.Joints {
 		p := sk.Joints[j].Pos
 		kids := sk.Children(j)
@@ -102,10 +106,43 @@ func boneSegments(sk *Skeleton) [][]segment {
 		if len(kids) > 0 {
 			continue
 		}
+		// A leaf has no child to give it a bone. Its bone runs to the centroid
+		// of what it carries, which is where its geometry is: the foot of the
+		// athlete hangs forward and up from an ankle at the sole, so the parent's
+		// direction (down through the floor) would put the bone where nothing is.
+		if cen[j] != p {
+			out[j] = append(out[j], segment{p, cen[j]})
+			continue
+		}
 		if par := sk.Joints[j].Parent; par >= 0 {
 			out[j] = append(out[j], segment{p, mesh.Add(p, mesh.Sub(p, sk.Joints[par].Pos))})
 		} else {
 			out[j] = append(out[j], segment{p, p})
+		}
+	}
+	return out
+}
+
+// carriedCentroids returns, for every joint, the centroid of the positions
+// that carry weight on it, each counted by its weight; the joint's own
+// position when it carries none.
+func carriedCentroids(sk *Skeleton, b *Bound) []Vec {
+	nj := len(sk.Joints)
+	sum := make([]Vec, nj)
+	tot := make([]float64, nj)
+	for i, p := range b.Pos {
+		for _, in := range b.Infl[i] {
+			if in.W > 0 && in.Joint >= 0 && in.Joint < nj {
+				sum[in.Joint] = mesh.Add(sum[in.Joint], mesh.Scale(p, in.W))
+				tot[in.Joint] = tot[in.Joint] + in.W
+			}
+		}
+	}
+	out := make([]Vec, nj)
+	for j := range out {
+		out[j] = sk.Joints[j].Pos
+		if tot[j] > 0 {
+			out[j] = mesh.Scale(sum[j], 1/tot[j])
 		}
 	}
 	return out
@@ -207,7 +244,7 @@ func (b *Bound) Solve(sk *Skeleton, p Solve, edges [][2]int32) (SolveResult, err
 			}
 		}
 	}
-	segs := boneSegments(sk)
+	segs := boneSegments(sk, b)
 	reach := reachSets(sk, p.Reach)
 	soft2 := float64(p.Soft * p.Soft)
 

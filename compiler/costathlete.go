@@ -28,7 +28,7 @@ import (
 //
 //   - paint_large replaces paint for each atlas of a rigged output. Class: at
 //     most 262,144 texels (512 x 512), 64 cells and 12,000,000 scalar painter
-//     operations (the athlete's atlas: 262,144 texels, 12 cells, 7,502,000
+//     operations (the athlete's atlas: 250,000 texels, 21 cells, 8,727,280
 //     operations). Price 500,000.
 //   - mount, once for each gear output a mount builds in a rigged output: the
 //     output's selected gear and each other gear output the runtime points
@@ -36,18 +36,18 @@ import (
 //     the host. Class: the helmet profile (at most 4,096 stored triangles per
 //     level, 4 images and 192 KiB per file). Price 700,000.
 //   - surface_rig replaces surface for each level of a rigged output. Class: at
-//     most 10,240 stored triangles in the level, a baked gear included (the
-//     most measured is 8,028, in home and away). Price 400,000.
+//     most 18,432 stored triangles in the level, a baked gear included (the
+//     most measured is 14,782, in home and away). Price 400,000.
 //   - audit, per level of a rigged output with `check rig`: the points x poses
 //     x positions of the ground and edge tests. Class: at most 256 runtime
-//     points, 4,096 poses for each point and 8,192 skinned positions. Price
+//     points, 4,096 poses for each point and 16,384 skinned positions. Price
 //     400,000.
 //   - fit, per level and mount with a `fit` check: the gap between the posed
 //     gear and the posed skin at each pose of each point. Class: at most 256
 //     points, 4,096 poses and 4,096 gear triangles. Price 200,000.
 //   - encode_large replaces encode (and encode_images) for each level file of a
 //     rigged output: packing, hashing and verification of a GLB of at most 4
-//     embedded images and 2 MiB (the most measured is 3 images and 1,074,692
+//     embedded images and 2 MiB (the most measured is 3 images and 1,316,688
 //     bytes, in home). Price 250,000.
 const (
 	TicketPaintLarge  = "paint_large"
@@ -60,7 +60,7 @@ const (
 const (
 	maxLargeTexels = 262144
 	maxLargePaint  = 12_000_000
-	maxRigSurface  = 10240
+	maxRigSurface  = 18432
 	maxAuditPoints = 256
 	maxAuditPoses  = 4096
 	maxFitGearTris = 4096
@@ -71,8 +71,8 @@ const (
 var ticketTableAthlete = []TicketClass{
 	{TicketPaintLarge, 500_000, "atlas of a rigged output that a drawn material samples", "at most 262,144 texels, 64 cells and 12,000,000 scalar painter operations"},
 	{TicketMount, 700_000, "gear output a mount builds in a rigged output", "the helmet profile: at most 4,096 stored triangles per level, 4 images and 192 KiB per file"},
-	{TicketSurfaceRig, 400_000, "level of a rigged output", "at most 10,240 stored triangles in the level, every branch and baked gear counted"},
-	{TicketAudit, 400_000, "level of a rigged output with `check rig`", "at most 256 runtime points, 4,096 poses for each and 8,192 skinned positions"},
+	{TicketSurfaceRig, 400_000, "level of a rigged output", "at most 18,432 stored triangles in the level, every branch and baked gear counted"},
+	{TicketAudit, 400_000, "level of a rigged output with `check rig`", "at most 256 runtime points, 4,096 poses for each and 16,384 skinned positions"},
 	{TicketFit, 200_000, "level and mount of a rigged output with `fit`", "at most 256 runtime points, 4,096 poses and 4,096 gear triangles"},
 	{TicketEncodeLarge, 250_000, "level file of a rigged output", "at most 4 embedded images and 2 MiB per file"},
 }

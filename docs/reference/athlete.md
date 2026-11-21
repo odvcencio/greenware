@@ -2,7 +2,10 @@
 
 This page covers what the athlete needs beyond the rig (`rig.md`). The worked
 file is `examples/athlete/athlete.gw`; its acceptance is
-`examples/athlete/athlete.accept.gw`.
+`examples/athlete/athlete.accept.gw`. The file is the body of the game's Go bake
+(`cmd/bakeathletes`, `athletebody`) as Greenware source: the same ring tables,
+sector counts, skeleton, skin steps and seven build targets, one leaf shape for
+each of the bake's 72 shells (see "The athlete's body" below).
 
 ## Projects and imports
 
@@ -105,12 +108,12 @@ figures beside them:
 
 | Ticket | Replaces | Price | Class | Measured |
 |---|---|---:|---|---|
-| `paint_large` | `paint` | 500,000 | 262,144 texels, 64 cells, 12,000,000 operations | 262,144 texels, 12 cells, 7,502,000 operations |
+| `paint_large` | `paint` | 500,000 | 262,144 texels, 64 cells, 12,000,000 operations | 250,000 texels, 21 cells, 8,727,280 operations |
 | `mount` | | 700,000 | helmet profile per gear output | 1 (home, away) |
-| `surface_rig` | `surface` | 400,000 | 10,240 stored triangles per level | 8,028 |
-| `audit` | | 400,000 | 256 points, 4,096 poses each, 8,192 positions | 98 points, 39 poses, 4,465 |
+| `surface_rig` | `surface` | 400,000 | 18,432 stored triangles per level | 14,782 (home and away, with the old helmet gear baked in; match has 13,016) |
+| `audit` | | 400,000 | 256 points, 4,096 poses each, 16,384 positions | 50 points, 556 poses, 6,836 (home and away: 26 points, 8,048) |
 | `fit` | | 200,000 | 256 points, 4,096 poses, 4,096 gear triangles | not used by the example |
-| `encode_large` | `encode_images` | 250,000 | 4 images, 2 MiB per file | 3 images, 1,074,692 B |
+| `encode_large` | `encode_images` | 250,000 | 4 images, 2 MiB per file | 3 images, 1,316,688 B |
 
 The old classes still refuse the athlete's figures, and tests pin that. The
 whole athlete costs 14,150,000 of the 20,000,000 work units.
@@ -124,3 +127,50 @@ time =, <param> = value ...)`, `posed_position(node, clip =, time =, ...)` and
 `mounted_clearance(clip =, time =)`. A pose follows reference 5.6: morph weights
 from the runtime bindings, joint offsets, root scale, adjusted inverse binds.
 `mounted_clearance` needs gear baked into the file and is unavailable otherwise.
+
+## The athlete's body
+
+`examples/athlete/athlete.gw` writes the game's Go-baked body. What each part of
+the source answers to in the game, and what the compiler gained for it:
+
+| Source | Game | Note |
+|---|---|---|
+| `loft`, `ellipsoid`, `tube` with the game's tables | `RingStack`, `SeamStack`, `Ellipsoid`, `Tube` of `assetpipe/author`; `athletebody` rings | Triangle and vertex counts equal the game's ledger, part for part (13,016 and 6,836 in all). |
+| `seam = off`, `weld_caps = on` | `RingStack`, `Ellipsoid` and `Tube` write n vertices a ring and share the end rings with their caps | Both default to the old behaviour (a repeated column at u = 1; caps with corners of their own). They are left out of the meaning hash when at their default. |
+| `girth` in `morph` | `athletebody.GirthAt` and `Displace` | See `rig.md`. |
+| `lengthen`, `blend` | `proportion`, `blend` of `rig.go` | The same bands, widths and fades. |
+
+Names. Each leaf shape has the name the game's bake gives its shell. A shape that
+exists on both sides is a pair, and the census (`census.parts[]`) names it by the
+pair member and the parts that hold it: `body/thigh_l` and `body/thigh_r` are the
+game's two `thigh` shells. An `array` is one piece, named by the array (`finger_l`
+is the game's four `finger` shells on that side; `lace_l` its three `lace`
+shells; `maskclip_l` its two `maskclip` shells). Strip the `_l` and `_r` to get
+the game's name.
+
+Where the source differs from the game's bake, and why:
+
+- The game has a thigh cell and a sleeve cell for each side, because its
+  right-hand ring stacks are not mirrored; a mirrored copy keeps its original's
+  UVs, so one cell serves both sides here. The game's `v` along a seamed shell is
+  the distance along its profile; here it is the row share, as for any loft.
+- The four fingers of a hand stand level at the mean height (0.9365 yd); the game
+  staggers them by 5 mm. An `array` copy moves only by `step`: the array's `index`
+  is 0 in every copy.
+- There is no `height` parameter and no `tall` or `short` target: the game sets a
+  player's stature as a uniform scale on the model, and its bake has neither. The
+  other old targets (`neck-long`, `neck-short`, `brow`, `pad_size`) went too. The
+  parameters `build`, `pads`, `belly` and `species` drive the seven targets, in
+  ranges that carry the game's weights.
+- The helmet shell, rim, ear cups, ear holes, chin straps, mask clips, chin pad
+  and bumper are shapes of the body, as in the game. The `mount` of the old
+  helmet gear (`examples/helmet`) is still declared, and `home` and `away` still
+  bake it in, so they hold two helmets: they are fixtures for the mount and its
+  fit check, not game files.
+- The natural bands of the elbow (`swing_z`), the hip (`swing_z`) and the ankle
+  (`swing_x`, `twist`) are a little wider than the old file's, because the game's
+  lateral footwork and tackles measure outside them by up to 4 degrees under
+  swing and twist (the game's own audit uses Euler angles).
+- `check rig` takes the ground band -60..40 mm: the game roots each clip with a
+  closed form that is exact for `ready` and off by +28 mm (`catch`) and -56 mm
+  (`kick`) for others. `athlete.accept.gw` holds `ready` to -5..20 mm.

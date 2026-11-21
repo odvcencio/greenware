@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"strings"
 
 	"m31labs.dev/greenware/ast"
 	"m31labs.dev/greenware/diag"
@@ -17,6 +18,9 @@ type piece struct {
 	mat  string
 	m    *mesh.Mesh
 	meta pieceMeta
+	// path is the census name: the part names that hold the shape, then the
+	// shape's own name (or its kind when it has none), joined by "/".
+	path string
 	// rig carries the skin influences and morph deltas of a piece of a rigged
 	// asset; it is nil otherwise.
 	rig *pieceRig
@@ -315,7 +319,7 @@ func (e *elab) emit(c wctx, mat string, m *mesh.Mesh) {
 	if e.printHook != nil && c.collect == nil {
 		e.printHook(c, mat, m)
 	}
-	p := piece{mat: mat, m: m, meta: meta}
+	p := piece{mat: mat, m: m, meta: meta, path: strings.Join(append(append([]string(nil), c.chain...), c.shape), "/")}
 	if c.collect != nil {
 		*c.collect = append(*c.collect, p)
 		return

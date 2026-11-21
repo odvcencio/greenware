@@ -94,7 +94,7 @@ type record struct {
 	Inputs  *recordInputs  `json:"inputs,omitempty"`
 	Outputs []recordOutput `json:"outputs"`
 	// Census holds one row of measured figures for every output and level.
-	Census []Census `json:"census"`
+	Census []CensusRow `json:"census"`
 	// Audit holds the measurements of the rig audit, one entry per level.
 	Audit       []*AuditReport `json:"audit,omitempty"`
 	Unsupported []string       `json:"unsupported"`
@@ -120,7 +120,7 @@ func (p *Product) Record() []byte {
 	rec := record{
 		Schema: RecordSchema, Generator: Generator,
 		SourceSHA256: p.SourceSHA256, InputSHA256: p.InputSHA256,
-		Outputs: []recordOutput{}, Census: p.Census(), Audit: p.Audits(), Unsupported: append([]string{}, p.Unsupported...),
+		Outputs: []recordOutput{}, Census: p.CensusRows(), Audit: p.Audits(), Unsupported: append([]string{}, p.Unsupported...),
 		Cost: p.Receipt,
 	}
 	if len(p.Data) > 0 {

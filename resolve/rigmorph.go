@@ -21,7 +21,7 @@ func (r *run) morph(d *ast.RigDecl, st *rigState) *RigMorph {
 	}
 	r.morphItems(m, d.Items, mirrorCtx{}, r.globals, st)
 	if len(m.Ops) == 0 {
-		r.report(diag.New(diag.CodeMissing, d.KindSpan, "a morph needs at least one operation: inflate, stretch, reshape or offset"))
+		r.report(diag.New(diag.CodeMissing, d.KindSpan, "a morph needs at least one operation: inflate, stretch, reshape, offset or girth"))
 	}
 	if m.Follow {
 		for _, op := range m.Ops {
@@ -41,7 +41,7 @@ func (r *run) morphItems(m *RigMorph, items []ast.RigItem, mc mirrorCtx, sc *sco
 			r.report(diag.New(diag.CodeUnknownField, it.ItemSpan(), "a morph holds operations, not rows"))
 		case *ast.RigBlock:
 			switch b.Kind {
-			case "inflate", "stretch", "reshape", "offset":
+			case "inflate", "stretch", "reshape", "offset", "girth":
 				if op, ok := r.morphOp(b, mc, sc, st); ok {
 					m.Ops = append(m.Ops, op)
 				}
@@ -58,7 +58,7 @@ func (r *run) morphItems(m *RigMorph, items []ast.RigItem, mc mirrorCtx, sc *sco
 				r.morphItems(m, b.Items, mirrorCtx{plane: plane}, sc, st)
 				r.morphItems(m, b.Items, mirrorCtx{plane: plane, copy: true}, sc, st)
 			default:
-				r.report(diag.New(diag.CodeUnknownField, b.KindSpan, "`%s` is not a morph operation: a morph holds `inflate`, `stretch`, `reshape`, `offset` and `mirror`", b.Kind))
+				r.report(diag.New(diag.CodeUnknownField, b.KindSpan, "`%s` is not a morph operation: a morph holds `inflate`, `stretch`, `reshape`, `offset`, `girth` and `mirror`", b.Kind))
 			}
 		}
 	}
@@ -115,6 +115,10 @@ func (r *run) morphOp(b *ast.RigBlock, mc mirrorCtx, sc *scope, st *rigState) (R
 	case "offset":
 		if v, ok := field(fs, "by"); ok && v.Valid() {
 			op.Vec = triple3(v)
+		}
+	case "girth":
+		if op.Girth = r.girth(b, body); op.Girth == nil {
+			return op, false
 		}
 	}
 	return op, true

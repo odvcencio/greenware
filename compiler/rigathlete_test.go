@@ -51,7 +51,7 @@ func TestAthleteRigNumbers(t *testing.T) {
 		f.Joints, f.Vertices, f.Triangles, f.Influences, f.Morphs, f.Animations, f.AnimKeys, f.Size, f.Draws)
 	g := op.Files[1]
 	t.Logf("athlete L1: %d vertices, %d triangles, %d bytes", g.Vertices, g.Triangles, g.Size)
-	if f.Joints != 15 || f.Influences != 2 || f.Morphs != 10 || f.Animations != 6 {
+	if f.Joints != 15 || f.Influences != 2 || f.Morphs != 7 || f.Animations != 31 {
 		t.Errorf("joints %d influences %d morphs %d animations %d", f.Joints, f.Influences, f.Morphs, f.Animations)
 	}
 	var order []string
@@ -63,14 +63,15 @@ func TestAthleteRigNumbers(t *testing.T) {
 		t.Errorf("joint order %q", got)
 	}
 	names := strings.Join(d.Meshes[0].TargetNames, " ")
-	if names != "mass pads belly tall short neck-long limb-lean neck-short chest-deep brow" {
+	if names != "mass belly pads chest-deep limb-lean waist-seat leg-power" {
 		t.Errorf("targets %q", names)
 	}
 	var anims []string
 	for _, a := range d.Animations {
 		anims = append(anims, a.Name)
 	}
-	if got := strings.Join(anims, " "); got != "field-x field-z heading ready run stance-height" {
+	// The 27 body clips of clips/football.gw and clips/solved.gw and the four lookup channels, by name.
+	if got := strings.Join(anims, " "); got != "backpedal block carry catch caught-l caught-r crossover-l crossover-r cut-l cut-r field-x field-z handoff heading hip-flip-l hip-flip-r juke kick kick-slide ready run shuffle-l shuffle-r sprint stance stance-height stumble tackle throw wrap-l wrap-r" {
 		t.Errorf("animations %q", got)
 	}
 	// The four wrappers sit above the root node, outermost first.
@@ -95,7 +96,7 @@ func TestAthleteRigNumbers(t *testing.T) {
 		}
 	}
 	// The budget the file declares holds on the measured numbers.
-	if f.Joints > 15 || f.Influences > 2 || f.Morphs > 10 {
+	if f.Joints > 15 || f.Influences > 2 || f.Morphs > 7 {
 		t.Error("over the declared budget")
 	}
 }
@@ -153,7 +154,7 @@ func TestAthleteWeightsAndBindPose(t *testing.T) {
 			cp.Nodes[i].Rotation = &q
 		}
 	}
-	zero := make([]float64, 10)
+	zero := make([]float64, 7)
 	got := rigEval{&cp}.posed("", 0, zero)
 	want := bindPositions(d)
 	worst := 0.0
@@ -192,9 +193,12 @@ func TestAthleteReadyStandsOnTheGround(t *testing.T) {
 
 // The combined fixture of language reference 5.9: height 1.08. The root's up
 // value is 0.969486 yd x 1.08 = 1.047045 yd with no added root offset, though
-// the `tall` morph is at weight 1.
-func TestAthleteRootScaleAtHeight108(t *testing.T) {
-	_, d := buildAthlete(t, func(s string) string {
+// the `tall` morph is at weight 1. The athlete in examples/ no longer has a
+// height parameter (the game scales a player as a whole model, and its bake has
+// no tall or short target), so this fixture runs on the frozen copy of the first
+// port, testdata/athlete-frozen (buildFrozenAthlete, in solveaudit_test.go).
+func TestFrozenAthleteRootScaleAtHeight108(t *testing.T) {
+	_, d := buildFrozenAthlete(t, func(s string) string {
 		return strings.Replace(s, "param height : ratio = 1 in", "param height : ratio = 1.08 in", 1)
 	})
 	if w := d.Meshes[0].Weights; math.Abs(float64(w[3])-1) > 1e-6 || w[4] != 0 {

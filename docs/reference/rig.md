@@ -66,9 +66,9 @@ One `solve` per skin, outside any `mirror`. It replaces the weights of every pos
 | `refine` | `smooth` | `smooth` runs the bounded smoothing; `none` keeps the falloff weights; `audit` is `GW-UNSUPPORTED`. |
 | `iterations` | 64 | Cap on smoothing sweeps, 1 to 256. |
 | `tolerance` | 0.0001 | The solve has converged when a sweep changes no weight by more than this. |
-| `smooth` | 0.5 | Strength of the smoothing against the falloff weights, above 0 and up to 4. |
+| `smooth` | 2 | Strength of the smoothing against the falloff weights, above 0 and up to 4. |
 | `power` | 2 | Falloff exponent, 1 to 4. |
-| `own` | 16 | Factor on the weight of a joint the vertex is already bound to, at least 1. |
+| `own` | 128 | Factor on the weight of a joint the vertex is already bound to, at least 1. |
 | `cutoff` | 0.02 | Taken off the share of each weight; a share that reaches 0 is dropped, so a vertex far from every blend ends rigid on one joint. |
 | `soft` | 5 mm | Softening distance of the falloff. |
 | `reach` | 1 | Joint-tree steps from a vertex's own joint that may take weight. |
@@ -78,7 +78,7 @@ One `solve` per skin, outside any `mirror`. It replaces the weights of every pos
 
 Distances are in metres. A vertex's own joints are the joints that carry weight on it before the solve (the shape's `joint`, after earlier steps). Its candidates are its own joints and every joint within `reach` steps of one of them in the joint tree. A weight on any other joint is never given.
 
-1. Bones. The bone of joint c is the set of segments from c to each of its children. A leaf has one segment from c along its parent's bone direction for the length of that bone. A lone joint is a point. The joint positions are the binds the earlier steps left.
+1. Bones. The bone of joint c is the set of segments from c to each of its children. A leaf has one segment from c to the centroid of the positions that carry weight on it before the solve, each counted by its weight, because that is where its geometry is; a leaf that carries nothing has one segment from c along its parent's bone direction for the length of that bone. A lone joint is a point. The joint positions are the binds the earlier steps left.
 2. Falloff. For a candidate c, d2 is the squared distance from the vertex to the nearest segment of c, and w = g / (d2 + soft^2)^power, where g is `own` for an own joint and 1 for another. The candidate weights are divided by their sum.
 3. Smoothing (`refine = smooth`). Jacobi sweeps over the mesh edges of each shape, for each candidate c of a vertex p: `w[p][c] <- (w0[p][c] + smooth * sum of w[n][c] over the neighbours n of p) / (1 + smooth * deg(p))`, where w0 is the falloff weight. A neighbour's weight on a joint that is not a candidate of p counts as 0. The sweep is a contraction (it solves `(I + smooth L) w = w0`), so it converges. The residual of a sweep is the largest change of any weight in it. The sweeps stop at the first residual not above `tolerance`.
 4. Finish. `cutoff` comes off every share, the `max_influences` largest weights stay (ties go to the lower joint index), and the weights are written on the grid of multiples of 2^-24: all but the largest are rounded half to even and the largest takes the rest. The weights are exact `float32` values, none is negative, and they sum to exactly 1.
@@ -89,11 +89,13 @@ Vertices, joints, edges and segments are visited in index order and there are no
 
 ### What the audit says
 
-`go test ./compiler -run TestSolvedAthleteAuditAgainstHand -v` builds the athlete with its hand skin and with the blends replaced by `solve { }`, runs the audit of `check rig` over the default runtime points, and prints the measures per joint. The audit measures the geometry bound to a joint before the skin steps: the largest edge strain (r or 1/r, r the posed edge length over its bind length), the worst share of edges outside 1/1.5..1.5 and outside 1/4..3, and the lowest posed vertex. On the athlete's two skeletal clips (`ready`, `run`) the solved skin is better than the hand skin at 11 joints and worse at both ankles (worst edge 3.38 against 2.90; lowest vertex 1.1 mm and 0.6 mm lower, still inside the -5 mm..20 mm band). The solver does not qualify for M5: that needs no regression on any measure, over all 19 body clips, and the 19-clip library is not shipped here.
+`go test ./compiler -run TestSolveFinalVectorMatchesRecord -v` builds the frozen athlete (`testdata/athlete-frozen/`, with the clip library of `examples/athlete/clips/` installed, 27 clips) and the arm with the hand skin and with `solve { }`, runs the audit of `check rig` over the default runtime points, and compares every joint on four measures (worst edge strain, strained share, torn share, lowest vertex at ground contacts), over all poses and for each clip alone. A measure is regressed when solved > hand + eps (strain 0.001, shares 0.0005) or, for the lowest vertex, solved < hand - 0.1 mm. `testdata/solve/protocol.json` records the grid, the folds, the held-out splits, the verdict and the whole table; rerun the grid with `GW_SOLVE_PROTOCOL=1 go test ./compiler -run TestSolveProtocolMatchesRecord` (about 12 minutes).
+
+Result (not qualified): the defaults (own 128, cutoff 0.02, smooth 2) were chosen on the arm and the upper body and pass on the legs, knees, ankles and feet (held out, 0 regressed rows), but regress on 21 rows of the upper body: worst edge of both hands on 10 clips each (for example `caught_l` 1.0975 to 1.1207) and the chest on `catch` (1.1210 to 1.1318). Tuned on the arm and the legs instead, no vector passes the upper body (best: 27 rows). The leaf-bone fix removed the ankle regression of the first table (worst edge 3.38 against 2.90; lowest vertex 1.1 mm and 0.6 mm lower); the rest of that came from `own` and `cutoff`. M5 stays partial.
 
 ## Cost ticket for the solver
 
-A level whose skin has a `solve` reserves one more ticket after `weights`: `solve`, 1,000,000 units per level, class one solve step, at most 256 sweeps, 64 joints and 8,192 bound positions. The price is this compiler's assumption. An asset with no `solve` reserves none, so the other receipts do not change.
+A level whose skin has a `solve` reserves one more ticket after `weights`: `solve`, 1,000,000 units per level, class one solve step, at most 256 sweeps, 64 joints and 16,384 bound positions. The price is this compiler's assumption. An asset with no `solve` reserves none, so the other receipts do not change.
 
 ## Morphs
 
@@ -106,6 +108,16 @@ morph tall {
 ```
 
 - Operations: `inflate`, `stretch`, `reshape`, `offset`, run in order on a copy of the finished bind mesh at weight 1. Each target is built from the bind mesh, never from another target.
+- `girth` widens the rings of a loft about their centres by amounts that depend on height:
+  ```
+  girth {
+    parts = [thigh_l]
+    side = 0.06 * pow(sin(180deg * clamp((y - 0.555) / (1.057 - 0.555), 0, 1)), 2)   // x offset from the ring's centre
+    front = 0.14 * smoothstep(0.6, 0.9, y)                                            // z offset, in front of the centre
+    back = 0.09 * smoothstep(0.6, 0.9, y)                                             // z offset, at or behind the centre
+  }
+  ```
+  `side`, `front` and `back` are expressions of `y`, the position's height in the asset's length unit as a plain number; each gives a fractional change (0.1 is 10 %), and an absent one is 0. A position p of a shape moves from the centre c of its ring, the point of the shape's centre line at p's height, by `(p.x - c.x) * side(y)` along x and `(p.z - c.z) * front(y)` (when p.z < c.z) or `back(y)` along z. Heights never change. The finished bind mesh is read, so `y` is the height after `lengthen`. An amount cannot read a runtime parameter (`GW-RUNTIME`; put the parameter in the morph's `weight`); a shape without a centre line is `GW-UNSUPPORTED`. `girth` is allowed in a `mirror` and is symmetric under it. The athlete's seven targets are written with it (`athletebody.GirthAt` of the game).
 - `inflate` grows a sphere, ellipsoid, cylinder, lathe, loft, sweep or tube about its centre line. The line rides the skin steps with the shape, so it is the finished line.
 - `weight` is a constant or a function of one runtime parameter that is a finite table. A numeric parameter gives breakpoints over its full declared range (the compiler reads `+ - *` by a constant, `/` by a constant, `clamp`, `min`, `max` and `abs` as piecewise-linear functions and adds the corners); an enum gives a total lookup. A product of two parameters, `sin`, or two parameters is `GW-RUNTIME`.
 - `joints = follow` is allowed with `stretch` only. The joint offsets are the difference of the parent-local rests, written in the runtime table.
@@ -129,10 +141,37 @@ clip field_x { name = "field-x"  node = "field lateral"  key (0s, (-64, 0, 0))  
 - Translation keys are written as the key plus the weighted parent-local offsets at the default point; for the keyed root with `root_scale` the up component is the key's times the scale, with no added offset. `rig_base` and the runtime table in the file's extras let a reader rebuild these for another point.
 - Every pose key is tested against the joint's bands and hard limits (swing and twist). A band is `GW-RIG-BAND`, a warning; a hard limit is `GW-RIG-LIMIT`, an error. Poses are never clamped.
 
+## Clip libraries
+
+A clip library is a project file that declares clips and no asset. An asset installs the clips with `use_clips` inside its `asset` block:
+
+```
+asset athlete {
+  ...
+  idle = ready
+  use_clips { of = football skeleton = body }
+  use_clips { of = solved }
+}
+import "clips/football.gw" as football
+import "clips/solved.gw" as solved
+```
+
+- The import path follows the project import rules: relative to the file, inside the project root. An import that a `use_clips` block names is read as a clip library. Any other project import is gear (a whole asset, for a `mount`).
+- `of` is the qualifier of the import. `skeleton` is optional because an asset has one skeleton; when written it must be that skeleton's name. A library that declares an asset, a skeleton, a skin, a morph, an import or a parameter is refused. A library may declare `let` values; its clips read them.
+- Every clip whose name does not start with `_` is installed, with its declared name and its exported `name`. A clip named `_helper` is private. Importing a library without `use_clips` installs nothing, and the build fails because the file is then read as gear that has no asset.
+- Installed clips count like local ones. `idle` may name an installed clip. Two clips that export one animation name are `GW-DUPLICATE` even when their keys are equal. The file lists its animations in order of exported name.
+- A library clip is evaluated in the library's scope, against the asset's skeleton. Joint names, and the pairs a `mirror` block reflects, are the asset's. The library is written for one joint interface and one bind frame and is not retargeted: a joint the skeleton lacks is `GW-UNKNOWN-NAME`. A library has no `length` setting, so a bare length is metres; write a unit (`0.97yd`) where the asset's unit is not metres. A bare angle is degrees.
+- A problem found inside a library is reported at the `use_clips` block that installs it, with the library's path in the message, because a span of the library's source means nothing in the asset's. The library's bytes are pinned with the project files the build read.
+- A pose that has no closed form in `t` is written as key tables: `let legl_at = [rot(...), rot(...)]` and `legl = legl_at[k]` with `let k = round(t * 24)`. Lists and indexing are the language's own.
+
+`examples/athlete/clips/` holds the athlete's library: the 27 body clips of the game's `cmd/bakeathletes/pose.go`, in two files. `football.gw` has the 15 that are formulas (`ready`, `stance`, `run`, `carry`, `sprint`, `block`, `throw`, `catch`, `handoff`, `juke`, `tackle`, `cut-l`, `cut-r`, `stumble`, `kick`, with their names, durations and key counts). `solved.gw` has the 12 the game computes numerically: the four paired tackles (`wrap-l`, `wrap-r`, `caught-l`, `caught-r`) as key tables, and the lateral footwork (`backpedal`, `shuffle-l`, `shuffle-r`, `crossover-l`, `crossover-r`, `hip-flip-l`, `hip-flip-r`, `kick-slide`) with the trunk and arms as formulas and the solved legs as tables. The four wrapper clips (`field-x`, `field-z`, `stance-height`, `heading`) stay in the asset, as keyed clips on its `wrappers`. The library includes `ready` and `run`: an asset that installs it declares neither itself.
+
+`testdata/clips/fixture.gw` is a 15-joint asset with the athlete's joint names that installs both files. `TestClipLibraryMatchesTheGameBake` (`compiler/clips_test.go`) builds it, decodes the GLB, and compares each clip with `testdata/clips/vectors.json`: five keys of each of the 27 clips (the rotation of every joint and the root) and every key of the four wrapper clips, from the game's own code. The distance between two quaternions, taken as the smaller of the two signs, must be at most 1e-6, and a root height at most 1e-6 m after one conversion from yards. Set `GW_CLIP_VECTORS` to a dump with every key to check them all. `TestClipFixtureIsByteStable` builds the fixture twice and pins a digest of its decoded animations (`testdata/clips/animations.candidate.sha256`), measured on amd64 and checked on arm64.
+
 ## Not supported (all `GW-UNSUPPORTED`)
 
 `mount` and `fit` (they need a project import), `check rig` and `check runtime` (the posed audit and runtime points), clip `ground`, `interpolation = cubicspline`, `when` and `waive` inside a rig body, `solve` inside a mirror or a second `solve`, `refine = audit`, the geodesic, heat and biharmonic methods, a second skeleton, a mirror inside a mirror, `joints = follow` with an operation other than `stretch`, an exported part with shapes inside a skinned asset, `lod keep`, and sparse morph targets. `side` is not yet refused in a point slot.
 
 ## Cost tickets
 
-A rigged output reserves four more tickets. Their names, prices and classes are this compiler's assumption (compiler.md 3.1 names none): `rig` (100,000; at most 64 joints and 64 sockets), `weights` (300,000 per level; 32 steps, 8,192 bound positions), `morph` (150,000 per level with targets; 10 targets) and `clip` (200,000; 32 clips, 4,096 keys).
+A rigged output reserves four more tickets. Their names, prices and classes are this compiler's assumption (compiler.md 3.1 names none): `rig` (100,000; at most 64 joints and 64 sockets), `weights` (300,000 per level; 32 steps, 16,384 bound positions), `morph` (150,000 per level with targets; 10 targets) and `clip` (200,000; 64 clips, 4,096 keys).

@@ -58,6 +58,8 @@ type AuditReport struct {
 	// compare two skins of one asset (the weight solver against hand
 	// weights); they are not in the record.
 	joints []JointMeasures
+	// mesh is the audited mesh, for the tests that look inside a measure.
+	mesh *auditMesh
 }
 
 // JointMeasures are the audit measures of the geometry bound to one joint
@@ -74,6 +76,30 @@ type JointMeasures struct {
 	Strained, Torn float64
 	// Lowest is the lowest posed vertex of the region over the non-airborne
 	// poses, in metres above the ground; +Inf when the region has none.
+	Lowest float64
+	// Worst names the edge that gave StrainMax and where it was found. Edge is
+	// an index into the audit mesh's sorted edge list, -1 when the region has
+	// no edge.
+	Worst WorstEdge
+	// ByClip is the same four measures for each delivered skeletal clip alone,
+	// in clip order. The bind pose is in the totals above and in no clip.
+	ByClip []ClipMeasures
+}
+
+// WorstEdge is where a region's largest edge strain was measured.
+type WorstEdge struct {
+	Edge  int
+	Point string
+	Clip  string
+	Time  float64
+}
+
+// ClipMeasures are the audit measures of one region on the poses of one clip.
+type ClipMeasures struct {
+	Clip           string
+	StrainMax      float64
+	Strained, Torn float64
+	// Lowest is +Inf for an airborne clip.
 	Lowest float64
 }
 
@@ -356,21 +382,31 @@ func (e *elab) audit(rl *rigLevel, cds []*clipData, lvl int) (*AuditReport, bool
 	close(next)
 	wg.Wait()
 
-	rep := &AuditReport{Output: e.oname, Level: lvl, Points: len(pl.points), Partial: pl.partial, Omitted: pl.omitted}
+	rep := &AuditReport{Output: e.oname, Level: lvl, Points: len(pl.points), Partial: pl.partial, Omitted: pl.omitted, mesh: am}
 	rep.GroundLowest.Value, rep.GroundHighest.Value = math.Inf(1), math.Inf(-1)
 	rep.joints = make([]JointMeasures, len(rl.sk.Joints))
 	for j := range rep.joints {
-		rep.joints[j] = JointMeasures{Joint: am.joints[j], StrainMax: 1, Lowest: math.Inf(1)}
+		rep.joints[j] = newJointMeasures(am.joints[j], clipNames(poses))
 	}
 	for i, sc := range results {
 		pt := pl.points[i].label
 		for j, jm := range sc.joints {
 			r := &rep.joints[j]
 			r.Edges = max(r.Edges, jm.Edges)
+			if jm.StrainMax > r.StrainMax {
+				r.Worst = WorstEdge{jm.Worst.Edge, pt, jm.Worst.Clip, jm.Worst.Time}
+			}
 			r.StrainMax = math.Max(r.StrainMax, jm.StrainMax)
 			r.Strained = math.Max(r.Strained, jm.Strained)
 			r.Torn = math.Max(r.Torn, jm.Torn)
 			r.Lowest = math.Min(r.Lowest, jm.Lowest)
+			for c, cm := range jm.ByClip {
+				rc := &r.ByClip[c]
+				rc.StrainMax = math.Max(rc.StrainMax, cm.StrainMax)
+				rc.Strained = math.Max(rc.Strained, cm.Strained)
+				rc.Torn = math.Max(rc.Torn, cm.Torn)
+				rc.Lowest = math.Min(rc.Lowest, cm.Lowest)
+			}
 		}
 		rep.Poses += sc.poses
 		if sc.lowest < rep.GroundLowest.Value {
@@ -449,8 +485,10 @@ func (e *elab) scanPoint(rl *rigLevel, am *auditMesh, poses []poseRef, clipOf ma
 	sc := &pointScan{lowest: math.Inf(1), highest: math.Inf(-1), fit: map[string]*fitScan{}}
 	nj := len(rl.sk.Joints)
 	sc.joints = make([]JointMeasures, nj)
+	names := clipNames(poses)
 	for j := range sc.joints {
-		sc.joints[j] = JointMeasures{Joint: am.joints[j], StrainMax: 1, Lowest: math.Inf(1)}
+		sc.joints[j] = newJointMeasures(am.joints[j], names)
+		sc.joints[j].Worst.Edge = -1
 	}
 	jn, jtorn, jstrained := make([]int, nj), make([]int, nj), make([]int, nj)
 	w := make([]float64, len(rl.morphs))
@@ -487,6 +525,12 @@ func (e *elab) scanPoint(rl *rigLevel, am *auditMesh, poses []poseRef, clipOf ma
 			posed[i] = acc
 		}
 		sc.poses++
+		ci := -1
+		for k, n := range names {
+			if n == ps.clip {
+				ci = k
+			}
+		}
 		if !airborne && ps.clip != "bind" {
 			lo := posed[0][up]
 			for _, p := range posed[1:] {
@@ -495,6 +539,10 @@ func (e *elab) scanPoint(rl *rigLevel, am *auditMesh, poses []poseRef, clipOf ma
 			for i, p := range posed {
 				if j := am.region[i]; j >= 0 {
 					sc.joints[j].Lowest = math.Min(sc.joints[j].Lowest, p[up])
+					if ci >= 0 {
+						c := &sc.joints[j].ByClip[ci]
+						c.Lowest = math.Min(c.Lowest, p[up])
+					}
 				}
 			}
 			// The lowest vertex of this pose; the band is for this number.
@@ -519,11 +567,24 @@ func (e *elab) scanPoint(rl *rigLevel, am *auditMesh, poses []poseRef, clipOf ma
 			j := am.edgeRegion[i]
 			if j >= 0 {
 				jn[j]++
-				if r > sc.joints[j].StrainMax {
-					sc.joints[j].StrainMax = r
+				jm := &sc.joints[j]
+				worse := 0.0
+				if r > jm.StrainMax {
+					worse = r
 				}
-				if r > 0 && 1/r > sc.joints[j].StrainMax {
-					sc.joints[j].StrainMax = 1 / r
+				if r > 0 && 1/r > jm.StrainMax {
+					worse = 1 / r
+				}
+				if worse > 0 {
+					jm.StrainMax = worse
+					jm.Worst = WorstEdge{Edge: i, Clip: ps.clip, Time: ps.time}
+				}
+				if ci >= 0 {
+					c := &jm.ByClip[ci]
+					c.StrainMax = math.Max(c.StrainMax, r)
+					if r > 0 {
+						c.StrainMax = math.Max(c.StrainMax, 1/r)
+					}
 				}
 			}
 			if r < 0.25 || r > 3 {
@@ -546,6 +607,11 @@ func (e *elab) scanPoint(rl *rigLevel, am *auditMesh, poses []poseRef, clipOf ma
 			sc.joints[j].Edges = jn[j]
 			sc.joints[j].Torn = math.Max(sc.joints[j].Torn, float64(jtorn[j])/float64(jn[j]))
 			sc.joints[j].Strained = math.Max(sc.joints[j].Strained, float64(jstrained[j])/float64(jn[j]))
+			if ci >= 0 {
+				c := &sc.joints[j].ByClip[ci]
+				c.Torn = math.Max(c.Torn, float64(jtorn[j])/float64(jn[j]))
+				c.Strained = math.Max(c.Strained, float64(jstrained[j])/float64(jn[j]))
+			}
 		}
 		if n > 0 {
 			if s := float64(torn) / float64(n); s > sc.torn {
@@ -611,6 +677,27 @@ func (e *elab) fitPose(am *auditMesh, posed []mesh.Vec3, skin rig.Rigid, gc *gea
 	fs.gearPart = gc.label[res.A]
 	fs.hostPart = am.part[am.partOf[idx[res.B]]]
 	fs.gearOut = gc.output
+}
+
+// clipNames lists the delivered clips of a pose list in order, without the
+// bind pose.
+func clipNames(poses []poseRef) []string {
+	var out []string
+	for _, ps := range poses {
+		if ps.clip != "bind" && (len(out) == 0 || out[len(out)-1] != ps.clip) {
+			out = append(out, ps.clip)
+		}
+	}
+	return out
+}
+
+// newJointMeasures is the empty measure of one region: no strain, no ground.
+func newJointMeasures(joint string, clips []string) JointMeasures {
+	jm := JointMeasures{Joint: joint, StrainMax: 1, Lowest: math.Inf(1), Worst: WorstEdge{Edge: -1}}
+	for _, c := range clips {
+		jm.ByClip = append(jm.ByClip, ClipMeasures{Clip: c, StrainMax: 1, Lowest: math.Inf(1)})
+	}
+	return jm
 }
 
 func (p poseRef) String() string { return fmt.Sprintf("%s@%s", p.clip, fmtTime(p.time)) }

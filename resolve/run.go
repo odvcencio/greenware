@@ -82,8 +82,10 @@ type run struct {
 	tstack []*ast.Template
 	// libs are the imported libraries by qualifier; painters are the compiled
 	// painters by key.
-	libs     map[string]*library
-	gears    map[string]*GearImport
+	libs  map[string]*library
+	gears map[string]*GearImport
+	// clipLibs are the imported clip libraries by qualifier.
+	clipLibs map[string]*clipLibrary
 	data     map[string]*dataImport
 	painters map[string]*pentry
 }
@@ -99,7 +101,7 @@ func evaluate(f *ast.File, output string, overrides []Override, shallowOutputs b
 	if f.Broken {
 		return nil, nil
 	}
-	r := &run{f: f, d: units.DefaultUnits(), output: output, overs: map[string]*Override{}, libs: map[string]*library{}, gears: map[string]*GearImport{}, painters: map[string]*pentry{}}
+	r := &run{f: f, d: units.DefaultUnits(), output: output, overs: map[string]*Override{}, libs: map[string]*library{}, gears: map[string]*GearImport{}, clipLibs: map[string]*clipLibrary{}, painters: map[string]*pentry{}}
 	r.resolved = &Resolved{Output: output}
 	r.ref = ref
 	if ref != nil {

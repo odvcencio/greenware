@@ -32,6 +32,45 @@ type Census struct {
 	AnimationKeys   int `json:"animation_keys"`
 }
 
+// CensusRow is a census row with the census of its leaf shapes. The build
+// record and the build report hold rows of this type; Census stays a plain
+// comparable value for readers that only need the figures.
+type CensusRow struct {
+	Census
+	// Parts is the census of the leaf shapes, in the order their geometry
+	// is written to the file. See CensusPart.
+	Parts []CensusPart `json:"parts"`
+}
+
+// CensusPart is the share of one leaf shape in a level file.
+//
+// Name is the shape's name as written in the source, led by the names of the
+// parts that hold it, joined by "/" (for example "body/thigh_l"); a shape
+// without a name is called by its kind. Triangles is the number of triangles
+// the shape wrote to the file. Vertices is the number of indexed vertices it
+// wrote: the compiler welds vertices that are equal in position, normal, UV
+// (and in the skin and morph data of a rigged asset) only inside one shape,
+// never across shapes, so every vertex has exactly one owner and the
+// vertices of all parts add up to the file's indexed vertices. Material is the
+// name of the material the shape draws with ("" when it has none).
+//
+// The parts are listed in file order: primitive by primitive (a primitive is
+// one material of one node, in the order the materials first appear), and in
+// each primitive in the order the shapes were written. A reader can therefore
+// cut a primitive's vertex and index ranges into parts by adding up the
+// counts. The triangles of all parts add up to TrianglesStored, which is the
+// file's triangle count over every branch.
+//
+// A mount baked into the file (`mounts = bake`) adds one row named
+// "mount/<mount name>" with the triangles and vertices its gear contributes,
+// and no material, because the gear brings its own; those rows come last.
+type CensusPart struct {
+	Name      string `json:"name"`
+	Triangles int    `json:"triangles"`
+	Vertices  int    `json:"vertices"`
+	Material  string `json:"material"`
+}
+
 // Census returns the figures of the file.
 func (f *File) Census(output string) Census {
 	c := Census{
@@ -56,6 +95,17 @@ func (p *Product) Census() []Census {
 	for _, o := range p.Outputs {
 		for _, f := range o.Files {
 			rows = append(rows, f.Census(o.Name))
+		}
+	}
+	return rows
+}
+
+// CensusRows returns the rows of Census with each file's leaf shapes.
+func (p *Product) CensusRows() []CensusRow {
+	rows := []CensusRow{}
+	for _, o := range p.Outputs {
+		for _, f := range o.Files {
+			rows = append(rows, CensusRow{Census: f.Census(o.Name), Parts: append([]CensusPart{}, f.Parts...)})
 		}
 	}
 	return rows

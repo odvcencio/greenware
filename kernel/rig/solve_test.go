@@ -385,3 +385,48 @@ func TestQuantiseCutoff(t *testing.T) {
 		t.Errorf("%v vs %v", a, b)
 	}
 }
+
+// A leaf joint's bone runs to the centroid of what it carries. With nothing
+// carried it continues its parent's bone, as it did before.
+func TestSolveLeafBoneFollowsWhatItCarries(t *testing.T) {
+	sk := tube(t)
+	empty := boundOn(1, Vec{0.5, 1, 0})
+	got := boneSegments(sk, empty)[2]
+	if want := []segment{{Vec{0, 2, 0}, Vec{0, 3, 0}}}; !reflect.DeepEqual(got, want) {
+		t.Errorf("a leaf that carries nothing: %v, want %v", got, want)
+	}
+	// Two positions on j2, 0.6 and 0.8 to the side of the joint; the weights
+	// count, so 0.8 carried at weight 0.5 pulls the centroid to 0.7333... .
+	b := &Bound{}
+	b.AddShape(0, []Vec{{0.6, 2, 0}}, 2)
+	b.AddShape(1, []Vec{{0.8, 2, 0}}, 2)
+	b.Infl[1] = []Influence{{2, 0.5}, {1, 0.5}}
+	segs := boneSegments(sk, b)[2]
+	if len(segs) != 1 || segs[0].a != (Vec{0, 2, 0}) {
+		t.Fatalf("segments %v", segs)
+	}
+	wantX := (0.6*1 + 0.8*0.5) / 1.5
+	if d := math.Abs(segs[0].b[0] - wantX); d > 1e-15 || segs[0].b[1] != 2 || segs[0].b[2] != 0 {
+		t.Errorf("the bone ends at %v, want x = %v", segs[0].b, wantX)
+	}
+}
+
+// A vertex on the far side of a sideways foot belongs to the foot, not to the
+// shin that ends at the same joint. With the parent's direction as the foot's
+// bone the two would tie.
+func TestSolveSidewaysLeafKeepsItsVertex(t *testing.T) {
+	sk := tube(t)
+	b := &Bound{}
+	b.AddShape(0, []Vec{{0.6, 2, 0}, {0.8, 2, 0}}, 2) // the foot: centroid (0.7, 2, 0)
+	b.AddShape(1, []Vec{{0.7, 2, 0}}, 1)              // the probe, bound to the shin
+	p := solveParams()
+	if _, err := b.Solve(sk, p, nil); err != nil {
+		t.Fatal(err)
+	}
+	// The shin segment ends at (0, 2, 0): d^2 = 0.49. The foot's bone passes
+	// through the probe: d^2 = 0. Weights 1/0.74 and 1/0.25 on j1 and j2.
+	w := weightsOf(b, 2)
+	if !(w[2] > 2*w[1]) {
+		t.Errorf("foot %.4f against shin %.4f", w[2], w[1])
+	}
+}

@@ -18,6 +18,9 @@ type EllipsoidParams struct {
 	// them a small polygon (language.md section 3.5 puts it at 0.0002 of the
 	// asset's length unit, so the caller converts it to the output unit).
 	Floor float64
+	// NoSeam and ShareCaps are the ring stack's options of the same names:
+	// no repeated column, and caps that reuse the end rings' corners.
+	NoSeam, ShareCaps bool
 }
 
 // Ellipsoid builds an ellipsoid as one closed shell. Row i of R rows sits at
@@ -70,5 +73,5 @@ func Ellipsoid(p EllipsoidParams) (*mesh.Mesh, error) {
 	if p.Floor == 0 {
 		caps = CapsOff // both end rows are single points
 	}
-	return ringStack(stackParams{rings: rings, wrap: true, v: v, caps: caps})
+	return ringStack(stackParams{rings: rings, wrap: true, v: v, caps: caps, noSeam: p.NoSeam, shareCaps: p.ShareCaps})
 }

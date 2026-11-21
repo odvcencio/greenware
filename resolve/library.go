@@ -43,6 +43,10 @@ func (r *run) imports() {
 			r.report(diag.New(diag.CodeDuplicate, im.QualSpan, "the import qualifier `%s` is used twice", im.Qualifier).WithRelated(r.data[im.Qualifier].span, "first import"))
 			continue
 		}
+		if prev, dup := r.clipLibs[im.Qualifier]; dup {
+			r.report(diag.New(diag.CodeDuplicate, im.QualSpan, "the import qualifier `%s` is used twice", im.Qualifier).WithRelated(prev.span, "first import"))
+			continue
+		}
 		if prev, dup := r.libs[im.Qualifier]; dup {
 			r.report(diag.New(diag.CodeDuplicate, im.QualSpan, "the import qualifier `%s` is used twice", im.Qualifier).WithRelated(prev.span(), "first import"))
 			continue
@@ -53,6 +57,12 @@ func (r *run) imports() {
 			continue
 		}
 		if !strings.HasPrefix(im.Path, std.Prefix) && !std.IsPlanned(im.Path) {
+			if r.usesClipLibrary(im.Qualifier) {
+				if c := r.loadClipLibrary(im); c != nil {
+					r.clipLibs[im.Qualifier] = c
+				}
+				continue
+			}
 			if g := r.loadGear(im); g != nil {
 				r.gears[im.Qualifier] = g
 				r.resolved.Gears = append(r.resolved.Gears, *g)

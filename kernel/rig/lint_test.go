@@ -90,15 +90,30 @@ func noFusion(t *testing.T, dir string) {
 // function that is not exact or in package det. The solver reaches vertices,
 // joints, edges and segments by index only.
 func TestSolveIsOrderedAndPure(t *testing.T) {
+	names, _ := filepath.Glob("solve*.go")
+	n := 0
+	for _, name := range names {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		n++
+		solveFileIsOrderedAndPure(t, name)
+	}
+	if n == 0 {
+		t.Fatal("found no solver file")
+	}
+}
+
+func solveFileIsOrderedAndPure(t *testing.T, name string) {
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "solve.go", nil, 0)
+	f, err := parser.ParseFile(fset, name, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, imp := range f.Imports {
 		switch path := strings.Trim(imp.Path.Value, `"`); path {
-		case "time", "math/rand", "math/rand/v2", "sync", "runtime", "os", "reflect":
-			t.Errorf("solve.go imports %s", path)
+		case "time", "math/rand", "math/rand/v2", "sync", "runtime", "os", "reflect", "strconv":
+			t.Errorf("%s imports %s", name, path)
 		}
 	}
 	// math functions that are exact (they pick or flip a value) or are

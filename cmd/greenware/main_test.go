@@ -401,7 +401,7 @@ func TestBuildAthlete(t *testing.T) {
 		t.Fatalf("%d census rows", len(census))
 	}
 	first := census[0].(map[string]any)
-	if first["output"] != "match" || first["file_bytes"].(float64) != 988516 || first["triangles"].(float64) != 6262 || first["images"].(float64) != 1 {
+	if first["output"] != "match" || first["file_bytes"].(float64) != 1230188 || first["triangles"].(float64) != 13016 || first["vertices"].(float64) != 6836 || first["images"].(float64) != 1 {
 		t.Errorf("first census row %v", first)
 	}
 	for _, name := range []string{"athlete.glb", "athlete-lod1.glb", "home.glb", "home-lod1.glb", "away.glb", "away-lod1.glb", "athlete.build.json"} {
@@ -420,7 +420,7 @@ func TestBuildAthlete(t *testing.T) {
 			Total uint64 `json:"total_work"`
 		}
 	}
-	if err := json.Unmarshal(b, &rec); err != nil || len(rec.Census) != 6 || len(rec.Audit) != 6 || rec.Audit[0].Points != 98 || rec.Cost.Total == 0 || rec.Cost.Total > 20_000_000 {
+	if err := json.Unmarshal(b, &rec); err != nil || len(rec.Census) != 6 || len(rec.Audit) != 6 || rec.Audit[0].Points != 50 || rec.Cost.Total == 0 || rec.Cost.Total > 20_000_000 {
 		t.Errorf("record %v %+v", err, rec)
 	}
 	// The project is the nearest greenware.mod; an explicit root that does not

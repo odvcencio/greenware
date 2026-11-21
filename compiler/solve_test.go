@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -109,7 +108,7 @@ func TestSolvedArmWeights(t *testing.T) {
 // A shape named in `rigid` keeps weight 1 on its joint.
 func TestSolvedArmRigidKeepsWeightOne(t *testing.T) {
 	_, d := buildArmSolved(t, func(s string) string {
-		return strings.Replace(s, "reach = 1 }", "reach = 1 rigid = [hand] }", 1)
+		return strings.Replace(s, "smooth = 0.5 }", "smooth = 0.5 rigid = [hand] }", 1)
 	})
 	checkWeights(t, d, 2)
 	wrist := nodeJointIndex(t, d, "wrist")
@@ -322,8 +321,7 @@ func TestHandSkinsReserveNoSolveTicket(t *testing.T) {
 // blend on, keeping the two lengthen steps.
 func athleteVariant(solve string) func(string) string {
 	return func(src string) string {
-		src = strings.Replace(src, "ground = -5mm..20mm", "ground = -2m..2m", 1)
-		src = strings.Replace(src, "torn = 1%", "torn = 100%", 1)
+		src = widenCheck(src)
 		if solve == "" {
 			return src
 		}
@@ -338,7 +336,7 @@ func athleteVariant(solve string) func(string) string {
 
 func TestSolvedAthleteWeights(t *testing.T) {
 	for _, body := range []string{"  solve { }\n", "  solve { max_influences = 1 }\n", "  solve { reach = 2 power = 3 own = 2 }\n"} {
-		op, d := buildAthlete(t, athleteVariant(body))
+		op, d := buildFrozenAthlete(t, athleteVariant(body))
 		limit := 2
 		if strings.Contains(body, "max_influences = 1") {
 			limit = 1
@@ -350,40 +348,14 @@ func TestSolvedAthleteWeights(t *testing.T) {
 	}
 }
 
-// regressions lists every per-joint measure on which the solved skin is worse
-// than the hand skin, strictly: an improved mean must not hide a failed joint.
-// Ground is the lowest posed vertex of the joint's region, judged for the
-// regions within 5 cm of the floor (the feet); it is worse when it is lower by
-// more than 0.5 mm, because the band is a floor.
-func regressions(hand, solved *AuditReport) (out []string) {
-	for j := range hand.joints {
-		h, s := hand.joints[j], solved.joints[j]
-		if s.StrainMax > h.StrainMax {
-			out = append(out, fmt.Sprintf("%s strain %.3f -> %.3f", h.Joint, h.StrainMax, s.StrainMax))
-		}
-		if s.Strained > h.Strained {
-			out = append(out, fmt.Sprintf("%s strained %.4f -> %.4f", h.Joint, h.Strained, s.Strained))
-		}
-		if s.Torn > h.Torn {
-			out = append(out, fmt.Sprintf("%s torn %.4f -> %.4f", h.Joint, h.Torn, s.Torn))
-		}
-		// Only a region that touches the ground has a ground measure: the
-		// band is for the lowest vertex of the model.
-		if h.Lowest < 0.05 && s.Lowest < h.Lowest-0.0005 {
-			out = append(out, fmt.Sprintf("%s lowest %.4f -> %.4f", h.Joint, h.Lowest, s.Lowest))
-		}
-	}
-	return out
-}
-
-// The athlete's two clips with skeletal poses (ready and run; the library of 19
-// is not shipped), at every runtime point of the default plan, measured on the
-// hand skin and on the solved skin, joint by joint. The test prints the table.
-// It does not say the solver passes: it pins what the table shows, so that a
-// change to the solver has to show up here.
+// The frozen athlete's own two clips (ready and run), at every runtime point of
+// the default plan, measured on the hand skin and on the solved skin with the
+// solver's defaults, joint by joint. The test prints the table and the verdict
+// and pins that no row regressed. The full protocol over the clip library is in
+// solveprotocol_test.go.
 func TestSolvedAthleteAuditAgainstHand(t *testing.T) {
-	hand, _ := buildAthlete(t, athleteVariant(""))
-	solved, _ := buildAthlete(t, athleteVariant("  solve { }\n"))
+	hand, _ := buildFrozenAthlete(t, athleteVariant(""))
+	solved, _ := buildFrozenAthlete(t, athleteVariant("  solve { }\n"))
 	h, s := hand.Files[0].Audit, solved.Files[0].Audit
 	if h == nil || s == nil || len(h.joints) != 15 || len(s.joints) != 15 {
 		t.Fatal("no per-joint audit")
@@ -395,27 +367,29 @@ func TestSolvedAthleteAuditAgainstHand(t *testing.T) {
 		a, b := h.joints[j], s.joints[j]
 		t.Logf("%-8s %5d  %6.3f -> %6.3f  %.4f -> %.4f  %.4f -> %.4f  %7.4f -> %7.4f", a.Joint, a.Edges, a.StrainMax, b.StrainMax, a.Strained, b.Strained, a.Torn, b.Torn, a.Lowest, b.Lowest)
 	}
-	reg := regressions(h, s)
+	rows := compareAudits("athlete", h, s)
+	reg := failing(rows, func(auditRow) bool { return true })
 	for _, r := range reg {
 		t.Logf("REGRESSION %s", r)
 	}
+	v := judge(rows, solveParams{}, athleteClips(rows), nil)
+	b, _ := json.MarshalIndent(v, "", "  ")
+	t.Logf("%s", b)
 	// What the global audit says of the solved skin against the athlete's own
 	// pass marks (ground -5..20 mm, torn at most 1%).
 	if s.GroundLowest.Value < -0.005 || s.GroundHighest.Value > 0.020 || s.Torn.Value > 0.01 {
 		t.Errorf("the solved athlete leaves the pass marks of `check rig`: ground %.4f..%.4f torn %.4f", s.GroundLowest.Value, s.GroundHighest.Value, s.Torn.Value)
 	}
-	want := pinnedRegressions
-	if got := strings.Join(reg, "\n"); got != want {
-		t.Errorf("the joints where the solved skin is worse than the hand skin changed:\n%s\nwas pinned as:\n%s", got, want)
+	if got := strings.Join(reg, "\n"); got != pinnedRegressions {
+		t.Errorf("the rows where the solved skin is worse than the hand skin changed:\n%s\nwas pinned as:\n%s", got, pinnedRegressions)
 	}
 }
 
-// The table's regressions, pinned. Both feet: the worst edge of the foot's
-// shapes is stretched or squeezed more than on the hand skin (3.38 against
-// 2.90), and the lowest vertex of the model sits 1.1 mm lower at the right
-// ankle (0.6 mm at the left), inside the band. This is not a pass: a solver
-// that regresses on a measure it is held to does not qualify.
-const pinnedRegressions = "anklel strain 2.900 -> 3.384\nanklel lowest 0.0276 -> 0.0270\nankler strain 2.900 -> 3.384\nankler lowest 0.0049 -> 0.0038"
+// The regressions of the solver's defaults on the frozen athlete's two clips,
+// pinned. The earlier solver (own 16, cutoff 0.02, the parent's direction as a
+// leaf's bone) was worse at both ankles: the worst edge 3.38 against 2.90 and
+// the lowest vertex 1.1 mm and 0.6 mm lower.
+const pinnedRegressions = ""
 
 func runAcceptFor(t testing.TB, src, acc, dir string) (int, *accept.Report) {
 	t.Helper()

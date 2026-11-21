@@ -107,6 +107,16 @@ type Asset struct {
 	Name     Ident
 	Span     diag.Span
 	Settings []*Setting
+	// UseClips are the `use_clips { of = lib }` blocks, in source order.
+	UseClips []*UseClips
+}
+
+// UseClips is `use_clips { of = qualifier skeleton = name }` inside an asset:
+// it installs the clips of an imported clip library (a project file with
+// `clip` declarations and no asset).
+type UseClips struct {
+	Span     diag.Span
+	Settings []*Setting
 }
 
 // Meta is the meta declaration.

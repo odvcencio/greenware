@@ -24,6 +24,13 @@ type stackParams struct {
 	wrap  bool      // full turn: columns wrap
 	v     []float64 // texture v of each ring
 	caps  Caps
+	// noSeam drops the repeated column of a full turn: every ring has n
+	// corners and the last band's texture u runs from (n-1)/n back to 0, as
+	// a plain ring stack's does. Ignored on an arc, which has n+1 real columns.
+	noSeam bool
+	// shareCaps makes each cap a fan over the end ring's own corners, so it
+	// takes the side's smooth normals and adds no vertices.
+	shareCaps bool
 }
 
 // stackCols returns the column count per ring and the number of cells in a
@@ -76,6 +83,7 @@ func ringStack(p stackParams) (*mesh.Mesh, error) {
 	posBase := make([]int32, k)
 	cornerBase := make([]int32, k)
 	m := &mesh.Mesh{}
+	seamless := p.noSeam && p.wrap
 	for i, r := range p.rings {
 		pole[i] = isPole(r)
 		posBase[i] = int32(len(m.Positions))
@@ -92,11 +100,20 @@ func ringStack(p stackParams) (*mesh.Mesh, error) {
 			}
 			continue
 		}
-		for j := 0; j <= n; j++ {
+		last := n
+		if seamless {
+			last = n - 1
+		}
+		for j := 0; j <= last; j++ {
 			m.Corners = append(m.Corners, mesh.Corner{Pos: posBase[i] + int32(j%cols), UV: mesh.Vec2{float64(j) / float64(n), v}})
 		}
 	}
-	corner := func(r, j int) int32 { return cornerBase[r] + int32(j) }
+	corner := func(r, j int) int32 {
+		if seamless && !pole[r] {
+			j %= n
+		}
+		return cornerBase[r] + int32(j)
+	}
 	tri := func(a, b, c int32) {
 		m.Tris = append(m.Tris, mesh.Tri{a, b, c})
 		m.Shell = append(m.Shell, 0)
@@ -117,12 +134,22 @@ func ringStack(p stackParams) (*mesh.Mesh, error) {
 	}
 	m.ComputeNormals()
 	if p.caps == CapsBoth || p.caps == CapsStart {
-		if err := stackCap(m, p.rings[0], posBase[0], pole[0], false); err != nil {
+		if p.shareCaps {
+			err := sharedCap(m, p.rings[0], pole[0], func(j int) int32 { return corner(0, j) }, false)
+			if err != nil {
+				return nil, err
+			}
+		} else if err := stackCap(m, p.rings[0], posBase[0], pole[0], false); err != nil {
 			return nil, err
 		}
 	}
 	if p.caps == CapsBoth || p.caps == CapsEnd {
-		if err := stackCap(m, p.rings[k-1], posBase[k-1], pole[k-1], true); err != nil {
+		if p.shareCaps {
+			err := sharedCap(m, p.rings[k-1], pole[k-1], func(j int) int32 { return corner(k-1, j) }, true)
+			if err != nil {
+				return nil, err
+			}
+		} else if err := stackCap(m, p.rings[k-1], posBase[k-1], pole[k-1], true); err != nil {
 			return nil, err
 		}
 	}
@@ -207,6 +234,27 @@ func stackCap(m *mesh.Mesh, ring []mesh.Vec3, posBase int32, pole, end bool) err
 			m.Tris = append(m.Tris, mesh.Tri{base, base + int32(j), base + int32(j+1)})
 		} else {
 			m.Tris = append(m.Tris, mesh.Tri{base, base + int32(j+1), base + int32(j)})
+		}
+		m.Shell = append(m.Shell, 0)
+	}
+	return nil
+}
+
+// sharedCap adds the same fan as stackCap, over the corners the end ring
+// already has: n-2 triangles, the same winding, and no corner of its own.
+func sharedCap(m *mesh.Mesh, ring []mesh.Vec3, pole bool, at func(j int) int32, end bool) error {
+	if pole {
+		return errors.New("build: a cap needs an end ring that is not a point")
+	}
+	if ringNormal(ring) == (mesh.Vec3{}) {
+		return errors.New("build: a cap ring has no area")
+	}
+	n := len(ring)
+	for j := 1; j+1 < n; j++ {
+		if end {
+			m.Tris = append(m.Tris, mesh.Tri{at(0), at(j), at(j + 1)})
+		} else {
+			m.Tris = append(m.Tris, mesh.Tri{at(0), at(j + 1), at(j)})
 		}
 		m.Shell = append(m.Shell, 0)
 	}

@@ -16,6 +16,9 @@ type TubeParams struct {
 	// Closed joins the last path point back to the first with one more band.
 	// The first point is not repeated at the end.
 	Closed bool
+	// NoSeam drops the repeated column: every ring has n corners and the last
+	// band's texture u runs from (n-1)/n back to 0.
+	NoSeam bool
 }
 
 // tubeTangents returns the unit direction at each path point (language.md
@@ -113,13 +116,17 @@ func Tube(p TubeParams) (*mesh.Mesh, error) {
 	}
 	// A closed tube repeats ring zero as a last row of corners (v = 1) so the
 	// texture does not wrap; the geometry joins ring np-1 to ring 0.
+	last := n
+	if p.NoSeam {
+		last = n - 1
+	}
 	rowsOfCorners := np
 	if p.Closed {
 		rowsOfCorners = np + 1
 	}
 	for i := 0; i < rowsOfCorners; i++ {
 		ring := i % np
-		for j := 0; j <= n; j++ {
+		for j := 0; j <= last; j++ {
 			nrm := mesh.Add(mesh.Scale(frames[ring].U, cs[j]), mesh.Scale(frames[ring].V, sn[j]))
 			m.Corners = append(m.Corners, mesh.Corner{
 				Pos:    int32(ring*n + j%n),
@@ -128,7 +135,11 @@ func Tube(p TubeParams) (*mesh.Mesh, error) {
 			})
 		}
 	}
-	corner := func(i, j int) int32 { return int32(i*(n+1) + j) }
+	cols := n + 1
+	if p.NoSeam {
+		cols = n
+	}
+	corner := func(i, j int) int32 { return int32(i*cols + j%cols) }
 	for i := 0; i < segs; i++ {
 		for j := 0; j < n; j++ {
 			a, b, c, d := corner(i, j), corner(i, j+1), corner(i+1, j+1), corner(i+1, j)

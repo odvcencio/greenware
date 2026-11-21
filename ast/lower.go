@@ -166,7 +166,16 @@ func (l *lowerer) declaration(f *File, n *lang.Node) {
 		}
 		k, _ := registry.Lookup(registry.CtxDocument, "asset")
 		a := &Asset{Name: ident(n.Field("name")), Span: span(n)}
-		a.Settings = l.settingsOnly(n.Field("body"), k)
+		var rest []*lang.Node
+		a.Settings, rest = l.settings(bodyItems(n.Field("body")), k)
+		for _, it := range rest {
+			if it.Kind() == "block" && it.Field("kind").Text() == "use_clips" {
+				uk, _ := registry.Lookup(registry.CtxDocument, "use_clips")
+				a.UseClips = append(a.UseClips, &UseClips{Span: span(it), Settings: l.settingsOnly(it.Field("body"), uk)})
+				continue
+			}
+			l.notAllowed(it, k)
+		}
 		f.Asset = a
 	case "meta_decl":
 		if f.Meta != nil {

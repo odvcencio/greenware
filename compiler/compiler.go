@@ -56,6 +56,9 @@ type File struct {
 	// Audit is the audit of the level's rig and mounts; nil when the source
 	// declares no `check rig` and no fit.
 	Audit *AuditReport
+	// Parts is the census of the leaf shapes: name, triangles, indexed
+	// vertices and material of each, in file order (see CensusPart).
+	Parts []CensusPart
 	// Distance is the `distance` of the level's `lod` block in metres, and
 	// MaxError its `max_error` in metres. Level 0 is the source and declares
 	// neither: Distance is nil and MaxError is 0. They go in the build record
@@ -512,7 +515,7 @@ func buildOutputWith(file *ast.File, r *resolve.Resolved, oname string, pol Poli
 			TextureBytes: l.texBytes, Images: l.images,
 			Joints: l.joints, Influences: l.influences, Morphs: l.morphs,
 			Animations: l.animations, AnimKeys: l.keys, SkinnedVertices: l.rigVerts,
-			Audit: l.audit,
+			Audit: l.audit, Parts: l.parts,
 		})
 	}
 	e.checkBudget(op, oname)
@@ -662,6 +665,24 @@ func canonAll(ns []*resolve.Node, only map[string]bool) []*resolve.Node {
 	return out
 }
 
+// leftAtAddedDefault reports whether a field that the language gained after
+// files were first hashed has its default value. Such a field is left out of
+// the meaning hash, so a file that does not use it keeps the hash it had: the
+// loft, ellipsoid and tube options `seam` (default on) and `weld_caps`
+// (default off).
+func leftAtAddedDefault(f resolve.Field) bool {
+	if f.Value.Kind != units.KSwitch {
+		return false
+	}
+	switch f.Name {
+	case "seam":
+		return f.Value.Bool
+	case "weld_caps":
+		return !f.Value.Bool
+	}
+	return false
+}
+
 // canon copies a node without the Default flags. With only set, it keeps just
 // the named fields.
 func canon(n *resolve.Node, only map[string]bool) *resolve.Node {
@@ -671,6 +692,9 @@ func canon(n *resolve.Node, only map[string]bool) *resolve.Node {
 	c := &resolve.Node{Kind: n.Kind, Name: n.Name, Pair: n.Pair, Rows: n.Rows, Condition: n.Condition, Test: n.Test}
 	for _, f := range n.Fields {
 		if only != nil && !only[f.Name] {
+			continue
+		}
+		if leftAtAddedDefault(f) {
 			continue
 		}
 		c.Fields = append(c.Fields, resolve.Field{Name: f.Name, Value: f.Value})

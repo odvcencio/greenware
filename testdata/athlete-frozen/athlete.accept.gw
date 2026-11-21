@@ -1,0 +1,69 @@
+greenware 1
+
+// The owner's acceptance tests for the athlete (conformance 7.2 and 8, plan
+// 4.5). They run on the decoded GLB of each output at every level and read
+// nothing of the compiler. Every measure poses the delivered skin by the rules
+// of language reference 5.6 at the runtime point it names.
+//
+// What this file measures today, and what it does not:
+//
+//   - The census facts (joints, targets, animation names) and the 96-point
+//     product are measured and pass, except where the source has not caught up
+//     with the spec: the 17 body clips of std/clips/football are not shipped
+//     (the supplied source writes six animations, so the 23-animation and
+//     17-name expects FAIL until that library exists).
+//   - The combined point (height 1.08, build 1, belly 0, pads 0.5, Brannoc)
+//     is posed on `ready` key 0: the pelvis at 0.969486 yd x 1.08, the lowest
+//     sole vertex inside the ground band, and the head_gear frame.
+//   - The helmet clearance is measured on the baked outputs (home, away), where
+//     the helmet is part of the file. It FAILS: the ported shell's lower front
+//     rim lies inside the head loft, so the gap is 0 mm, not 2 mm. For `match`
+//     the helmet is its own file, which is not an input here, so the measure
+//     is unavailable with that reason (exit status 3 when nothing else fails).
+//   - Not measured at all: the waist section, seam and hip probes and the
+//     swing-and-twist bands on the delivered file. They need the declared joint
+//     ranges and the 5.9 probes; M5 solves the weights they audit.
+
+accept athlete {
+  of = "athlete.gw"
+  outputs = [match, home, away]
+  lods = all
+
+  expect (joint_count() == 15, "15 joints")
+  expect (morph_count() == 10, "ten morph targets: mass, pads, belly, tall, short, neck-long, limb-lean, neck-short, chest-deep, brow")
+  expect (animations_present("ready", "run", "field-x", "field-z", "stance-height", "heading") == 6, "the six clips this source writes")
+
+  // The historical file has 23 animations: 19 body clips and four wrapper
+  // lookup channels. The other 17 body clips come from std/clips/football.
+  expect (animation_count() == 23, "23 animations")
+  expect (animations_present("stance", "carry", "sprint", "block", "throw", "catch", "handoff", "juke", "tackle", "wrap-l", "wrap-r", "caught-l", "caught-r", "cut-l", "cut-r", "stumble", "kick") == 17, "the 17 other body clips of the historical file")
+
+  // 2^4 corners x 3 species of the file's own parameters, times two helmet
+  // shells (classic, aero) = 96 extreme points.
+  expect (runtime_points() * 2 == 96, "96 extreme runtime points")
+
+  // `ready`, key 0, at the combined point. The root's up value is 0.969486 yd
+  // x 1.08 with no added root offset, in metres.
+  expect (abs(posed_position(pelvis, clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc).y - 0.969486 * 1.08 * 0.9144m) < 0.01mm, "pelvis at 1.047045 yd")
+  expect (posed_lowest(clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc) >= -5mm, "the lowest sole vertex is at most 5 mm below the ground")
+  expect (posed_lowest(clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc) <= 20mm, "the lowest sole vertex is at most 20 mm above the ground")
+  expect (abs(posed_position(head_gear, clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc).x) < 1mm, "the head_gear socket stays on the centre line")
+  expect (posed_position(head_gear, clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc).y > posed_position(pelvis, clip = ready, time = 0s, height = 1.08, build = 1, belly = 0, pads = 0.5, species = brannoc).y + 0.5m, "head_gear is above the pelvis")
+
+  // The defaults also stand on the ground, at both ends of `ready` and in the
+  // unplayed display pose.
+  expect (posed_lowest(clip = ready, time = 0s) >= -5mm && posed_lowest(clip = ready, time = 0s) <= 20mm, "default ready, key 0, stands on the ground")
+  expect (posed_lowest(clip = ready, time = 0.9s) >= -5mm && posed_lowest(clip = ready, time = 0.9s) <= 20mm, "default ready, last key, stands on the ground")
+
+  // Minimum clearance of the mounted helmet from the head, in the bind pose
+  // and on `ready` key 0 (the baked classic shell; the aero shell is checked
+  // by the build's own fit audit when the mount declares `fit`).
+  expect (mounted_clearance(clip = ready, time = 0s) >= 2mm, "the mounted helmet keeps 2 mm from the head")
+
+  when output == match {
+    expect (draw_calls() == 1, "the match file draws the host alone: the helmet is its own model")
+  }
+  when output != match {
+    expect (draw_calls() == 2, "a baked file draws the host and the helmet's palette material")
+  }
+}

@@ -24,6 +24,10 @@ type LoftParams struct {
 	// chart does not move (language.md section 6.1 step 4).
 	V    []float64
 	Caps Caps
+	// NoSeam and ShareCaps are the ring stack's options of the same names
+	// (stackParams): no repeated column on a full turn, and caps that reuse
+	// the end rings' corners.
+	NoSeam, ShareCaps bool
 }
 
 // Loft builds a loft as one shell. A full turn with k rows and n segments has
@@ -56,7 +60,7 @@ func Loft(p LoftParams) (*mesh.Mesh, error) {
 			}
 		}
 	}
-	return ringStack(stackParams{rings: p.Rings, wrap: !p.Arc, v: v, caps: p.Caps})
+	return ringStack(stackParams{rings: p.Rings, wrap: !p.Arc, v: v, caps: p.Caps, noSeam: p.NoSeam, shareCaps: p.ShareCaps})
 }
 
 // LoftRing returns the default ring of a loft row (language.md section 3.5):

@@ -126,6 +126,16 @@ func OpenProject(file, root string) (*Project, error) {
 // is a GW-CYCLE diagnostic that names the chain. A missing file or a path
 // outside the project is a GW-MISSING diagnostic.
 func (p *Project) Import(importPath string, sp diag.Span) (*Gear, []diag.Diagnostic) {
+	return p.importFile(importPath, sp, false)
+}
+
+// ImportClips is Import for a clip library: a project file that declares
+// clips (and lets) and no asset.
+func (p *Project) ImportClips(importPath string, sp diag.Span) (*Gear, []diag.Diagnostic) {
+	return p.importFile(importPath, sp, true)
+}
+
+func (p *Project) importFile(importPath string, sp diag.Span, library bool) (*Gear, []diag.Diagnostic) {
 	if !strings.HasSuffix(importPath, ".gw") {
 		return nil, []diag.Diagnostic{diag.New(diag.CodeUnknownName, sp, "the import %q is neither a `std/` library, a project file ending in .gw nor a data package such as \"football/world@1\"", importPath)}
 	}
@@ -143,7 +153,7 @@ func (p *Project) Import(importPath string, sp diag.Span) (*Gear, []diag.Diagnos
 	if child.Dir == "." {
 		child.Dir = ""
 	}
-	f, ds := LowerWith(lang.Parse(b), Options{Project: child})
+	f, ds := LowerWith(lang.Parse(b), Options{Project: child, Library: library})
 	sum := sha256.Sum256(b)
 	g := &Gear{Path: clean, File: f, SHA256: hex.EncodeToString(sum[:]), Diagnostics: ds}
 	g.Pins = []Pin{{Path: clean, SHA256: g.SHA256}}

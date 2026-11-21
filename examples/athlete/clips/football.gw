@@ -1,0 +1,429 @@
+greenware 1
+
+// The football clip library: the athlete's body animations as Greenware
+// source. It is a port of the clips in the game's cmd/bakeathletes/pose.go
+// (body.pose, one case per action), and the numbers are that file's.
+//
+// A library declares clips and no asset. An asset installs every clip here
+// with `use_clips { of = football }` after `import "clips/football.gw" as
+// football`. The clips are written against the athlete's joint names and bind
+// frames (identity orientation, the model faces -z): a pose rotation Q is in
+// the bind frame, and `rot(x, y, z)` is x, then y, then z degrees about the
+// joint's own axes, as the game's Euler. A bare angle is degrees. The root's
+// height is in yards, the game's field unit, written with its suffix because
+// a library has no `length` of its own. Mirror blocks name the left side and
+// reflect the right (`side` is 1, then -1), which is the game's `sg`.
+//
+// What the game's clips need and `solved.gw` carries instead: the paired
+// tackles blend two poses by quaternion and settle onto the turf with the
+// skinned mesh, and the lateral footwork solves each leg to a cleat path
+// numerically. They are stored there as key tables.
+//
+// Names, durations and key counts are the game's. `loop` is a request for
+// wraparound; the game's file does not carry it, so it is set for the clips
+// the game plays by phase (a cycle) and left off for the one-shots.
+
+// Standing ready, hands low.
+clip ready {
+  duration = 0.9s
+  keys = 13
+  loop = on
+  pose {
+    chest = rot(-6, 0, 0)
+    head = rot(3.3, 0, 0)
+    mirror {
+      plane = x
+      let thigh = 15deg + 6deg * side
+      let shin = -27deg - 3deg * side
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      // the foot stays inside the ankle band: 40 down, 20 up
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(8 + 4 * side, 3, 8)
+      elbowl = rot(48 - 11 * side, 14, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(18deg)) + 0.008yd), 0)
+  }
+}
+
+// The three-point stance before the snap.
+clip stance {
+  duration = 0.9s
+  keys = 13
+  loop = on
+  pose {
+    chest = rot(-35, 0, 0)
+    head = rot(19.25, 0, 0)
+    mirror {
+      plane = x
+      let thigh = 56deg + 7deg * side
+      let shin = -81deg
+      legl = rot(thigh, 0, 5)
+      kneel = rot(shin, 0, 0)
+      // the foot stays inside the ankle band: 40 down, 20 up
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(if side > 0 then 12 else 40, 3, 16)
+      elbowl = rot(if side > 0 then 19 else 54, 0, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(56deg)) + 0.035yd), 0)
+  }
+}
+
+// The run cycle. The stride has a flight phase, so the ground band of `check rig` does not apply.
+clip run {
+  duration = 0.71s
+  keys = 25
+  loop = on
+  airborne = on
+  let wob = sin(360deg * t)
+  pose {
+    pelvis = rot(-7, 0, 0)
+    chest = rot(-17, -8 * wob, 0)
+    head = rot(9.35, 3 * wob, 0)
+    mirror {
+      plane = x
+      let w = side * wob
+      let thigh = 19deg + 38deg * w
+      let shin = -max(10deg, 35deg - 35deg * w)
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      // the foot stays inside the ankle band: 40 down, 20 up
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(-15 - 32 * w, 3, 8)
+      elbowl = rot(48 + 7 * w, 0, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(23deg)) + 0.008yd) + 0.028yd * (1 - abs(wob)), 0)
+  }
+}
+
+// The run with the ball tucked in the right arm.
+clip carry {
+  duration = 0.75s
+  keys = 25
+  loop = on
+  airborne = on
+  let wob = sin(360deg * t)
+  pose {
+    pelvis = rot(-7, 0, 0)
+    chest = rot(-19, -8 * wob, 0)
+    head = rot(10.45, 3 * wob, 0)
+    mirror {
+      plane = x
+      let w = side * wob
+      let thigh = 19deg + 38deg * w
+      let shin = -max(10deg, 35deg - 35deg * w)
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      // the foot stays inside the ankle band: 40 down, 20 up
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(if side < 0 then 13 else -15 - 32 * w, 3, 8)
+      elbowl = rot(if side < 0 then 72 else 48 + 7 * w, 14, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(23deg)) + 0.008yd) + 0.028yd * (1 - abs(wob)), 0)
+  }
+}
+
+// The fastest stride.
+clip sprint {
+  duration = 0.59s
+  keys = 25
+  loop = on
+  airborne = on
+  let wob = sin(360deg * t)
+  pose {
+    pelvis = rot(-7, 0, 0)
+    chest = rot(-24, -8 * wob, 0)
+    head = rot(13.2, 3 * wob, 0)
+    mirror {
+      plane = x
+      let w = side * wob
+      let thigh = 19deg + 40deg * w
+      let shin = -max(10deg, 35deg - 35deg * w)
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      // the foot stays inside the ankle band: 40 down, 20 up
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(-15 - 32 * w, 3, 8)
+      elbowl = rot(48 + 7 * w, 0, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(23deg)) + 0.008yd) + 0.028yd * (1 - abs(wob)), 0)
+  }
+}
+
+// Crouched, arms out to block.
+clip block {
+  duration = 0.9s
+  keys = 13
+  loop = on
+  pose {
+    chest = rot(-37, 0, 0)
+    head = rot(20.35, 0, 0)
+    mirror {
+      plane = x
+      let thigh = 56deg + 7deg * side
+      let shin = -63deg
+      legl = rot(thigh, 0, 5)
+      kneel = rot(shin, 0, 0)
+      // the foot stays inside the ankle band: 40 down, 20 up
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(62, 9, 8)
+      elbowl = rot(42, 0, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(56deg)) + 0.008yd), 0)
+  }
+}
+
+// The passer's throw: the trunk turns, the right arm cocks and releases.
+clip throw {
+  duration = 0.56s
+  keys = 13
+  let swing = sin(180deg * t)
+  pose {
+    chest = rot(3, -23 * swing, 0)
+    head = rot(-1.65, 0, 0)
+    mirror {
+      plane = x
+      let thigh = 12deg + 8deg * side
+      let shin = -34deg
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      // the foot stays inside the ankle band: 40 down, 20 up
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(if side < 0 then 18 + 95 * swing else 24, 3, 8)
+      elbowl = rot(if side < 0 then 88 - 70 * swing else 56, 0, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(18deg)) + 0.008yd), 0)
+  }
+}
+
+// Both arms reach up for the ball.
+clip catch {
+  duration = 0.9s
+  keys = 13
+  loop = on
+  let swing = sin(180deg * t)
+  pose {
+    chest = rot(-3, 0, 0)
+    head = rot(1.65, 0, 0)
+    mirror {
+      plane = x
+      let thigh = 20deg
+      let shin = -34deg
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      // the foot stays inside the ankle band: 40 down, 20 up
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(74 + 9 * swing, 3, 8)
+      elbowl = rot(21, 0, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(18deg)) + 0.008yd), 0)
+  }
+}
+
+// The arms hold the ball out.
+clip handoff {
+  duration = 0.9s
+  keys = 13
+  loop = on
+  pose {
+    chest = rot(-16, 0, 0)
+    head = rot(8.8, 0, 0)
+    mirror {
+      plane = x
+      let thigh = 20deg
+      let shin = -34deg
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      // the foot stays inside the ankle band: 40 down, 20 up
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(42, 3, 8)
+      elbowl = rot(30, 0, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(18deg)) + 0.008yd), 0)
+  }
+}
+
+// The run with the trunk rolling side to side.
+clip juke {
+  duration = 0.9s
+  keys = 13
+  loop = on
+  airborne = on
+  let wob = sin(360deg * t)
+  let swing = sin(180deg * t)
+  pose {
+    pelvis = rot(-7, 0, 0)
+    chest = rot(-20, -8 * wob, 10 * swing)
+    head = rot(11, 3 * wob, 0)
+    mirror {
+      plane = x
+      let w = side * wob
+      let thigh = 19deg + 38deg * w
+      let shin = -max(10deg, 35deg - 35deg * w)
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      // the foot stays inside the ankle band: 40 down, 20 up
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(-15 - 32 * w, 3, 8)
+      elbowl = rot(48 + 7 * w, 0, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(23deg)) + 0.008yd) + 0.028yd * (1 - abs(wob)), 0)
+  }
+}
+
+// Crouched low to make the tackle.
+clip tackle {
+  duration = 0.48s
+  keys = 13
+  pose {
+    chest = rot(-40, 0, 0)
+    head = rot(22, 0, 0)
+    mirror {
+      plane = x
+      let thigh = 56deg + 7deg * side
+      let shin = -63deg
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      // the foot stays inside the ankle band: 40 down, 20 up
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(62, 3, 8)
+      elbowl = rot(42, 0, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(56deg)) + 0.008yd), 0)
+  }
+}
+
+// A cut left: the carry stride, the hips and trunk banked into the turn.
+clip cut_l {
+  name = "cut-l"
+  duration = 9s / 30
+  keys = 25
+  airborne = on
+  // The runner's carry stride, with the hips and trunk banked into the cut.
+  let wob = sin(360deg * t)
+  let dir = -1
+  let load = smoothstep(0, 0.27, t)
+  let release = smoothstep(0.51, 1, t)
+  let bank = load * (1 - release)
+  pose {
+    pelvis = rot(-4 * bank, 0, dir * 11 * bank)
+    chest = rot(-16 - 12 * bank, 15 * dir * bank, dir * (7 * bank + 9 * (1 - release) * load))
+    head = rot(10, 12 * dir * bank, -9 * dir * bank)
+    mirror {
+      plane = x
+      let w = side * wob
+      let thigh = 19deg + 38deg * w
+      let shin = -max(10deg, 35deg - 35deg * w)
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(if side < 0 then 13 else -15 - 32 * w, 3, 8)
+      elbowl = rot(if side < 0 then 72 else 48 + 7 * w, 14, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(23deg)) + 0.008yd) + 0.028yd * (1 - abs(wob)) - 0.12yd * bank, 0)
+  }
+}
+
+// A cut right: the carry stride, the hips and trunk banked into the turn.
+clip cut_r {
+  name = "cut-r"
+  duration = 9s / 30
+  keys = 25
+  airborne = on
+  // The runner's carry stride, with the hips and trunk banked into the cut.
+  let wob = sin(360deg * t)
+  let dir = 1
+  let load = smoothstep(0, 0.27, t)
+  let release = smoothstep(0.51, 1, t)
+  let bank = load * (1 - release)
+  pose {
+    pelvis = rot(-4 * bank, 0, dir * 11 * bank)
+    chest = rot(-16 - 12 * bank, 15 * dir * bank, dir * (7 * bank + 9 * (1 - release) * load))
+    head = rot(10, 12 * dir * bank, -9 * dir * bank)
+    mirror {
+      plane = x
+      let w = side * wob
+      let thigh = 19deg + 38deg * w
+      let shin = -max(10deg, 35deg - 35deg * w)
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      arml = rot(if side < 0 then 13 else -15 - 32 * w, 3, 8)
+      elbowl = rot(if side < 0 then 72 else 48 + 7 * w, 14, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(23deg)) + 0.008yd) + 0.028yd * (1 - abs(wob)) - 0.12yd * bank, 0)
+  }
+}
+
+// A stumble: the run stride thrown off balance.
+clip stumble {
+  duration = 12s / 30
+  keys = 13
+  airborne = on
+  // The run stride, thrown off balance: the trunk pitches, the arms flail and
+  // the hips drop at mid-clip.
+  let wob = sin(360deg * t)
+  let lurch = sin(180deg * t)
+  pose {
+    pelvis = rot(-7, 0, 0)
+    chest = rot(-12 - 42 * lurch, 12 * lurch, 18 * lurch)
+    head = rot(9.35, 3 * wob, 0)
+    arml = rot(45, 20, 35 + 30 * lurch)
+    armr = rot(27, -20, -44 - 18 * lurch)
+    mirror {
+      plane = x
+      let w = side * wob
+      let thigh = 19deg + 38deg * w
+      let shin = -max(10deg, 35deg - 35deg * w)
+      legl = rot(thigh, 0, 2)
+      kneel = rot(shin, 0, 0)
+      anklel = rot(clamp(-(thigh + shin) * 0.7, -40, 20), 0, 0)
+      elbowl = rot(48 + 7 * w, 0, -8)
+      handl = rot(0, 0, 0)
+    }
+    root = (0, 1yd - (0.46yd * (1 - cos(23deg)) + 0.008yd) + 0.028yd * (1 - abs(wob)) - 0.19yd * lurch, 0)
+  }
+}
+
+// A place kick or punt with the left foot.
+clip kick {
+  duration = 0.65s
+  keys = 13
+  // Plant at the last approach step, backswing, instep contact at 0.32 s of
+  // the game's clock, then a high follow-through and recovery over the
+  // support knee. The right side keeps the ready stance.
+  let beat = t * 0.65
+  let strike = smoothstep(0.17, 0.32, beat)
+  let follow = smoothstep(0.32, 0.52, beat)
+  let settle = smoothstep(0.53, 0.65, beat)
+  pose {
+    pelvis = rot(-3 + 8 * strike - 7 * follow, 12 - 25 * strike, 5 * strike - 4 * settle)
+    chest = rot(-9 + 17 * strike - 8 * follow, -9 + 16 * strike, 8 * follow - 6 * settle)
+    head = rot(12 - 8 * strike, 0, -3 * follow)
+    legl = rot(-28 + 59 * strike + 29 * follow - 40 * settle, 0, 2)
+    kneel = rot(-79 + 56 * strike + 15 * follow - 15 * settle, 0, 0)
+    anklel = rot(18 - 30 * strike + 20 * follow, 0, 0)
+    legr = rot(9, 0, -2)
+    kneer = rot(-24, 0, 0)
+    ankler = rot(10.5, 0, 0)
+    mirror {
+      plane = x
+      arml = rot(-6 + side * (16 - 29 * strike), 6, 21 + 23 * strike - 20 * settle)
+      elbowl = rot(32 + side * 12, 6, 0)
+    }
+    root = (0, 0.91yd + 0.025yd * follow, 0)
+  }
+}

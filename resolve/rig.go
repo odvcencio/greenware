@@ -160,15 +160,17 @@ type RigWeight struct {
 
 // RigMorphOp is one operation of a morph, in source order.
 type RigMorphOp struct {
-	Kind    string // "inflate", "stretch", "reshape", "offset"
-	Parts   []string
-	By      float64
-	Axis    string // stretch: "x", "y" or "z"
-	From    float64
-	To      float64
-	About   RigAnchor
-	Scale   [3]float64
-	Vec     [3]float64
+	Kind  string // "inflate", "stretch", "reshape", "offset", "girth"
+	Parts []string
+	By    float64
+	Axis  string // stretch: "x", "y" or "z"
+	From  float64
+	To    float64
+	About RigAnchor
+	Scale [3]float64
+	Vec   [3]float64
+	// Girth is the rule of a `girth` operation.
+	Girth   *GirthRule `json:"-"`
 	Reflect string
 	Span    diag.Span `json:"-"`
 }
@@ -383,6 +385,7 @@ func (r *run) rig() {
 	if len(r.f.Rigs) == 0 {
 		// An idle clip or wrapper list without declarations.
 		r.rigAssetOnly()
+		r.installClips(nil, &Rig{})
 		return
 	}
 	st := r.collectPairs()
@@ -435,6 +438,7 @@ func (r *run) rig() {
 			rg.Clips = append(rg.Clips, c)
 		}
 	}
+	r.installClips(st, rg)
 	r.checkClips(rg)
 }
 

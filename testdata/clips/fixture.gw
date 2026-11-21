@@ -1,0 +1,121 @@
+greenware 1
+
+// The fixture for the clip library test (compiler/clips_test.go): a skeleton
+// with the athlete's 15 joint names and bind positions (examples/athlete/
+// athlete.gw), one blob on the pelvis, the four wrapper nodes, and every body
+// clip of examples/athlete/clips/. It has no clip of its own: `idle = ready`
+// is an installed clip. Import paths are read in the project rooted at the
+// repository: build it with `--project .`.
+
+asset clip_fixture {
+  title = "Athlete clip library fixture"
+  root = body
+  length = yd
+  angle = deg
+  up = y
+  forward = -z
+  idle = ready
+  generator = "Greenware clip library test"
+  wrappers = ["field lateral", "field depth", "stance height", "body heading"]
+  use_clips { of = football skeleton = body }
+  use_clips { of = solved skeleton = body }
+}
+
+meta {
+  author = "M31 Labs"
+  license = "CC0-1.0"
+}
+
+import "../../examples/athlete/clips/football.gw" as football
+import "../../examples/athlete/clips/solved.gw" as solved
+
+// A one-cell atlas: a skinned asset that draws from an atlas is priced as a
+// rigged output, whose file class holds the 31 animations.
+painter flat(base: color) { color = base }
+texture kit = atlas {
+  grid = (1, 1)
+  cell_size = 8px
+  seed = 1
+  cell blue { index = 0  paint = flat(#3d6fb5) }
+  encode = png
+}
+material cloth = pbr { base_texture = kit roughness = 0.8 }
+
+skeleton body {
+  joint_order = [pelvis, chest, head, arml, elbowl, handl, legl, kneel, anklel,
+                 armr, elbowr, handr, legr, kneer, ankler]
+
+  joint pelvis {
+    at = (0, 1, 0)
+
+    joint chest {
+      at = (0, 1.12, 0)
+
+      joint head {
+        at = (0, 1.7, -0.012)
+      }
+
+      mirror {
+        plane = x
+        joint (arml, armr) {
+          at = (0.284, 1.59, 0)
+          joint (elbowl, elbowr) {
+            at = (0.336, 1.275, -0.014)
+            joint (handl, handr) {
+              at = (0.344, 1.034, -0.024)
+            }
+          }
+        }
+      }
+    }
+
+    mirror {
+      plane = x
+      joint (legl, legr) {
+        at = (0.148, 1.015, 0.002)
+        joint (kneel, kneer) {
+          at = (0.146, 0.57, -0.016)
+          joint (anklel, ankler) {
+            at = (0.145, 0.035, -0.062)
+          }
+        }
+      }
+    }
+  }
+}
+
+part body {
+  material = cloth
+  joint = pelvis
+  ellipsoid blob { cell = blue centre = (0, 1, 0) radii = (0.2, 0.2, 0.15) }
+}
+
+// The athlete's lookup channels on the wrapper nodes (field coordinates, not
+// seconds).
+clip field_x {
+  name = "field-x"
+  node = "field lateral"
+  key (0s, (-64, 0, 0))
+  key (128s, (64, 0, 0))
+}
+clip field_z {
+  name = "field-z"
+  node = "field depth"
+  key (0s, (0, 0, -144))
+  key (192s, (0, 0, 48))
+}
+clip stance_height {
+  name = "stance-height"
+  node = "stance height"
+  key (0s, (0, -1, 0))
+  key (2s, (0, 1, 0))
+}
+clip heading {
+  name = "heading"
+  node = "body heading"
+  sample h in -180deg..180deg by 33 -> key (seconds(radians(h + 180deg)), rot(0, h, 0))
+}
+
+output match {
+  file = "clip-fixture.glb"
+}

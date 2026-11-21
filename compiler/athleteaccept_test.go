@@ -52,9 +52,9 @@ func TestAthleteAcceptance(t *testing.T) {
 		}
 	}
 	want := map[string]string{
-		"15 joints": "pass", "ten morph targets": "pass", "the six clips this source writes": "pass",
-		"23 animations": "fail", "the 17 other body clips of the historical file": "fail",
-		"96 extreme runtime points": "pass", "pelvis at 1.047045 yd": "pass",
+		"15 joints": "pass", "seven morph targets": "pass", "the four lookup channels and two of the body clips": "pass",
+		"31 animations": "pass", "the 17 other body clips of the historical file": "pass", "the 8 footwork clips of the game's bake": "pass",
+		"48 extreme runtime points": "pass", "pelvis at 0.969486 yd": "pass",
 		"the lowest sole vertex is at most 5 mm below the ground": "pass", "the lowest sole vertex is at most 20 mm above the ground": "pass",
 		"the head_gear socket stays on the centre line": "pass", "head_gear is above the pelvis": "pass",
 		"default ready, key 0, stands on the ground": "pass", "default ready, last key, stands on the ground": "pass",
@@ -151,14 +151,16 @@ func TestAcceptRigFunctionsRefuse(t *testing.T) {
 		frag    string
 	}{
 		{"has_animation(ready)", accept.Pass, ""},
-		{`has_animation("field-x") && !has_animation(sprint)`, accept.Pass, ""},
+		{`has_animation("field-x") && has_animation(sprint) && !has_animation(gallop)`, accept.Pass, ""},
 		{"posed_lowest(clip = ready, time = 0s, colour = red) > 0m", accept.Refused, "not a runtime parameter"},
 		{"posed_lowest(clip = gallop) > 0m", accept.Refused, "no animation named"},
 		{"posed_lowest(clip = ready, time = 0s, build = 1) < 25mm", accept.Pass, ""},
 		{"posed_position(nobody, clip = ready) == (0m, 0m, 0m)", accept.Refused, "0 nodes"},
 		{"mounted_clearance() > 0m", accept.Unavailable, "no baked gear"},
-		// A taller figure stands higher: the stature binding moves the pelvis.
-		{"posed_position(pelvis, clip = ready, time = 0s, height = 1.08).y > posed_position(pelvis, clip = ready, time = 0s, height = 0.94).y + 0.1m", accept.Pass, ""},
+		// The athlete has no stature parameter: the game scales a player as a whole model.
+		{"posed_position(pelvis, clip = ready, time = 0s, height = 1.08).y > 0m", accept.Refused, "not a runtime parameter"},
+		// A heavier build leaves the feet where they are: the targets widen the body about its rings and never move a joint.
+		{"abs(posed_lowest(clip = ready, time = 0s, build = 1) - posed_lowest(clip = ready, time = 0s, build = 0)) < 1mm", accept.Pass, ""},
 	} {
 		e := run(c.expr)
 		if e.Verdict != c.verdict || !strings.Contains(e.Detail, c.frag) {

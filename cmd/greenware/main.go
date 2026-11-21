@@ -399,8 +399,8 @@ type buildReport struct {
 	InputSHA256 string        `json:"input_sha256,omitempty"`
 	Outputs     []buildOutput `json:"outputs"`
 	// Census holds the measured figures of every output and level.
-	Census      []compiler.Census `json:"census"`
-	Unsupported []string          `json:"unsupported"`
+	Census      []compiler.CensusRow `json:"census"`
+	Unsupported []string             `json:"unsupported"`
 	// Cost is the ticket receipt, present on a refusal as well.
 	Cost        *compiler.Receipt `json:"cost,omitempty"`
 	Diagnostics json.RawMessage   `json:"diagnostics"`
@@ -429,7 +429,7 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 		p, receipt, more = compiler.BuildWith(f, o.output, opts)
 		ds = diag.Dedup(append(ds, more...))
 	}
-	rep := buildReport{Schema: "greenware.build/1", Outputs: []buildOutput{}, Census: []compiler.Census{}, Unsupported: []string{}, Cost: receipt}
+	rep := buildReport{Schema: "greenware.build/1", Outputs: []buildOutput{}, Census: []compiler.CensusRow{}, Unsupported: []string{}, Cost: receipt}
 	code := status(ds)
 	var writeErr error
 	if p != nil && code == 0 {
@@ -439,7 +439,7 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 			rep.Record = p.RecordName()
 		}
 		rep.InputSHA256 = p.InputSHA256
-		rep.Census = p.Census()
+		rep.Census = p.CensusRows()
 		rep.Unsupported = append(rep.Unsupported, p.Unsupported...)
 		for _, sk := range f.Skipped {
 			rep.Unsupported = append(rep.Unsupported, "geometry only: skipped "+sk)

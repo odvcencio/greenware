@@ -29,7 +29,7 @@ func TestRigFilesWrapMultiplies(t *testing.T) {
 			t.Fatal(err)
 		}
 		all = append(all, f)
-		if strings.Contains(name, "rig") {
+		if strings.Contains(name, "rig") || strings.Contains(name, "solve") {
 			files = append(files, f)
 		}
 	}

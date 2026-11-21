@@ -53,9 +53,12 @@ func TestAthleteCensus(t *testing.T) {
 		t.Fatalf("%d census rows, want 3 outputs x 2 levels", len(rows))
 	}
 	want := map[string]Census{
-		"match/0": {Images: 1, ImageDecodedBytes: 1048576, Vertices: 4465, Triangles: 6262, Draws: 1, Materials: 1, Joints: 15, Influences: 2, MorphTargets: 10, Animations: 6, AnimationKeys: 647},
-		"home/0":  {Images: 3, ImageDecodedBytes: 1310720, Vertices: 5677, Triangles: 8028, Draws: 2, Materials: 2, Joints: 15, Influences: 2, MorphTargets: 10, Animations: 6, AnimationKeys: 647},
-		"away/0":  {Images: 3, ImageDecodedBytes: 1310720, Vertices: 5677, Triangles: 8028, Draws: 2, Materials: 2, Joints: 15, Influences: 2, MorphTargets: 10, Animations: 6, AnimationKeys: 647},
+		// match is the game's Go bake's body (13,016 triangles, 6,836 vertices, 7
+		// build targets) with the 27 clips of clips/football.gw and clips/solved.gw and
+		// the 4 lookup channels; home and away add the old helmet gear.
+		"match/0": {Images: 1, ImageDecodedBytes: 1000000, Vertices: 6836, Triangles: 13016, Draws: 1, Materials: 1, Joints: 15, Influences: 2, MorphTargets: 7, Animations: 31, AnimationKeys: 8802},
+		"home/0":  {Images: 3, ImageDecodedBytes: 1262144, Vertices: 8048, Triangles: 14782, Draws: 2, Materials: 2, Joints: 15, Influences: 2, MorphTargets: 7, Animations: 31, AnimationKeys: 8802},
+		"away/0":  {Images: 3, ImageDecodedBytes: 1262144, Vertices: 8048, Triangles: 14782, Draws: 2, Materials: 2, Joints: 15, Influences: 2, MorphTargets: 7, Animations: 31, AnimationKeys: 8802},
 	}
 	for key, w := range want {
 		var out string
@@ -259,8 +262,12 @@ func TestAthleteOldLimitsRefuseWithGWBudget(t *testing.T) {
 			t.Errorf("no GW-BUDGET for %s", field)
 		}
 	}
-	// The baked files are over the original 1 MiB file budget (home: 1,074,688 B).
-	ds := build("home", "file_size = 1152KiB", "file_size = 1MiB")
+	// The baked files are over the original 1 MiB file budget (home: 1,316,688 B),
+	// and so is the match file now that it carries the 27 clips of the library
+	// and the rig base (1,230,188 B).
+	ds := build("home", "file_size = 1440KiB", "file_size = 1MiB")
+	only(ds, "file_size")
+	ds = build("match", "file_size = 1344KiB        //", "file_size = 1MiB        //")
 	only(ds, "file_size")
 	// The host's decoded atlas alone is 1 MiB; 128 KiB refuses every output.
 	ds = build("match", "texture_bytes = 1MiB       //", "texture_bytes = 128KiB       //")
@@ -268,9 +275,9 @@ func TestAthleteOldLimitsRefuseWithGWBudget(t *testing.T) {
 	ds = build("home", "texture_bytes = 1280KiB vertices", "texture_bytes = 128KiB vertices")
 	only(ds, "texture_bytes")
 	// A baked file with both helmet images is over the original 1 MiB decoded.
-	ds = build("away", "texture_bytes = 1280KiB vertices = 5800 file_size = 1152KiB\n  }\n  set", "texture_bytes = 1MiB vertices = 5800 file_size = 1152KiB\n  }\n  set")
+	ds = build("away", "texture_bytes = 1280KiB vertices = 8800 file_size = 1440KiB\n  }\n  set", "texture_bytes = 1MiB vertices = 8800 file_size = 1440KiB\n  }\n  set")
 	only(ds, "texture_bytes")
-	// The match file fits the original 1 MiB file budget, which it is declared with.
+	// The match file fits the budget it is declared with.
 	f := loadProject(t, athletePath)
 	if q, _, ds := BuildWith(f, "match", Options{}); q == nil {
 		t.Fatalf("match is refused under its own budget: %v", ds)
@@ -335,8 +342,8 @@ func TestAthleteMounts(t *testing.T) {
 			t.Errorf("helmet target %d has deltas", ti)
 		}
 	}
-	if len(helmet.Targets) != 10 {
-		t.Errorf("helmet has %d targets, the mesh has 10", len(helmet.Targets))
+	if len(helmet.Targets) != 7 {
+		t.Errorf("helmet has %d targets, the mesh has 7", len(helmet.Targets))
 	}
 	// Helmet vertices lie where the helmet document put them: the plug and the
 	// socket are the same point, so the shell is unmoved.
@@ -378,14 +385,17 @@ func TestAthleteAudit(t *testing.T) {
 			if a == nil {
 				t.Fatalf("%s level %d has no audit", o.Name, f.Level)
 			}
-			wantPoints := 50 // 2^4 x 3 + the default + one case
+			wantPoints := 26 // 2^3 x 3 + the default + one case
 			if o.Name == "match" {
-				wantPoints = 98 // x 2 gear outputs on a runtime mount
+				wantPoints = 50 // x 2 gear outputs on a runtime mount
 			}
-			if a.Points != wantPoints || a.Poses != wantPoints*39 || a.Partial {
-				t.Errorf("%s level %d: %d points, %d poses, partial %v; want %d points of 39 poses", o.Name, f.Level, a.Points, a.Poses, a.Partial, wantPoints)
+			// 556 poses a point: the bind pose and the 555 keys of the 27 body clips
+			// (the four lookup channels are not skeletal).
+			if a.Points != wantPoints || a.Poses != wantPoints*556 || a.Partial {
+				t.Errorf("%s level %d: %d points, %d poses, partial %v; want %d points of 556 poses", o.Name, f.Level, a.Points, a.Poses, a.Partial, wantPoints)
 			}
-			if a.GroundLowest.Value < -0.005 || a.GroundHighest.Value > 0.020 {
+			// The band the file declares (check rig { ground }): the game's clips as they are.
+			if a.GroundLowest.Value < -0.060 || a.GroundHighest.Value > 0.040 {
 				t.Errorf("%s level %d: ground %.4f..%.4f m is outside the band", o.Name, f.Level, a.GroundLowest.Value, a.GroundHighest.Value)
 			}
 			if a.Torn.Value > 0.01 {
@@ -402,8 +412,12 @@ func TestAthleteBandsErrorPromotesBandWarnings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Push the elbow of `ready` past its band.
-	s := strings.Replace(string(src), "elbowl = rot(48 - 11 * side, 14, -8)", "elbowl = rot(-170 - 11 * side, 14, -8)", 1)
+	// Narrow the elbow's natural band to 20 degrees of swing: the arm clips of the
+	// library bend it past that.
+	s := strings.Replace(string(src), "swing_x = -5..150", "swing_x = -5..20", 1)
+	if s == string(src) {
+		t.Fatal("the elbow's band is not in the source")
+	}
 	f := lowerProjectSource(t, athletePath, []byte(s))
 	_, _, ds := BuildWith(f, "match", Options{})
 	n, errs := 0, 0
@@ -428,11 +442,11 @@ func TestAthleteBandsErrorPromotesBandWarnings(t *testing.T) {
 	}
 }
 
-// keep = [head, glove_l, glove_r] keeps those shapes' level 0 tessellation.
+// keep = [face, hand_l, hand_r] keeps those shapes' level 0 tessellation.
 func TestAthleteLodKeep(t *testing.T) {
 	with, _ := buildAthlete(t, nil)
 	without, _ := buildAthlete(t, func(s string) string {
-		return strings.Replace(s, "  keep = [head, glove_l, glove_r]", "  // keep = [head, glove_l, glove_r]", 1)
+		return strings.Replace(s, "  keep = [face, hand_l, hand_r]", "  // keep = [face, hand_l, hand_r]", 1)
 	})
 	a, b := with.Files[1].Triangles, without.Files[1].Triangles
 	if a <= b {

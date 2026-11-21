@@ -22,17 +22,20 @@ type rigVertexKey struct {
 	t    string // the target deltas, as bytes
 }
 
-// primitiveRig merges the pieces of one material into one skinned primitive.
-// Vertices that are equal in every attribute, joint, weight and target delta
-// inside one piece share an index.
-func primitiveRig(ps []piece) gltf.Primitive {
+// primitiveRigCounted merges the pieces of one material into one skinned
+// primitive. Vertices that are equal in every attribute, joint, weight and
+// target delta inside one piece share an index. It also returns, for each
+// piece, the number of indexed vertices it wrote.
+func primitiveRigCounted(ps []piece) (gltf.Primitive, []int) {
 	var prim gltf.Primitive
+	counts := make([]int, 0, len(ps))
 	nt := 0
 	if len(ps) > 0 {
 		nt = len(ps[0].rig.pos)
 	}
 	prim.Targets = make([]gltf.MorphTarget, nt)
 	for _, p := range ps {
+		first := len(prim.Positions) / 3
 		seen := map[rigVertexKey]uint32{} // lookup only
 		remap := make([]uint32, len(p.m.Corners))
 		for i, c := range p.m.Corners {
@@ -72,8 +75,9 @@ func primitiveRig(ps []piece) gltf.Primitive {
 		for _, t := range p.m.Tris {
 			prim.Indices = append(prim.Indices, remap[t[0]], remap[t[1]], remap[t[2]])
 		}
+		counts = append(counts, len(prim.Positions)/3-first)
 	}
-	return prim
+	return prim, counts
 }
 
 // rigNodes is what attachRig made.
@@ -295,7 +299,9 @@ func (e *elab) rigExtras(asset map[string]any, rl *rigLevel, cds []*clipData, bi
 		ent := map[string]any{"kind": "root_scale", "joint": sk.Joints[sk.Root()].Name, "axis": []string{"x", "y", "z"}[rl.inst.Up]}
 		*bindings = append(*bindings, binding{param: rg.Skeleton.RootScale, kind: "root_scale", node: sk.Joints[sk.Root()].Name, extra: ent})
 	}
-	if len(rl.offsets) == 0 && !rl.inst.HasRootScale {
+	// A file with only morph weights bound to parameters still needs the base:
+	// a pose at another runtime point (the acceptance measures) is built from it.
+	if len(*bindings) == 0 {
 		return
 	}
 	// rig_base: the original local rest, the original translation keys, which

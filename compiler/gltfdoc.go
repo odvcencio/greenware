@@ -50,6 +50,8 @@ type level struct {
 	trisWorst  int
 	drawsWorst int
 	trisStored int
+	// parts is the census of the leaf shapes, in file order.
+	parts      []CensusPart
 	alternates int // roots of the alternates scene
 	// texBytes is the decoded RGBA size of the distinct images the file
 	// carries; images describes them.
@@ -68,11 +70,15 @@ type vertexKey struct {
 	uv [2]float32
 }
 
-// primitiveOf merges the pieces of one material into one primitive. Vertices
-// that are equal in position, normal and uv inside one piece share an index.
-func primitiveOf(ps []piece) gltf.Primitive {
+// primitiveOfCounted merges the pieces of one material into one primitive.
+// Vertices that are equal in position, normal and uv inside one piece share an
+// index. It also returns, for each piece, the number of indexed vertices it
+// wrote.
+func primitiveOfCounted(ps []piece) (gltf.Primitive, []int) {
 	var prim gltf.Primitive
+	counts := make([]int, 0, len(ps))
 	for _, p := range ps {
+		first := len(prim.Positions) / 3
 		seen := map[vertexKey]uint32{} // lookup only
 		remap := make([]uint32, len(p.m.Corners))
 		for i, c := range p.m.Corners {
@@ -94,8 +100,9 @@ func primitiveOf(ps []piece) gltf.Primitive {
 		for _, t := range p.m.Tris {
 			prim.Indices = append(prim.Indices, remap[t[0]], remap[t[1]], remap[t[2]])
 		}
+		counts = append(counts, len(prim.Positions)/3-first)
 	}
-	return prim
+	return prim, counts
 }
 
 // groupPieces splits a node's pieces by material, in the order the materials
@@ -265,10 +272,14 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 			}
 			for _, mat := range order {
 				var prim gltf.Primitive
+				var counts []int
 				if skinned {
-					prim = primitiveRig(groups[mat])
+					prim, counts = primitiveRigCounted(groups[mat])
 				} else {
-					prim = primitiveOf(groups[mat])
+					prim, counts = primitiveOfCounted(groups[mat])
+				}
+				for i, p := range groups[mat] {
+					lv.parts = append(lv.parts, CensusPart{Name: p.path, Triangles: p.m.TriangleCount(), Vertices: counts[i], Material: mat})
 				}
 				if mat != "" {
 					prim.Material = gltf.Int(matIndex[mat])
@@ -329,6 +340,11 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 	}
 	lv.trisStored += bakedAdd.tris
 	lv.verts += bakedAdd.verts
+	for _, g := range e.baked() {
+		if st, ok := bakes[g.m.Name]; ok {
+			lv.parts = append(lv.parts, CensusPart{Name: "mount/" + g.m.Name, Triangles: st.tris, Vertices: st.verts})
+		}
+	}
 	var cds []*clipData
 	if rl != nil {
 		rn, c, ok := e.attachRig(doc, rl, rootIdx)

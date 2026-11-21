@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"m31labs.dev/greenware/ast"
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/resolve"
 )
@@ -92,10 +93,49 @@ func parse(s string) float64 {
 	return f
 }
 
-// The runtime points of the athlete: the default, the 2^4 x 3 x 2 product and
+// loadFrozenAthlete lowers the frozen first port of the athlete (four numeric
+// parameters, height among them, and the species) as if it stood at athletePath.
+// The planner's fixtures need four corner axes; the athlete in examples/ has
+// three since its height parameter went (the game scales a player as a model).
+func loadFrozenAthlete(t testing.TB) *ast.File {
+	t.Helper()
+	b, err := os.ReadFile(frozenAthletePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return lowerProjectSource(t, athletePath, b)
+}
+
+// The runtime points of the current athlete: the default, the 2^3 x 3 x 2
+// product and the named case, each once.
+func TestRuntimePointsOfTheCurrentAthlete(t *testing.T) {
+	f := loadProject(t, athletePath)
+	r, ds := resolve.EvaluateOutput(f, "match")
+	if r == nil {
+		t.Fatal(ds)
+	}
+	pl := (&elab{r: r, mounts: mountModes(r)}).planPoints(0)
+	if pl.partial || pl.full != 48 || len(pl.points) != 50 {
+		t.Fatalf("full %d, %d points, partial %v; want the 48-point product, the default and the case", pl.full, len(pl.points), pl.partial)
+	}
+	if pl.points[0].label != "default" || pl.points[len(pl.points)-1].label != "case brannoc_lineman_aero" {
+		t.Errorf("first %q last %q", pl.points[0].label, pl.points[len(pl.points)-1].label)
+	}
+	for _, p := range pl.points {
+		if _, ok := p.vals["height"]; ok {
+			t.Errorf("point %q has a height value: the athlete has no height parameter", p.label)
+		}
+	}
+	rb, _ := resolve.EvaluateOutput(f, "home")
+	if n := len((&elab{r: rb, mounts: mountModes(rb)}).planPoints(0).points); n != 26 {
+		t.Errorf("home has %d points, want 24 + default + case", n)
+	}
+}
+
+// The runtime points of the frozen athlete: the default, the 2^4 x 3 x 2 product and
 // the named case, each once, with the case's label kept.
 func TestRuntimePointsOfTheAthlete(t *testing.T) {
-	f := loadProject(t, athletePath)
+	f := loadFrozenAthlete(t)
 	r, ds := resolve.EvaluateOutput(f, "match")
 	if r == nil {
 		t.Fatal(ds)
@@ -148,7 +188,7 @@ func TestRuntimePointsOfTheAthlete(t *testing.T) {
 // Above the limit the plan keeps the default, every case and one axis at a
 // time, says what it left out, and never drops a named case.
 func TestRuntimePointsPartial(t *testing.T) {
-	f := loadProject(t, athletePath)
+	f := loadFrozenAthlete(t)
 	r, _ := resolve.EvaluateOutput(f, "match")
 	e := &elab{r: r, mounts: mountModes(r)}
 	pl := e.planPoints(50)
@@ -193,7 +233,7 @@ func TestRuntimePointsPartial(t *testing.T) {
 
 // A named case equal to a product point keeps its label beside the product's.
 func TestRuntimePointsKeepCaseLabels(t *testing.T) {
-	src, _ := os.ReadFile(athletePath)
+	src, _ := os.ReadFile(frozenAthletePath)
 	s := strings.Replace(string(src), "set { species = brannoc build = 1 belly = 1 }", "set { species = brannoc build = 1 belly = 1 pads = 1 height = 1.08 }", 1)
 	f := lowerProjectSource(t, athletePath, []byte(s))
 	r, _ := resolve.EvaluateOutput(f, "match")

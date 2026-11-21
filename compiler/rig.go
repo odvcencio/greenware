@@ -555,6 +555,19 @@ func (e *elab) buildMorph(m *resolve.RigMorph, mi int, rl *rigLevel, b *rig.Boun
 				e.report(diag.CodeFieldRange, op.Span, "%v", err)
 				return nil, false
 			}
+		case "girth":
+			for _, id := range ids {
+				if len(lines[id]) == 0 {
+					e.report(diag.CodeUnsupported, op.Span, "`girth` of the shape `%s` is valid in the language but outside this compiler's subset: it widens the rings of a loft", firstName(rl.pieces[id]))
+					return nil, false
+				}
+			}
+			unit := e.lengthScale()
+			at := func(y float64) (float64, float64, float64, error) { return op.Girth.At(y / unit) }
+			if err := rig.Girth(tpos, b.Shape, ids, lines, at); err != nil {
+				e.report(diag.CodeFieldRange, op.Span, "%v", err)
+				return nil, false
+			}
 		case "reshape":
 			rig.Reshape(tpos, b.Shape, ids, anchorPoint(op.About, rl.sk, op.Reflect), mesh.Vec3(op.Scale))
 		case "offset":

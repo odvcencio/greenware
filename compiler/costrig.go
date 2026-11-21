@@ -19,16 +19,16 @@ import (
 //     64 joints and 64 sockets. Price 100,000.
 //   - weights, per level of a rigged output. It buys the rigid binding, the
 //     ordered skin steps, the normalisation and the influence limit on the
-//     level's own topology. Class: at most 32 steps and 8,192 bound
+//     level's own topology. Class: at most 32 steps and 16,384 bound
 //     positions. Price 300,000.
 //   - morph, per level of a rigged output with morph targets. It buys the
 //     construction of each target on the finished bind mesh, the recomputed
 //     normals and the joint offsets of `joints = follow`. Class: at most 10
 //     targets (the athlete asks for ten; the default budget is eight) and
-//     8,192 bound positions. Price 150,000.
+//     16,384 bound positions. Price 150,000.
 //   - clip, once per selected output with clips. It buys the sampling of every
 //     clip, the conditioning of every channel and the swing-and-twist test of
-//     every pose key. Class: at most 32 clips and 4,096 keys in all. Price
+//     every pose key. Class: at most 64 clips and 4,096 keys in all. Price
 //     200,000.
 //
 // The class bounds on counts that exist only after the surface is built (the
@@ -42,7 +42,7 @@ import (
 //     buys the falloff weights, the bounded smoothing sweeps with their
 //     residual test, the influence limit and the quantisation to 2^-24. The
 //     solve is not runtime safe (language reference 7.8). Class: one solve
-//     step, at most 256 sweeps, 64 joints and 8,192 bound positions (the
+//     step, at most 256 sweeps, 64 joints and 16,384 bound positions (the
 //     `weights` ticket checks the positions). Price 1,000,000; the price is an
 //     assumption of this compiler, set above the measured cost of 64 sweeps
 //     over the athlete's 4,465 positions.
@@ -60,23 +60,23 @@ const (
 	maxRigJoints    = 64
 	maxRigSockets   = 64
 	maxRigSteps     = 32
-	maxRigPositions = 8192
+	maxRigPositions = 16384
 	maxRigMorphs    = 10
-	maxRigClips     = 32
+	maxRigClips     = 64
 	maxRigKeys      = 4096
 )
 
 // ticketTableRig is the rig's rows, in reservation order.
 var ticketTableRig = []TicketClass{
 	{TicketRig, 100_000, "selected output with a skeleton", "at most 64 joints and 64 sockets"},
-	{TicketWeights, 300_000, "level of an output with a skeleton", "at most 32 skin steps and 8,192 bound positions"},
-	{TicketMorph, 150_000, "level of an output with morph targets", "at most 10 targets and 8,192 bound positions"},
-	{TicketClip, 200_000, "selected output with clips", "at most 32 clips and 4,096 keys in all"},
+	{TicketWeights, 300_000, "level of an output with a skeleton", "at most 32 skin steps and 16,384 bound positions"},
+	{TicketMorph, 150_000, "level of an output with morph targets", "at most 10 targets and 16,384 bound positions"},
+	{TicketClip, 200_000, "selected output with clips", "at most 64 clips and 4,096 keys in all"},
 }
 
 // ticketTableSolve is the solver's row: it follows weights.
 var ticketTableSolve = []TicketClass{
-	{TicketSolve, 1_000_000, "level of an output whose skin has a `solve` step", "one solve step, at most 256 sweeps, 64 joints and 8,192 bound positions"},
+	{TicketSolve, 1_000_000, "level of an output whose skin has a `solve` step", "one solve step, at most 256 sweeps, 64 joints and 16,384 bound positions"},
 }
 
 // SolveTickets returns the solver's tickets.

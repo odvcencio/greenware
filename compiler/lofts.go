@@ -37,6 +37,7 @@ func (e *elab) ellipsoid(n *resolve.Node) (*mesh.Mesh, error) {
 		Segments: int(num(n, "segments")),
 		Rings:    int(num(n, "rings")),
 		Floor:    float64(ellipsoidFloor * e.lengthScale()),
+		NoSeam:   !seamOn(n), ShareCaps: flag(n, "weld_caps"),
 	}
 	p = build.RetessellateEllipsoid(p, e.maxErr)
 	e.noteChord(max(r[0], r[2]), twoPi, p.Segments)
@@ -53,10 +54,17 @@ func (e *elab) tube(n *resolve.Node) (*mesh.Mesh, error) {
 		}
 		pts = append(pts, mesh.Add(mesh.Vec3{r.Values[0].Num, r.Values[1].Num, r.Values[2].Num}, at))
 	}
-	p := build.TubeParams{Radius: num(n, "radius"), Segments: int(num(n, "segments")), Path: pts, Closed: flag(n, "closed")}
+	p := build.TubeParams{Radius: num(n, "radius"), Segments: int(num(n, "segments")), Path: pts, Closed: flag(n, "closed"), NoSeam: !seamOn(n)}
 	p = build.RetessellateTube(p, e.maxErr)
 	e.noteChord(p.Radius, twoPi, p.Segments)
 	return build.Tube(p)
+}
+
+// seamOn reports whether a ring shape keeps its repeated column (the default).
+// `seam = off` takes it away.
+func seamOn(n *resolve.Node) bool {
+	v, ok := n.Get("seam")
+	return !ok || !v.Valid() || v.Bool
 }
 
 // loftColumns returns the column names of a loft's rows.
@@ -181,7 +189,7 @@ func (e *elab) loft(n *resolve.Node) (*mesh.Mesh, error) {
 		rings[i] = grid[row]
 		v[i] = float64(row) / float64(k-1)
 	}
-	m, err := build.Loft(build.LoftParams{Rings: rings, Arc: partial, V: v, Caps: caps})
+	m, err := build.Loft(build.LoftParams{Rings: rings, Arc: partial, V: v, Caps: caps, NoSeam: !seamOn(n), ShareCaps: flag(n, "weld_caps")})
 	if err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}

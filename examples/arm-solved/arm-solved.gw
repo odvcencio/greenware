@@ -121,7 +121,7 @@ part arm_body {
 skin {
   max_influences = 2
   lengthen { joint = shoulder to = 0.32 anchor = 0.5 }
-  solve { method = falloff refine = smooth iterations = 64 tolerance = 0.0001 reach = 1 }
+  solve { method = falloff refine = smooth iterations = 64 tolerance = 0.0001 reach = 1 own = 16 smooth = 0.5 }
 }
 
 // ---- Morph targets ------------------------------------------------------------
