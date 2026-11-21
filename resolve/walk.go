@@ -252,6 +252,21 @@ func (r *run) array(a *ast.Array, sc *scope) *Node {
 	}
 	bs := r.bodyScope(inner, a.Items)
 	n.Children = r.items(a.Items, bs)
+	// A linear array that names its index resolves the body once for each
+	// further copy, with the index bound to that copy's number, so a copy can
+	// differ from the first (staggered fingers). Without a named index the copies
+	// stay translations of the first.
+	if s := ast.FindSetting(a.Settings, "index"); s != nil && mode == "linear" && hasCount && count.Valid() && count.Kind != units.KTuple && count.Num > 1 && count.Num <= maxCopies {
+		if nm, sp, ok := nameOf(s.Value); ok {
+			r.quiet++
+			for i := 1; i < int(count.Num); i++ {
+				ci := newScope(sc)
+				ci.add(&binding{name: nm, span: sp, state: stDone, value: units.Num(float64(i))})
+				n.Copies = append(n.Copies, r.items(a.Items, r.bodyScope(ci, a.Items)))
+			}
+			r.quiet--
+		}
+	}
 	return n
 }
 

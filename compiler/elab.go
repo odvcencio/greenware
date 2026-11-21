@@ -33,6 +33,9 @@ type pieceMeta struct {
 	names []string
 	joint string
 	line  []mesh.Vec3
+	// faces is true when the shape's normals are the face rule (`normals =
+	// faces`), which a skin step that moves its vertices applies again.
+	faces bool
 }
 
 // socketOut is a socket placed in its node's frame.
@@ -65,6 +68,7 @@ type wctx struct {
 	cell    string      // inherited atlas cell
 	dropped bool        // inside geometry this level drops
 	refl    bool        // in the reflected copy of a mirror
+	uvTurn  bool        // the reflected copy turns texture u (mirror `uv = turn`)
 	mirror  bool        // inside a mirror
 	depth   int
 	joint   string   // the joint shapes start rigid on, inherited from the parts
@@ -423,6 +427,19 @@ func (e *elab) mirrorNode(n *resolve.Node, c wctx) {
 	}
 	r := c
 	r.refl = true
+	r.uvTurn = label(n, "uv") == "turn"
+	if label(n, "reflect") == "inputs" {
+		// The copy is built again from reflected inputs (reflectInputs).
+		for _, ch := range n.Children {
+			rc, err := reflectInputs(ch, int(plane))
+			if err != nil {
+				e.unsupported(ch.Name, "%s", err.Error())
+				return
+			}
+			e.walk(rc, r)
+		}
+		return
+	}
 	r.a = mesh.Affine{M: c.a.M.Mul(mesh.MirrorAffine(plane).M), T: c.a.T}
 	for _, ch := range n.Children {
 		e.walk(ch, r)
@@ -480,7 +497,22 @@ func (e *elab) array(n *resolve.Node, c wctx) {
 	}
 	mode := label(n, "mode")
 	cv, _ := n.Get("count")
-	for _, p := range coll {
+	// Copies 1 and up that were resolved with their own index (resolve.Node.Copies).
+	var more [][]piece
+	for _, body := range n.Copies {
+		var cc []piece
+		s2 := sub
+		s2.collect = &cc
+		for _, ch := range body {
+			e.walk(ch, s2)
+		}
+		if len(cc) != len(coll) {
+			e.unsupported(n.Name, "the copies of an array with an `index` must make the same number of shapes")
+			return
+		}
+		more = append(more, cc)
+	}
+	for pi, p := range coll {
 		var out *mesh.Mesh
 		switch mode {
 		case "radial":
@@ -494,7 +526,11 @@ func (e *elab) array(n *resolve.Node, c wctx) {
 			step := vec3(n, "step")
 			var cs []*mesh.Mesh
 			for i := 0; i < int(cv.Num); i++ {
-				cs = append(cs, p.m.Translate(mesh.Scale(step, float64(i))))
+				src := p.m
+				if i > 0 && len(more) >= i {
+					src = more[i-1][pi].m
+				}
+				cs = append(cs, src.Translate(mesh.Scale(step, float64(i))))
 			}
 			out = mesh.Merge(cs...)
 		case "grid":

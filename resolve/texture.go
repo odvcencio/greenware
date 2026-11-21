@@ -158,8 +158,23 @@ func (r *run) atlas(t *ast.Texture) (*Atlas, *Node) {
 		v, _ := field(n.Fields, name)
 		return v
 	}
-	grid, size, inset := get("grid"), get("cell_size"), get("inset")
-	if !grid.Valid() || !size.Valid() || !inset.Valid() {
+	explicit := ast.FindSetting(t.Settings, "size") != nil
+	grid, size, inset, side := get("grid"), get("cell_size"), get("inset"), get("size")
+	switch {
+	case explicit:
+		if !side.Valid() {
+			return nil, n
+		}
+		for _, bad := range []string{"grid", "cell_size", "inset"} {
+			if s := ast.FindSetting(t.Settings, bad); s != nil {
+				r.report(diag.New(diag.CodeType, s.NameSpan, "an atlas of rectangles (`size`) does not take `%s`: every cell gives its own rectangle", bad))
+				return nil, n
+			}
+		}
+	case ast.FindSetting(t.Settings, "grid") == nil || ast.FindSetting(t.Settings, "cell_size") == nil:
+		r.report(diag.New(diag.CodeMissing, t.KindSpan, "an atlas needs `grid` and `cell_size`, or `size` with a rectangle in every cell"))
+		return nil, n
+	case !grid.Valid() || !size.Valid() || !inset.Valid():
 		return nil, n
 	}
 	for _, f := range n.Fields {
@@ -168,31 +183,48 @@ func (r *run) atlas(t *ast.Texture) (*Atlas, *Node) {
 			return nil, n
 		}
 	}
-	a.Layout = image.Layout{Cols: int(grid.Elems[0].Num), Rows: int(grid.Elems[1].Num), CellSize: int(size.Num), Inset: inset.Num}
 	a.Seed = int64(get("seed").Num)
 	if m := get("mode"); m.Valid() && m.Str == "palette" {
 		a.Mode = image.ModePalette
 	}
 	ok := true
-	if a.Layout.Cells() > maxAtlasCells {
-		r.report(diag.New(diag.CodeFieldRange, settingSpanOf(t.Settings, "grid", t.KindSpan), "an atlas has at most %d cells, found %d", maxAtlasCells, a.Layout.Cells()))
-		ok = false
-	}
-	if a.Layout.Width() > maxAtlasSide || a.Layout.Height() > maxAtlasSide {
-		r.report(diag.New(diag.CodeFieldRange, settingSpanOf(t.Settings, "cell_size", t.KindSpan), "the image is %d x %d texels; the limit is %d on either side", a.Layout.Width(), a.Layout.Height(), maxAtlasSide))
-		ok = false
-	}
-	if !(inset.Num >= 0 && inset.Num < 0.5) {
-		r.report(diag.New(diag.CodeFieldRange, settingSpanOf(t.Settings, "inset", t.KindSpan), "`inset` is a ratio from 0 up to but not including 0.5, found %s", inset.Format()))
-		ok = false
-	}
-	if !ok {
-		return nil, n
-	}
-	lo, hi, err := a.Layout.Interior()
-	if err != nil {
-		r.report(diag.New(diag.CodeFieldRange, settingSpanOf(t.Settings, "inset", t.KindSpan), "a %d texel cell with inset %s has no texel centre inside the inset", a.Layout.CellSize, inset.Format()))
-		return nil, n
+	lo, hi := 0, -1
+	if explicit {
+		if int(side.Num) > maxAtlasSide {
+			r.report(diag.New(diag.CodeFieldRange, settingSpanOf(t.Settings, "size", t.KindSpan), "the image is %d x %d texels; the limit is %d on either side", int(side.Num), int(side.Num), maxAtlasSide))
+			return nil, n
+		}
+		a.Layout = image.Layout{Size: int(side.Num)}
+		if tv := get("texels"); tv.Valid() && ast.FindSetting(t.Settings, "texels") != nil {
+			if int(tv.Num) > a.Layout.Size || a.Layout.Size%int(tv.Num) != 0 {
+				r.report(diag.New(diag.CodeFieldRange, settingSpanOf(t.Settings, "texels", t.KindSpan), "`texels` must divide `size` (%d), found %d", a.Layout.Size, int(tv.Num)))
+				return nil, n
+			}
+			a.Layout.Texels = int(tv.Num)
+		}
+	} else {
+		a.Layout = image.Layout{Cols: int(grid.Elems[0].Num), Rows: int(grid.Elems[1].Num), CellSize: int(size.Num), Inset: inset.Num}
+		if a.Layout.Cells() > maxAtlasCells {
+			r.report(diag.New(diag.CodeFieldRange, settingSpanOf(t.Settings, "grid", t.KindSpan), "an atlas has at most %d cells, found %d", maxAtlasCells, a.Layout.Cells()))
+			ok = false
+		}
+		if a.Layout.Width() > maxAtlasSide || a.Layout.Height() > maxAtlasSide {
+			r.report(diag.New(diag.CodeFieldRange, settingSpanOf(t.Settings, "cell_size", t.KindSpan), "the image is %d x %d texels; the limit is %d on either side", a.Layout.Width(), a.Layout.Height(), maxAtlasSide))
+			ok = false
+		}
+		if !(inset.Num >= 0 && inset.Num < 0.5) {
+			r.report(diag.New(diag.CodeFieldRange, settingSpanOf(t.Settings, "inset", t.KindSpan), "`inset` is a ratio from 0 up to but not including 0.5, found %s", inset.Format()))
+			ok = false
+		}
+		if !ok {
+			return nil, n
+		}
+		var err error
+		lo, hi, err = a.Layout.Interior()
+		if err != nil {
+			r.report(diag.New(diag.CodeFieldRange, settingSpanOf(t.Settings, "inset", t.KindSpan), "a %d texel cell with inset %s has no texel centre inside the inset", a.Layout.CellSize, inset.Format()))
+			return nil, n
+		}
 	}
 	if fs := ast.FindSetting(t.Settings, "fill"); fs != nil && fs.Value != nil {
 		a.Fill = r.paintCall(fs.Value, r.globals)
@@ -207,6 +239,7 @@ func (r *run) atlas(t *ast.Texture) (*Atlas, *Node) {
 		hasIx bool
 		slot  int
 		paint *PaintCall
+		rect  image.Rect
 	}
 	var cells []*pending
 	names := map[string]diag.Span{}
@@ -224,6 +257,16 @@ func (r *run) atlas(t *ast.Texture) (*Atlas, *Node) {
 			p.index, p.hasIx = int(v.Num), true
 		} else if has && !v.Valid() {
 			ok = false
+		}
+		if explicit {
+			for _, need := range []string{"index", "x", "y", "w", "h"} {
+				if ast.FindSetting(c.Settings, need) == nil {
+					r.report(diag.New(diag.CodeMissing, c.Name.Span, "the cell `%s` of an atlas of rectangles needs `%s`", c.Name.Name, need))
+					ok = false
+				}
+			}
+			geti := func(name string) int { v, _ := field(fs, name); return int(v.Num) }
+			p.rect = image.Rect{X: geti("x"), Y: geti("y"), W: geti("w"), H: geti("h"), Margin: geti("margin")}
 		}
 		slotSet := ast.FindSetting(c.Settings, "slot")
 		switch {
@@ -264,7 +307,7 @@ func (r *run) atlas(t *ast.Texture) (*Atlas, *Node) {
 		if !p.hasIx {
 			continue
 		}
-		if p.index >= a.Layout.Cells() {
+		if !explicit && p.index >= a.Layout.Cells() {
 			r.report(diag.New(diag.CodeFieldRange, p.cell.Name.Span, "the cell `%s` has index %d, but the grid has %d cells (0..%d)", p.cell.Name.Name, p.index, a.Layout.Cells(), a.Layout.Cells()-1))
 			ok = false
 			continue
@@ -291,7 +334,7 @@ func (r *run) atlas(t *ast.Texture) (*Atlas, *Node) {
 			}
 			next++
 		}
-		if next >= a.Layout.Cells() {
+		if !explicit && next >= a.Layout.Cells() {
 			r.report(diag.New(diag.CodeFieldRange, p.cell.Name.Span, "the atlas has %d cells and %d named cells: the grid is full", a.Layout.Cells(), len(cells)))
 			ok = false
 			break
@@ -303,13 +346,41 @@ func (r *run) atlas(t *ast.Texture) (*Atlas, *Node) {
 		return nil, n
 	}
 	sort.SliceStable(cells, func(i, j int) bool { return cells[i].index < cells[j].index })
+	if explicit {
+		top := 0
+		for _, p := range cells {
+			top = max(top, p.index+1)
+		}
+		a.Layout.Rects = make([]image.Rect, top)
+		for _, p := range cells {
+			rc := p.rect
+			if rc.X+rc.W > a.Layout.Size || rc.Y+rc.H > a.Layout.Size || 2*rc.Margin >= rc.W || 2*rc.Margin >= rc.H {
+				r.report(diag.New(diag.CodeFieldRange, p.cell.Name.Span, "the rectangle of the cell `%s` does not fit the %d texel image, or its margin leaves no interior", p.cell.Name.Name, a.Layout.Size))
+				return nil, n
+			}
+			a.Layout.Rects[p.index] = rc
+		}
+	}
 	interior := int64(hi-lo+1) * int64(hi-lo+1)
 	slotSet := map[int]bool{}
 	for _, p := range cells {
 		ac := AtlasCell{Name: p.cell.Name.Name, Index: p.index, Slot: p.slot, Paint: p.paint, Span: p.cell.Name.Span}
 		a.Cells = append(a.Cells, ac)
-		a.Ops += interior * int64(p.paint.Ops+1)
+		cellTexels := interior
+		if explicit {
+			f := int64(a.Layout.Size / a.Layout.Width())
+			cellTexels = int64(p.rect.W-2*p.rect.Margin) / f * (int64(p.rect.H-2*p.rect.Margin) / f)
+		}
+		a.Ops += cellTexels * int64(p.paint.Ops+1)
 		cn := &Node{Kind: "cell", Name: ac.Name, Fields: []Field{{Name: "index", Value: units.Num(float64(ac.Index))}}}
+		if explicit {
+			for _, kv := range []struct {
+				k string
+				v int
+			}{{"x", p.rect.X}, {"y", p.rect.Y}, {"w", p.rect.W}, {"h", p.rect.H}, {"margin", p.rect.Margin}} {
+				cn.Fields = append(cn.Fields, Field{Name: kv.k, Value: units.Num(float64(kv.v))})
+			}
+		}
 		if a.Mode == image.ModePalette {
 			cn.Fields = append(cn.Fields, Field{Name: "slot", Value: units.Num(float64(ac.Slot))})
 			slotSet[ac.Slot] = true
@@ -317,7 +388,7 @@ func (r *run) atlas(t *ast.Texture) (*Atlas, *Node) {
 		cn.Fields = append(cn.Fields, Field{Name: "paint", Value: units.Str(p.paint.Text)})
 		n.Children = append(n.Children, cn)
 	}
-	if rem := a.Layout.Cells() - len(cells); rem > 0 {
+	if rem := a.Layout.Cells() - len(cells); rem > 0 && !explicit {
 		fillOps := 1
 		if a.Fill != nil {
 			fillOps = a.Fill.Ops + 1

@@ -311,12 +311,19 @@ func (e *elab) selenaExtras(m *matOut, baseTex, maskTex int) json.RawMessage {
 			"inset":     f32(det.Round32(a.Layout.Inset)),
 			"mode":      "color",
 		}
+		if a.Layout.Explicit() {
+			pal = map[string]any{"size": a.Layout.Size, "mode": "color"}
+		}
 		if a.Mode == image.ModePalette {
 			pal["mode"] = "palette"
 		}
 		var cells []any
 		for _, c := range a.Cells { // in index order
 			cell := map[string]any{"name": c.Name, "index": c.Index}
+			if a.Layout.Explicit() {
+				rc := a.Layout.Rects[c.Index]
+				cell["rect"] = []int{rc.X, rc.Y, rc.W, rc.H, rc.Margin}
+			}
 			if a.Mode == image.ModePalette {
 				cell["slot"] = c.Slot
 			}

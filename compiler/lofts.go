@@ -54,7 +54,7 @@ func (e *elab) tube(n *resolve.Node) (*mesh.Mesh, error) {
 		}
 		pts = append(pts, mesh.Add(mesh.Vec3{r.Values[0].Num, r.Values[1].Num, r.Values[2].Num}, at))
 	}
-	p := build.TubeParams{Radius: num(n, "radius"), Segments: int(num(n, "segments")), Path: pts, Closed: flag(n, "closed"), NoSeam: !seamOn(n)}
+	p := build.TubeParams{Radius: num(n, "radius"), Segments: int(num(n, "segments")), Path: pts, Closed: flag(n, "closed"), NoSeam: !seamOn(n), PointV: label(n, "v_by") == "point", FlipDiagonal: label(n, "diagonal") == "flip"}
 	p = build.RetessellateTube(p, e.maxErr)
 	e.noteChord(p.Radius, twoPi, p.Segments)
 	return build.Tube(p)
@@ -185,13 +185,61 @@ func (e *elab) loft(n *resolve.Node) (*mesh.Mesh, error) {
 	k := len(grid)
 	rings := make([][]mesh.Vec3, len(keep))
 	v := make([]float64, len(keep))
+	var along []float64
+	if label(n, "v_by") == "length" {
+		var ok bool
+		if along, ok = profileV(n); !ok {
+			return nil, errors.New("`v_by = length` needs ring columns named rx and rz (x, y and z are 0 when a loft does not name them)")
+		}
+	}
 	for i, row := range keep {
 		rings[i] = grid[row]
 		v[i] = float64(row) / float64(k-1)
+		if along != nil {
+			v[i] = along[row]
+		}
 	}
 	m, err := build.Loft(build.LoftParams{Rings: rings, Arc: partial, V: v, Caps: caps, NoSeam: !seamOn(n), ShareCaps: flag(n, "weld_caps")})
 	if err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}
 	return m, nil
+}
+
+// profileV is each ring's texture v by length: its distance along the profile
+// through the ring centres (the columns x, y and z, 0 when absent) and their
+// mean radius (rx and rz), from 0 at the first ring to 1 at the last. Sums and
+// roots only, so the figures are the same on every platform. It reports false
+// when the rows have no rx or rz column.
+func profileV(n *resolve.Node) ([]float64, bool) {
+	idx := map[string]int{} // lookup only
+	for i, c := range loftColumns(n) {
+		idx[c] = i
+	}
+	rxi, ok1 := idx["rx"]
+	rzi, ok2 := idx["rz"]
+	if !ok1 || !ok2 {
+		return nil, false
+	}
+	val := func(k int, c string) float64 {
+		if i, ok := idx[c]; ok {
+			return n.Rows[k].Values[i].Num
+		}
+		return 0
+	}
+	out := make([]float64, len(n.Rows))
+	total := 0.0
+	for k := 1; k < len(n.Rows); k++ {
+		dx, dy, dz := val(k, "x")-val(k-1, "x"), val(k, "y")-val(k-1, "y"), val(k, "z")-val(k-1, "z")
+		dr := float64((n.Rows[k].Values[rxi].Num+n.Rows[k].Values[rzi].Num)/2) - float64((n.Rows[k-1].Values[rxi].Num+n.Rows[k-1].Values[rzi].Num)/2)
+		l := math.Sqrt(float64(float64(dx*dx)+float64(dy*dy)) + float64(dz*dz))
+		total += math.Sqrt(float64(l*l) + float64(dr*dr))
+		out[k] = total
+	}
+	if total > 0 {
+		for k := range out {
+			out[k] /= total
+		}
+	}
+	return out, true
 }

@@ -52,7 +52,11 @@ type Node struct {
 	Test     string  `json:"test,omitempty"`
 	Cond     *Cond   `json:"-"`
 	Children []*Node `json:"children,omitempty"`
-	Else     []*Node `json:"else,omitempty"`
+	// Copies holds, on a linear array that names its `index`, the body again
+	// for copies 1 to count-1, each resolved with `index` bound to the copy's
+	// number. Children is copy 0. It is empty when the array names no index.
+	Copies [][]*Node `json:"-"`
+	Else   []*Node   `json:"else,omitempty"`
 	// Loft carries the points of a loft whose rule is an author's `vertex`
 	// expression, so a level can evaluate them at its own column count.
 	Loft *LoftRule `json:"-"`

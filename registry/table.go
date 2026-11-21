@@ -48,9 +48,10 @@ func shapeFields(extra ...Field) []Field {
 		{Name: "rot", Type: tRotation, Default: dv(units.Tuple(units.Ang(0), units.Ang(0), units.Ang(0))), Doc: "Rotation, applied before the translation."},
 		{Name: "material", Type: ref(NsMaterial), Doc: "Material; absent inherits from the part."},
 		{Name: "uv", Type: enum("auto", "planar", "box", "cylindrical", "spherical"), Default: dv(units.Label("auto")), Doc: "UV projection."},
-		unsupported("normals", tLabel, "normal rules"),
+		Field{Name: "normals", Type: enum("smooth", "faces"), Doc: "Vertex normals. Absent means smooth. `smooth` is the shape's own rule (exact radial on a tube, smooth sides on a loft). `faces` sums the unnormalised normals of each corner's triangles, caps included, as the game's builder does."},
 		jointField(),
 		cellField(),
+		{Name: "mirror_cell", Type: tLabel, Doc: "Atlas cell the reflected copy of this shape draws from, in a mirror; absent keeps the cell."},
 	}
 	return append(append([]Field(nil), extra...), common...)
 }
@@ -243,6 +244,7 @@ var kinds = []*Kind{
 			Field{Name: "seam", Type: tSwitch, Default: dv(units.Switch(true)), Doc: "Keep the repeated column at u = 1 so a texture runs once round. `off` writes n corners a ring: the last band wraps back to column 0 and its u runs from (n-1)/n to 0, as a plain ring stack's does."},
 			Field{Name: "weld_caps", Type: tSwitch, Default: dv(units.Switch(false)), Doc: "Fan each cap over the end ring's own corners: the cap takes the side's smooth normals and adds no vertices. The default gives a cap corners of its own with a flat normal."},
 			Field{Name: "columns", Type: Type{Kind: TNames}, Doc: "Names of the ring row's columns; the default is (x, y, z, rx, rz)."},
+			Field{Name: "v_by", Type: enum("row", "length"), Doc: "How texture v is spread over the rings (absent means row). How texture v is spread over the rings. `row` gives each ring its share of the row count; `length` gives it its distance along the profile through the ring centres and mean radii (a ring stack with a seam in the game's builder). It needs the default columns."},
 			Field{Name: "vertex", Type: Type{Kind: TExpr}, Doc: "The point at a ring and column, as (x, y, z), from the column names, the ring angle `a` and the whole numbers `j` (column) and `k` (ring)."},
 			Field{Name: "arc", Type: Type{Kind: TAngleRange}, Default: dv(units.Pair(units.Ang(0), units.Ang(units.TwoPi))), Doc: "Angular span, written lo..hi. A partial span is an open sheet."},
 		),
@@ -257,6 +259,8 @@ var kinds = []*Kind{
 			segments(7, 3),
 			Field{Name: "closed", Type: tSwitch, Default: dv(units.Switch(false)), Doc: "Join the last point back to the first; do not repeat the first point."},
 			Field{Name: "seam", Type: tSwitch, Default: dv(units.Switch(true)), Doc: "Keep the repeated column at u = 1 so a texture runs once round. `off` writes n corners a ring: the last band wraps back to column 0 and its u runs from (n-1)/n to 0, as a plain ring stack's does."},
+			Field{Name: "diagonal", Type: enum("a", "flip"), Doc: "Which diagonal splits each band of the tube. Absent or `a` splits from a ring's corner j to the next ring's corner j + 1; `flip` splits from corner j + 1 to the next ring's corner j."},
+			Field{Name: "v_by", Type: enum("length", "point"), Doc: "How texture v is spread along the path (absent means length). How texture v is spread along the path. `length` gives each ring its share of the path length; `point` gives it its share of the point count."},
 		),
 		Rows:  []RowSpec{{Name: "point", MinRows: 2, Columns: pointRow3}},
 		Names: NameOptional, Ns: NsGeometry,
@@ -300,7 +304,9 @@ var kinds = []*Kind{
 	},
 	{
 		Name: "mirror", Context: CtxPart, Doc: "Keeps its contents and adds one reflected copy. Declared names inside are pairs (left, right); `side` is 1 in the original.",
-		Fields:   []Field{{Name: "plane", Type: enum("x", "y", "z"), Required: true, Doc: "Plane through the origin, perpendicular to this axis."}},
+		Fields: []Field{{Name: "plane", Type: enum("x", "y", "z"), Required: true, Doc: "Plane through the origin, perpendicular to this axis."},
+			{Name: "reflect", Type: enum("mesh", "inputs"), Doc: "How the reflected copy is made. Absent or `mesh` reflects the built mesh. `inputs` builds each shape again from reflected inputs (ring centres, centres, points, steps, `at`), so the copy has the columns, triangles and texture coordinates of a shape authored on the far side. It supports lofts (default columns, no vertex rule), ellipsoids, tubes, linear arrays and the parts that hold them."},
+			{Name: "uv", Type: enum("copy", "turn"), Doc: "Texture coordinates of the reflected copy. Absent or `copy` keeps each corner's coordinates (the texture is seen reflected). `turn` runs u the other way round, as if the shape had been built on the far side without reflecting: 1 - u on a ring, 1/2 - u (mod 1) on a tube."}},
 		Contains: true,
 	},
 	{
@@ -316,9 +322,11 @@ var kinds = []*Kind{
 	{
 		Name: "atlas", Context: CtxDocument, Doc: "A generated image of painted cells in a regular grid (`texture name = atlas { ... }`).",
 		Fields: []Field{
-			{Name: "grid", Type: Type{Kind: TGrid}, Required: true, Doc: "(columns, rows) of cells, numbered left to right then top to bottom from zero."},
-			{Name: "cell_size", Type: Type{Kind: TPixels}, Required: true, Positive: true, Doc: "Side of a square cell in whole pixels; the image is columns x cell_size by rows x cell_size."},
+			{Name: "grid", Type: Type{Kind: TGrid}, Doc: "(columns, rows) of cells, numbered left to right then top to bottom from zero. Required, with `cell_size`, unless the atlas has `size`."},
+			{Name: "cell_size", Type: Type{Kind: TPixels}, Positive: true, Doc: "Side of a square cell in whole pixels; the image is columns x cell_size by rows x cell_size."},
+			{Name: "size", Type: Type{Kind: TPixels}, Positive: true, Doc: "An atlas of rectangles instead of a grid: the side of the square image in pixels. Each `cell` then gives `x`, `y`, `w`, `h` and an optional `margin`, and its `index` is its number; `grid`, `cell_size` and `inset` are not used."},
 			{Name: "inset", Type: tNumber, Default: dv(units.Num(0)), Min: fp(0), Doc: "Fraction of a cell reserved on each side, from 0 up to but not including 0.5."},
+			{Name: "texels", Type: Type{Kind: TPixels}, Positive: true, Doc: "With `size`: the side of the baked image in pixels, when smaller. The cell rectangles stay in `size` units (they fix the texture coordinates) and must be whole multiples of size / texels."},
 			{Name: "seed", Type: tInteger, Default: dv(units.Num(0)), Doc: "Input to the stateless per-cell noise and grain."},
 			{Name: "mode", Type: enum("color", "palette"), Default: dv(units.Label("color")), Doc: "color stores sRGB; palette stores shading in red and the slot byte in green."},
 			{Name: "encode", Type: enum("png"), Default: dv(units.Label("png")), Doc: "The image encoding. jpeg(q) is outside the first compiler's subset."},
@@ -331,6 +339,11 @@ var kinds = []*Kind{
 		Fields: []Field{
 			{Name: "index", Type: tInteger, Min: fp(0), Doc: "Physical cell number; unindexed cells take the lowest free numbers in name order."},
 			{Name: "paint", Type: Type{Kind: TPaint}, Doc: "Painter call or colour. In a palette atlas it gives shading, not the slot colour. Required unless the atlas has a `fill`."},
+			{Name: "x", Type: tInteger, Min: fp(0), Doc: "Atlas of rectangles: left edge of the cell in pixels."},
+			{Name: "y", Type: tInteger, Min: fp(0), Doc: "Atlas of rectangles: top edge of the cell in pixels."},
+			{Name: "w", Type: tInteger, Min: fp(1), Doc: "Atlas of rectangles: width of the cell in pixels."},
+			{Name: "h", Type: tInteger, Min: fp(1), Doc: "Atlas of rectangles: height of the cell in pixels."},
+			{Name: "margin", Type: tInteger, Min: fp(0), Doc: "Atlas of rectangles: pixels reserved on each edge of the cell; a chart's unit square maps inside them."},
 			{Name: "slot", Type: tInteger, Min: fp(0), Max: fp(255), Doc: "Palette atlas only: the slot byte written in green. Several cells may share one slot."},
 		},
 		Names: NameRequired,

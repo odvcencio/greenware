@@ -82,15 +82,27 @@ func (e *elab) shape(n *resolve.Node, c wctx) {
 		e.fail(n.Name, err)
 		return
 	}
+	if label(n, "normals") == "faces" {
+		faceNormals(m)
+	}
 	cell := c.cell
 	if f, ok := n.Get("cell"); ok && f.Valid() {
 		cell = f.Str
+	}
+	if c.refl {
+		if f, ok := n.Get("mirror_cell"); ok && f.Valid() {
+			cell = f.Str
+		}
+		if c.uvTurn {
+			m = turnU(n, m)
+		}
 	}
 	if m, ok = e.finishUV(n, m, mat, cell); !ok {
 		return
 	}
 	if e.rigged() {
 		c.meta = e.shapeMeta(n, c, name)
+		c.meta.faces = label(n, "normals") == "faces"
 	}
 	c.shape = name
 	if name == "" {
@@ -324,4 +336,74 @@ func (e *elab) lathe(n *resolve.Node) (*mesh.Mesh, error) {
 	}
 	e.noteChord(widest, twoPi, p.Segments)
 	return build.Lathe(p)
+}
+
+// faceNormals sets every corner's normal to the unit sum of the unnormalised
+// normals of the triangles it belongs to, and then gives the corners that
+// share one exact position (the columns a seam repeats) the unit sum of their
+// normals, so a seam shows no crease.
+func faceNormals(m *mesh.Mesh) {
+	sum := make([]mesh.Vec3, len(m.Corners))
+	for _, t := range m.Tris {
+		p0, p1, p2 := m.Positions[m.Corners[t[0]].Pos], m.Positions[m.Corners[t[1]].Pos], m.Positions[m.Corners[t[2]].Pos]
+		f := mesh.Cross(mesh.Sub(p1, p0), mesh.Sub(p2, p0))
+		for _, c := range t {
+			sum[c] = mesh.Add(sum[c], f)
+		}
+	}
+	unit := make([]mesh.Vec3, len(m.Corners))
+	for i := range m.Corners {
+		unit[i] = mesh.Normalize(sum[i])
+	}
+	at := map[mesh.Vec3][]int{} // lookup only
+	order := make([]mesh.Vec3, 0, len(m.Corners))
+	for i, c := range m.Corners {
+		p := m.Positions[c.Pos]
+		if _, ok := at[p]; !ok {
+			order = append(order, p)
+		}
+		at[p] = append(at[p], i)
+	}
+	for _, p := range order {
+		g := at[p]
+		var s mesh.Vec3
+		for _, i := range g {
+			s = mesh.Add(s, unit[i])
+		}
+		s = mesh.Normalize(s)
+		for _, i := range g {
+			m.Corners[i].Normal = s
+		}
+	}
+}
+
+// turnU runs a mirrored copy's texture u the other way round, as the shape
+// built unreflected on the far side would have it: 1 - u on a ring stack
+// (taken mod 1 when the stack has no repeated column) and 1/2 - u (mod 1) on a
+// tube (its frame turns with the path).
+func turnU(n *resolve.Node, m *mesh.Mesh) *mesh.Mesh {
+	out := m.Clone()
+	for i, c := range out.Corners {
+		u := c.UV[0]
+		switch {
+		case n.Kind == "tube":
+			u = math.Mod(1.5-u, 1)
+		case seamOn(n):
+			u = 1 - u
+		default:
+			u = math.Mod(1-u, 1)
+		}
+		out.Corners[i].UV[0] = u
+	}
+	return out
+}
+
+// recomputeNormals sets a piece's normals again after its vertices moved: the
+// face rule for a shape that asked for it, the smooth rule otherwise.
+func recomputeNormals(m *mesh.Mesh, faces bool) {
+	if faces {
+		faceNormals(m)
+		return
+	}
+	m.ComputeNormals()
 }

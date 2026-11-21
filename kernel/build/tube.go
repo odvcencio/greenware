@@ -19,6 +19,13 @@ type TubeParams struct {
 	// NoSeam drops the repeated column: every ring has n corners and the last
 	// band's texture u runs from (n-1)/n back to 0.
 	NoSeam bool
+	// PointV gives ring i the texture v i/(p-1), its share of the points,
+	// instead of its share of the path length.
+	PointV bool
+	// FlipDiagonal splits each band along its other diagonal: (a, b, d) and
+	// (b, c, d) instead of (a, b, c) and (a, c, d), for a band a, b, c, d
+	// going round from corner (ring i, column j).
+	FlipDiagonal bool
 }
 
 // tubeTangents returns the unit direction at each path point (language.md
@@ -104,6 +111,9 @@ func Tube(p TubeParams) (*mesh.Mesh, error) {
 	}
 	for i := range vs[:segs+1] {
 		vs[i] /= total
+		if p.PointV && segs > 0 {
+			vs[i] = float64(i) / float64(segs)
+		}
 	}
 	m := &mesh.Mesh{}
 	frames := make([]Frame, np)
@@ -143,7 +153,11 @@ func Tube(p TubeParams) (*mesh.Mesh, error) {
 	for i := 0; i < segs; i++ {
 		for j := 0; j < n; j++ {
 			a, b, c, d := corner(i, j), corner(i, j+1), corner(i+1, j+1), corner(i+1, j)
-			m.Tris = append(m.Tris, mesh.Tri{a, b, c}, mesh.Tri{a, c, d})
+			if p.FlipDiagonal {
+				m.Tris = append(m.Tris, mesh.Tri{a, b, d}, mesh.Tri{b, c, d})
+			} else {
+				m.Tris = append(m.Tris, mesh.Tri{a, b, c}, mesh.Tri{a, c, d})
+			}
 			m.Shell = append(m.Shell, 0, 0)
 		}
 	}

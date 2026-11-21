@@ -213,6 +213,14 @@ func (b *Bound) Blend(bl Blend) error {
 			f = smoothstep(clamp01((float64(bl.Fade.Sign*p[0]) - bl.Fade.Lo) / (bl.Fade.Hi - bl.Fade.Lo)))
 		}
 		tp, tc := float64(m*(1-h)), float64(m*h)
+		// A vertex held wholly by the child and lying beyond the parent's end
+		// of the band goes wholly to the parent wherever the fade is above
+		// zero, not by the fade's share: the game's author.Band does the same,
+		// so that no child weight reaches past the band on the parent's side
+		// (no leg weight above the hip) while the fade only shapes the band.
+		if wc == 1 && wp == 0 && (1+d/bl.Width)/2+bl.Bias <= 0 && f > 0 {
+			f = 1
+		}
 		np := wp + float64(f*(tp-wp))
 		nc := wc + float64(f*(tc-wc))
 		out := make([]Influence, 0, len(b.Infl[i])+1)

@@ -430,7 +430,7 @@ func (e *elab) buildRigLevel(root *snode) (*rigLevel, bool) {
 		if moved {
 			m := p.m.Clone()
 			copy(m.Positions, b.Pos[first[i]:first[i]+n])
-			m.ComputeNormals()
+			recomputeNormals(m, p.meta.faces)
 			np.m = m
 		}
 		np.rig = &pieceRig{infl: b.Infl[first[i] : first[i]+n]}
@@ -454,10 +454,10 @@ func (e *elab) buildRigLevel(root *snode) (*rigLevel, bool) {
 			dpos := rig.Deltas(b.Pos[first[i]:first[i]+n], tpos[first[i]:first[i]+n])
 			// Normals: recompute both surfaces and take the difference.
 			base := p.m.Clone()
-			base.ComputeNormals()
+			recomputeNormals(base, p.meta.faces)
 			tm := p.m.Clone()
 			copy(tm.Positions, tpos[first[i]:first[i]+n])
-			tm.ComputeNormals()
+			recomputeNormals(tm, p.meta.faces)
 			dn := make([]mesh.Vec3, len(p.m.Corners))
 			for ci := range dn {
 				dn[ci] = mesh.Sub(tm.Corners[ci].Normal, base.Corners[ci].Normal)
