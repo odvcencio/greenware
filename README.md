@@ -6,7 +6,7 @@ Greenware compiles 3D assets to deterministic glTF 2.0 binaries (GLB). Describe 
 
 ## Quick start
 
-Install from a checkout with Go 1.25 or later. CI runs on Go 1.26.11. The browser preview is included in the CLI.
+Install the qualified v0.1.0 CLI with `go install m31labs.dev/greenware/cmd/greenware@v0.1.0`. To try the features documented on main, install from a checkout with Go 1.25 or later. CI runs on Go 1.26.11. The browser preview is included in the CLI.
 
 ```sh
 git clone https://github.com/odvcencio/greenware.git
@@ -52,7 +52,7 @@ output main { file = "post.glb" }
 
 ## Author from Go
 
-Import `m31labs.dev/greenware/author` to build rigid GLBs from named Greenware meshes and PBR materials. Use `kernel/build` for stock shapes or supply your own indexed surfaces. The [Go authoring guide](docs/reference/go-authoring.md) includes a complete example, input limits, and material acceptance checks.
+Import `m31labs.dev/greenware/author` to build rigid GLBs from named Greenware meshes and PBR materials. Use `kernel/build` for stock shapes or supply your own indexed surfaces. The [Go authoring guide](docs/reference/go-authoring.md) includes a complete example, input limits, attachment frames, and material acceptance checks.
 
 ## Examples and verification
 
@@ -78,6 +78,7 @@ CI runs on native Linux amd64 and macOS arm64 and compares the GLB and build-rec
 | `check` | List the diagnostics of a file |
 | `fmt` | Format a file |
 | `accept` | Run an acceptance file on built GLB files |
+| `sockets` | Inspect the attachment frames in a GLB |
 | `fix` | Apply the fixes that diagnostics offer |
 | `diff` | Compare two sources and report breaking changes |
 | `describe` | Summarise a file's declarations |

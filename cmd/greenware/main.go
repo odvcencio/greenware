@@ -5,6 +5,7 @@
 //	greenware fmt <file> [--check] [--write] [--json]
 //	greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--project DIR]
 //	greenware print <file> [--output NAME] [--level N] [--scale S] [--out FILE] [--force] [--project DIR] [--json]
+//	greenware sockets <file.glb> [--json]
 //	greenware version [--json]   (also --version and -v)
 //	greenware fix | diff | describe | ir | init | lock | explain | search | trace (package tools; see docs/reference/commands.md)
 //
@@ -40,7 +41,7 @@ const usage = `usage:
   greenware check <file> [--project DIR] [--geometry-only] [--json]
   greenware fmt <file> [--check] [--write] [--json]
   greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--project DIR]
-` + watchUsage + viewUsage + printUsage + lspUsage + toolsUsage + versionUsage
+` + watchUsage + viewUsage + printUsage + lspUsage + toolsUsage + socketsUsage + versionUsage
 
 func main() {
 	args := os.Args[1:]
@@ -219,6 +220,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runLSP(rest, stdout, stderr)
 	case "accept":
 		return accept.Command(rest, stdout, stderr)
+	case "sockets":
+		return runSockets(rest, stdout, stderr)
 	case "version", "--version", "-v":
 		return runVersion(rest, stdout, stderr)
 	case "help", "-h", "--help":

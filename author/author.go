@@ -43,6 +43,12 @@ type Part struct {
 // Build packs kernel meshes into a self-contained GLB. Caller-owned input is
 // read during the call and can be reused or changed after Build returns.
 func Build(asset Asset) ([]byte, error) {
+	return BuildWithSockets(asset, nil)
+}
+
+// BuildWithSockets packs a rigid asset and adds attachment frames to its root
+// or to named parts. Sockets are written in slice order.
+func BuildWithSockets(asset Asset, sockets []Socket) ([]byte, error) {
 	if !validName(asset.Name) {
 		return nil, fmt.Errorf("author: an asset needs a nonempty UTF-8 name")
 	}
@@ -52,6 +58,9 @@ func Build(asset Asset) ([]byte, error) {
 	const maxParts, maxMaterials = 4096, 4096
 	if len(asset.Parts) > maxParts || len(asset.Materials) > maxMaterials {
 		return nil, fmt.Errorf("author: an asset allows at most %d parts and %d materials", maxParts, maxMaterials)
+	}
+	if len(sockets) > maxSockets {
+		return nil, fmt.Errorf("author: an asset allows at most %d sockets", maxSockets)
 	}
 	materials := append([]Material(nil), asset.Materials...)
 	sort.SliceStable(materials, func(i, j int) bool { return materials[i].Name < materials[j].Name })
@@ -92,12 +101,12 @@ func Build(asset Asset) ([]byte, error) {
 		Scenes:    []gltf.Scene{{Name: "default", Nodes: []int{0}}},
 		Scene:     gltf.Int(0),
 	}
-	names := map[string]bool{asset.Name: true}
+	names := map[string]int{asset.Name: 0}
 	for _, part := range asset.Parts {
-		if !validName(part.Name) || names[part.Name] {
+		if _, used := names[part.Name]; !validName(part.Name) || used {
 			return nil, fmt.Errorf("author: part name %q is empty, invalid or already used", part.Name)
 		}
-		names[part.Name] = true
+		names[part.Name] = len(doc.Nodes)
 		if part.Mesh == nil || len(part.Mesh.Tris) == 0 {
 			return nil, fmt.Errorf("author: part %q has no triangles", part.Name)
 		}
@@ -127,6 +136,9 @@ func Build(asset Asset) ([]byte, error) {
 		doc.Meshes = append(doc.Meshes, gltf.Mesh{Name: part.Name, Primitives: []gltf.Primitive{primitive}})
 		doc.Nodes[0].Children = append(doc.Nodes[0].Children, len(doc.Nodes))
 		doc.Nodes = append(doc.Nodes, node)
+	}
+	if err := attachSockets(doc, names, sockets); err != nil {
+		return nil, err
 	}
 	glb, err := gltf.Encode(doc)
 	if err != nil {

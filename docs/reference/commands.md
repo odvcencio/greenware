@@ -7,8 +7,14 @@
 1. A flag can come before or after the operands. `--flag value` and `--flag=value` both work. `--` ends the flags.
 2. `--json` makes a command write exactly one JSON value to standard output, with a `schema` key first and the keys in a fixed order. Text for people goes to standard output in plain mode and diagnostics go to standard error.
 3. Exit status: 0 success; 1 findings (an error diagnostic, a refused or failed gate, a drift, a conflict); 2 a usage or read error (a bad flag, a missing file, an unknown diagnostic code).
-4. `build`, `watch`, `view` and `print` build geometry. `accept` reads and measures existing GLBs.
+4. `build`, `watch`, `view` and `print` build geometry. `accept` measures existing GLBs and `sockets` lists their attachments.
 5. Positions are one-based lines and columns. Byte offsets are zero-based and count UTF-8 bytes.
+
+## greenware sockets
+
+`greenware sockets <file.glb> [--json]` lists the named attachment frames in the GLB's default scene. If the default is unspecified it uses the first scene. It reports frames in model coordinates in metres, including parent transforms. For rigs, these are the initial node transforms.
+
+JSON (`greenware.sockets/1`) has a `sockets` array ordered by name and node index. Each entry has `name`, `node`, `translation` and `linear` (a row-major 3×3 matrix). `kind` and `joint` appear when present. Repeated names keep separate entries. Exit 0 on success, including an empty list, 1 for invalid GLB or socket data, and 2 for usage and file read errors.
 
 ## greenware check
 

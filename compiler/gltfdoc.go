@@ -10,6 +10,7 @@ import (
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/gltf"
 	"m31labs.dev/greenware/internal/meshglb"
+	"m31labs.dev/greenware/internal/socketmeta"
 	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/resolve"
 )
@@ -274,14 +275,12 @@ func (e *elab) assemble(root *snode, cols []collider, lvl int, fir string) (*lev
 			kids = append(kids, ki)
 		}
 		for _, s := range n.sockets {
-			sn := gltf.Node{Name: "socket." + s.name}
+			sn := gltf.Node{Name: socketmeta.Prefix + s.name}
 			if s.pos != (mesh.Vec3{}) {
 				t := s.pos.F32()
 				sn.Translation = &t
 			}
-			sn.Extras = mustJSON(map[string]any{"greenware": map[string]any{
-				"format": "greenware.socket/1", "name": s.name, "kind": s.kind,
-			}})
+			sn.Extras = socketmeta.Encode(socketmeta.Value{Name: s.name, Kind: s.kind})
 			doc.Nodes = append(doc.Nodes, sn)
 			kids = append(kids, len(doc.Nodes)-1)
 		}

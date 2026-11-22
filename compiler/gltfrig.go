@@ -7,6 +7,7 @@ import (
 
 	"m31labs.dev/greenware/det"
 	"m31labs.dev/greenware/gltf"
+	"m31labs.dev/greenware/internal/socketmeta"
 	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/kernel/rig"
 	"m31labs.dev/greenware/resolve"
@@ -151,7 +152,7 @@ func (e *elab) attachRig(doc *gltf.Document, rl *rigLevel, rootIdx int) (rigNode
 			if sk.Index(s.Joint) != j {
 				continue
 			}
-			sn := gltf.Node{Name: "socket." + s.Name}
+			sn := gltf.Node{Name: socketmeta.Prefix + s.Name}
 			at := mesh.Vec3{}
 			if s.HasAt {
 				at = mesh.Vec3(s.At)
@@ -172,9 +173,7 @@ func (e *elab) attachRig(doc *gltf.Document, rl *rigLevel, rootIdx int) (rigNode
 				f := [4]float32{det.Round32(q[0]), det.Round32(q[1]), det.Round32(q[2]), det.Round32(q[3])}
 				sn.Rotation = &f
 			}
-			sn.Extras = mustJSON(map[string]any{"greenware": map[string]any{
-				"format": "greenware.socket/1", "name": s.Name, "kind": s.Kind, "joint": s.Joint,
-			}})
+			sn.Extras = socketmeta.Encode(socketmeta.Value{Name: s.Name, Kind: s.Kind, Joint: s.Joint})
 			doc.Nodes = append(doc.Nodes, sn)
 			kids = append(kids, len(doc.Nodes)-1)
 		}
