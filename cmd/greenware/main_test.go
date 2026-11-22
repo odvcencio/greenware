@@ -160,10 +160,9 @@ func TestAcceptCommand(t *testing.T) {
 	if code, out, errOut := exec(t, "build", exampleSrc, "--out-dir", dir); code != 0 {
 		t.Fatalf("build: exit %d\n%s\n%s", code, out, errOut)
 	}
-	// Only the outline expects cannot be measured, so the exit status is 3.
-	code, out, _ := exec(t, "accept", exampleSrc, exampleAcc, "--glb-dir", dir, "--json")
-	if code != 3 {
-		t.Errorf("exit %d, want 3", code)
+	code, out, errOut := exec(t, "accept", exampleSrc, exampleAcc, "--glb-dir", dir, "--json")
+	if code != 0 {
+		t.Fatalf("accept: exit %d\n%s\n%s", code, out, errOut)
 	}
 	if rep := oneJSON(t, out); rep["schema"] != "greenware.accept/1" {
 		t.Errorf("%v", rep["schema"])
