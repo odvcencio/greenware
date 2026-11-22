@@ -47,7 +47,16 @@
     {{if .ModelURL}}
     <model-viewer src="{{.ModelURL}}" alt="3D model of {{.Asset}}" camera-controls touch-action="pan-y"
       camera-orbit="{{.Orbit}}" interaction-prompt="none" shadow-intensity="1.1" shadow-softness="0.75"
-      {{if .Animation}} animation-name="{{.Animation}}" autoplay{{end}}></model-viewer>
+      {{if .Animation}} animation-name="{{.Animation}}" autoplay{{end}}>
+      {{if and .ShowSockets (not .Animation)}}
+      {{range .Selected.Sockets}}
+      <span class="socket-marker" slot="hotspot-socket-{{.Node}}"
+        data-position="{{printf "%gm %gm %gm" (index .Transform.T 0) (index .Transform.T 1) (index .Transform.T 2)}}">
+        {{.Name}}
+      </span>
+      {{end}}
+      {{end}}
+    </model-viewer>
     <div class="gesture"><span class="desktop-gesture">Drag to orbit · Scroll to zoom</span><span class="touch-gesture">Drag to orbit · Pinch to zoom</span></div>
     {{else}}
     <div class="empty">The model will appear after a successful build.</div>
@@ -68,6 +77,11 @@
         {{range .Selected.Animations}}<option value="{{.}}"{{if eq . $.Animation}} selected{{end}}>{{.}}</option>{{end}}
       </select>
       {{end}}
+      {{if .Selected.Sockets}}
+      <label class="socket-control"><input type="checkbox" name="sockets" value="1"{{if .ShowSockets}} checked{{end}}> Show sockets</label>
+      {{if and .ShowSockets .Animation}}<p class="socket-note">Socket markers show in rest pose.</p>{{end}}
+      {{end}}
+      {{if .Selected.SocketProblem}}<p class="socket-note">Socket frames unavailable. {{.Selected.SocketProblem}}</p>{{end}}
       <button class="apply" name="camera" value="{{.Camera}}" type="submit">Apply selection</button>
       <fieldset>
         <legend>Camera</legend>

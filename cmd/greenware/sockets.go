@@ -63,7 +63,7 @@ func runSockets(args []string, stdout, stderr io.Writer) int {
 		if s.Joint != "" {
 			fmt.Fprintf(stdout, " joint=%s", s.Joint)
 		}
-		fmt.Fprintf(stdout, " at (%g, %g, %g) m\n", p[0], p[1], p[2])
+		fmt.Fprintf(stdout, " at (%.7g, %.7g, %.7g) m\n", p[0], p[1], p[2])
 	}
 	return 0
 }

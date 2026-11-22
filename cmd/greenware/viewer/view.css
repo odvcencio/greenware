@@ -34,7 +34,9 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 0; }
 .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 268px; gap: 1rem; align-items: start; }
 .stage { position: relative; min-height: 520px; height: calc(100dvh - 157px); grid-column: 1; background: radial-gradient(ellipse at 50% 35%, #506055, #222d26 62%, #19221c 96%); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
 .stage:only-child { grid-column: 1/-1; }
-model-viewer { display: block; width: 100%; height: 100%; --progress-bar-color: var(--accent); }
+model-viewer { display: block; width: 100%; height: 100%; --progress-bar-color: var(--accent); --min-hotspot-opacity: .88; }
+.socket-marker { display: inline-flex; align-items: center; gap: .3rem; padding: .17rem .38rem; border: 1px solid #b2efbe; border-radius: 4px; background: #172a20f0; color: #ecfff0; font-size: .77rem; white-space: nowrap; pointer-events: none; transform: translate(.35rem, -.85rem); }
+.socket-marker::before { content: ""; width: .36rem; height: .36rem; border-radius: 50%; background: var(--accent); }
 .gesture { position: absolute; bottom: 12px; left: 12px; color: var(--text); background: #19231dee; padding: .35rem .65rem; border-radius: 5px; pointer-events: none; }
 .touch-gesture { display: none; }
 .empty { display: grid; place-items: center; height: 100%; padding: 2rem; color: var(--text); text-align: center; }
@@ -48,6 +50,9 @@ button:hover { border-color: var(--accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .apply, button[aria-pressed="true"] { border-color: #699476; background: #243b2c; color: var(--accent); }
 .apply { width: 100%; }
+.socket-control { display: flex; align-items: center; gap: .45rem; margin: .05rem 0 .85rem; }
+.socket-control input { margin: 0; accent-color: var(--accent); }
+.socket-note { margin: -.3rem 0 .85rem; color: var(--muted); font-size: .85rem; }
 fieldset { margin: 1.1rem 0 0; padding: 0; border: none; min-width: 0; }
 .cameras { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; }
 .facts { margin: 1.25rem 0 .75rem; padding-top: .7rem; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -54,5 +55,46 @@ output main { file = "cube.glb" }
 	}
 	if invalid := get("/model/1/a"); invalid.Code != http.StatusNotFound {
 		t.Fatalf("invalid index should return 404, got %d", invalid.Code)
+	}
+}
+
+func TestViewSocketOverlayUsesSelectedBuild(t *testing.T) {
+	src, err := os.ReadFile(exampleSrc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, ds, _ := front(exampleSrc, "", src, false)
+	product, _, ds := buildChecked(file, ds, "", compiler.Options{})
+	if product == nil || diag.HasErrors(ds) {
+		t.Fatalf("compile goal post: %v", ds)
+	}
+	state := &previewStore{}
+	handler := viewHandler(state, "127.0.0.1:5170", exampleSrc)
+	get := func(path string) string {
+		t.Helper()
+		r := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:5170"+path, nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET %s: status %d", path, w.Code)
+		}
+		return w.Body.String()
+	}
+	state.publish(product, "")
+	if body := get("/"); strings.Contains(body, "slot=\"hotspot-socket-") || !strings.Contains(body, "Show sockets") {
+		t.Fatal("socket controls or default visibility are wrong")
+	}
+	const marker = "slot=\"hotspot-socket-"
+	practice := get("/?sockets=1&file=goalpost-practice-lod2.glb")
+	if count := strings.Count(practice, marker); count != 5 ||
+		!strings.Contains(practice, "9.149999618530273m") ||
+		!strings.Contains(practice, "sockets=1") {
+		t.Fatalf("practice overlay has %d markers or lost its positions/preference", count)
+	}
+	// A good rebuild carries the preference into the replacement workspace.
+	state.publish(product, "")
+	refresh := get("/updates?attempt=1&revision=1&sockets=1&file=goalpost-practice-lod2.glb")
+	if !strings.Contains(refresh, "hx-swap-oob") || strings.Count(refresh, marker) != 5 {
+		t.Fatal("refresh dropped the active socket overlay")
 	}
 }

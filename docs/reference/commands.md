@@ -325,6 +325,9 @@ greenware watch examples/bollard/bollard.gw
 
 A rejected edit keeps the last successful model visible and shows the diagnostics. Acceptance and independent validation are separate commands. Stop the preview with Ctrl+C.
 
+Enable **Show sockets** and apply the selection to label attachment points. The overlay follows the selected output and level and refreshes when a source edit builds successfully. On rigged assets, select **Rest pose** to display the initial frames.
+
+
 ## Rigid silhouette acceptance
 
 `outline(front, "ref/main.png", within = 3px)` measures what fraction of the locked reference boundary is within three pixels of the rendered boundary. The CLI resolves the PNG relative to the acceptance file's directory. `{output}` and `{lod}` can appear in its path. Use opaque black for background and opaque white for foreground. The image can be up to 2048 pixels on each side.

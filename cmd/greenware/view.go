@@ -19,6 +19,7 @@ import (
 
 	"m31labs.dev/greenware/compiler"
 	"m31labs.dev/greenware/diag"
+	"m31labs.dev/greenware/socket"
 )
 
 const viewUsage = "  greenware view <file> [--output NAME] [--project DIR]\n"
@@ -32,6 +33,8 @@ type previewVariant struct {
 	Label, Name             string
 	Triangles, Draws, Bytes int
 	Animations              []string
+	Sockets                 socket.Set
+	SocketProblem           string
 	GLB                     []byte
 }
 
@@ -62,10 +65,15 @@ func (p *previewStore) publish(product *compiler.Product, problem string) {
 			for _, clip := range file.Doc.Animations {
 				animations = append(animations, clip.Name)
 			}
+			frames, err := socket.FromDocument(file.Doc)
+			var socketProblem string
+			if err != nil {
+				socketProblem = err.Error()
+			}
 			variants = append(variants, previewVariant{
 				Label: fmt.Sprintf("%s · LOD %d", output.Name, file.Level), Name: file.Name,
 				Triangles: file.Triangles, Draws: file.Draws, Bytes: file.Size,
-				Animations: animations, GLB: file.GLB,
+				Animations: animations, Sockets: frames, SocketProblem: socketProblem, GLB: file.GLB,
 			})
 		}
 	}
@@ -96,7 +104,7 @@ type viewPage struct {
 	Source, PollURL, ModelURL string
 	Camera, Orbit, Animation  string
 	Selected                  previewVariant
-	Swap                      bool
+	Swap, ShowSockets         bool
 }
 
 var previewOrbits = map[string]string{
@@ -113,6 +121,7 @@ func previewPage(state previewState, source string, query url.Values, swap bool)
 	}
 	page := viewPage{
 		previewState: state, Source: source, Camera: camera, Orbit: previewOrbits[camera], Swap: swap,
+		ShowSockets: query.Get("sockets") == "1",
 	}
 	if len(state.Variants) > 0 {
 		index := slices.IndexFunc(state.Variants, func(v previewVariant) bool { return v.Name == query.Get("file") })
@@ -127,6 +136,9 @@ func previewPage(state previewState, source string, query url.Values, swap bool)
 		"attempt":  {strconv.FormatUint(state.Attempt, 10)},
 		"revision": {strconv.FormatUint(state.Revision, 10)},
 		"camera":   {page.Camera}, "file": {page.Selected.Name}, "animation": {page.Animation},
+	}
+	if page.ShowSockets {
+		poll.Set("sockets", "1")
 	}
 	page.PollURL = "/updates?" + poll.Encode()
 	return page

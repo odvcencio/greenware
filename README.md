@@ -22,7 +22,7 @@ greenware accept examples/bollard/bollard.gw examples/bollard/bollard.accept.gw 
 greenware view examples/bollard/bollard.gw
 ```
 
-The browser can orbit the model, switch outputs and levels, play its clips, and download the selected GLB. Edit the source to see it rebuild. A failed edit keeps the last good model and shows the compiler diagnostics. Use `greenware watch` to publish preview files for another viewer. The [VS Code extension](editors/vscode) adds highlighting, and the checkout includes build, watch, and view tasks.
+The browser can orbit the model, switch outputs and levels, play its clips, mark socket positions in the rest pose, and download the selected GLB. Edit the source to see it rebuild. A failed edit keeps the last good model and shows the compiler diagnostics. Use `greenware watch` to publish preview files for another viewer. The [VS Code extension](editors/vscode) adds highlighting, and the checkout includes build, watch, and view tasks.
 
 ## Write an asset
 

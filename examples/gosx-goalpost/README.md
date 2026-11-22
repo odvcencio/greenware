@@ -12,7 +12,7 @@ go run . -runtime "$(go list -m -f '{{.Dir}}' m31labs.dev/gosx)"
 
 Open the loopback address printed by the server. Drag to orbit and scroll to zoom. The download link gives you the selected rigid GLB.
 
-Every rigid GLB carries `socket.ribbon_l` and `socket.ribbon_r`. The app reads both from the default scene and places an independent flag and staff at each world-space socket. The example expects translation-only socket paths and returns an error if either socket is missing, duplicated, or on a rotated or scaled path.
+Every rigid GLB carries `socket.ribbon_l` and `socket.ribbon_r`. The app uses Greenware's `socket.ReadGLB` and `Find` to resolve both attachment frames from the default scene, including ancestor transforms. It uses the frames' origins to place each flag and staff. The staffs stand upright in model coordinates, and the wind sets the direction of the cloth.
 
 GoSX's `scene.Wind` supplies the direction, gust and flutter rate. The example samples the field at each socket, writes a three-second glTF morph animation, and plays it in Scene3D. The attached edge stays fixed as the free end moves and droops. Applying a wind preset selects its precomputed loops. The flags and staffs are scene assets, so the qualified goal-post GLBs can be reused in scenes with different attachments.
 
