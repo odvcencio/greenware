@@ -42,6 +42,7 @@ jobs:
           cache-dependency-path: |
             go.sum
             gltf/go.sum
+            examples/gosx-goalpost/go.sum
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -64,6 +65,11 @@ jobs:
           for module in . det gltf conformance; do
             (cd "$module" && go build ./... && go vet ./... && go test -short -count=1 ./...)
           done
+      - name: Test the GoSX goal-post example
+        working-directory: examples/gosx-goalpost
+        env:
+          GOWORK: "off"
+        run: go test -count=1 ./...
       - name: Build the byte witness
         shell: bash
         run: |
