@@ -44,7 +44,7 @@ func attachSockets(doc *gltf.Document, parts map[string]int, sockets []Socket) e
 		if !validName(kind) {
 			return fmt.Errorf("author: socket %q needs a valid UTF-8 kind", s.Name)
 		}
-		q, err := encodeSocketRotation(s.Rotation)
+		q, err := encodeRotation(s.Rotation)
 		if err != nil {
 			return fmt.Errorf("author: socket %q: %w", s.Name, err)
 		}
@@ -62,7 +62,7 @@ func attachSockets(doc *gltf.Document, parts map[string]int, sockets []Socket) e
 	return nil
 }
 
-func encodeSocketRotation(q rig.Quat) (*[4]float32, error) {
+func encodeRotation(q rig.Quat) (*[4]float32, error) {
 	longest := 0.0
 	for _, component := range q {
 		if math.IsInf(component, 0) || math.IsNaN(component) {

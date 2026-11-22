@@ -12,6 +12,7 @@ import (
 	"m31labs.dev/greenware/internal/meshglb"
 	"m31labs.dev/greenware/internal/pbrcolor"
 	"m31labs.dev/greenware/kernel/mesh"
+	"m31labs.dev/greenware/kernel/rig"
 )
 
 // Asset describes one rigid scene. Parts are written in slice order. Materials
@@ -40,6 +41,35 @@ type Part struct {
 	Translation mesh.Vec3
 }
 
+// Assembly describes a rigid scene with reusable meshes. Prototypes and
+// materials are referenced by name. Instances are written in slice order.
+type Assembly struct {
+	Name       string
+	Prototypes []Prototype
+	Instances  []Instance
+	Materials  []Material
+	Sockets    []Socket
+}
+
+// Prototype is a shareable mesh with one optional material.
+type Prototype struct {
+	Name     string
+	Mesh     *mesh.Mesh
+	Material string
+}
+
+// Instance places a prototype below the scene root. Sockets can name an
+// instance as their parent. A zero Rotation or Scale uses identity.
+type Instance struct {
+	Name        string
+	Prototype   string
+	Translation mesh.Vec3
+	Rotation    rig.Quat
+	Scale       mesh.Vec3
+}
+
+const maxParts, maxMaterials = 4096, 4096
+
 // Build packs kernel meshes into a self-contained GLB. Caller-owned input is
 // read during the call and can be reused or changed after Build returns.
 func Build(asset Asset) ([]byte, error) {
@@ -49,17 +79,33 @@ func Build(asset Asset) ([]byte, error) {
 // BuildWithSockets packs a rigid asset and adds attachment frames to its root
 // or to named parts. Sockets are written in slice order.
 func BuildWithSockets(asset Asset, sockets []Socket) ([]byte, error) {
+	if len(asset.Parts) > maxParts {
+		return nil, fmt.Errorf("author: an asset allows at most %d parts", maxParts)
+	}
+	assembly := Assembly{Name: asset.Name, Materials: asset.Materials, Sockets: sockets,
+		Prototypes: make([]Prototype, 0, len(asset.Parts)), Instances: make([]Instance, 0, len(asset.Parts))}
+	for _, part := range asset.Parts {
+		assembly.Prototypes = append(assembly.Prototypes, Prototype{Name: part.Name, Mesh: part.Mesh, Material: part.Material})
+		assembly.Instances = append(assembly.Instances, Instance{Name: part.Name, Prototype: part.Name, Translation: part.Translation})
+	}
+	return BuildAssembly(assembly)
+}
+
+// BuildAssembly packs referenced prototypes once, then writes each instance
+// as a glTF node with its own transform. Unused prototypes emit no mesh.
+// The compiler and renderer need no instancing extension to read the result.
+func BuildAssembly(asset Assembly) ([]byte, error) {
 	if !validName(asset.Name) {
 		return nil, fmt.Errorf("author: an asset needs a nonempty UTF-8 name")
 	}
-	if len(asset.Parts) == 0 {
-		return nil, fmt.Errorf("author: asset %q has no parts", asset.Name)
+	if len(asset.Instances) == 0 {
+		return nil, fmt.Errorf("author: asset %q has no instances", asset.Name)
 	}
-	const maxParts, maxMaterials = 4096, 4096
-	if len(asset.Parts) > maxParts || len(asset.Materials) > maxMaterials {
-		return nil, fmt.Errorf("author: an asset allows at most %d parts and %d materials", maxParts, maxMaterials)
+	if len(asset.Instances) > maxParts || len(asset.Prototypes) > maxParts || len(asset.Materials) > maxMaterials {
+		return nil, fmt.Errorf("author: an asset allows at most %d instances, %d prototypes and %d materials",
+			maxParts, maxParts, maxMaterials)
 	}
-	if len(sockets) > maxSockets {
+	if len(asset.Sockets) > maxSockets {
 		return nil, fmt.Errorf("author: an asset allows at most %d sockets", maxSockets)
 	}
 	materials := append([]Material(nil), asset.Materials...)
@@ -101,43 +147,42 @@ func BuildWithSockets(asset Asset, sockets []Socket) ([]byte, error) {
 		Scenes:    []gltf.Scene{{Name: "default", Nodes: []int{0}}},
 		Scene:     gltf.Int(0),
 	}
+	prototypes := make(map[string]Prototype, len(asset.Prototypes))
+	for _, entry := range asset.Prototypes {
+		if _, used := prototypes[entry.Name]; !validName(entry.Name) || used {
+			return nil, fmt.Errorf("author: prototype name %q is empty, invalid or already used", entry.Name)
+		}
+		prototypes[entry.Name] = entry
+	}
+	meshIndices := make(map[string]int, len(prototypes))
 	names := map[string]int{asset.Name: 0}
-	for _, part := range asset.Parts {
-		if _, used := names[part.Name]; !validName(part.Name) || used {
-			return nil, fmt.Errorf("author: part name %q is empty, invalid or already used", part.Name)
+	for _, instance := range asset.Instances {
+		if _, used := names[instance.Name]; !validName(instance.Name) || used {
+			return nil, fmt.Errorf("author: instance name %q is empty, invalid or already used", instance.Name)
 		}
-		names[part.Name] = len(doc.Nodes)
-		if part.Mesh == nil || len(part.Mesh.Tris) == 0 {
-			return nil, fmt.Errorf("author: part %q has no triangles", part.Name)
+		prototype, ok := prototypes[instance.Prototype]
+		if !ok {
+			return nil, fmt.Errorf("author: instance %q uses unknown prototype %q", instance.Name, instance.Prototype)
 		}
-		for _, count := range []int{len(part.Mesh.Positions), len(part.Mesh.Corners), len(part.Mesh.Tris)} {
-			if count > remaining {
-				return nil, fmt.Errorf("author: asset %q exceeds the %d surface element limit", asset.Name, maxSurfaceElements)
+		index, packed := meshIndices[instance.Prototype]
+		if !packed {
+			m, err := packPrototype(prototype, indices, &remaining, maxSurfaceElements)
+			if err != nil {
+				return nil, err
 			}
-			remaining -= count
+			index = len(doc.Meshes)
+			meshIndices[instance.Prototype] = index
+			doc.Meshes = append(doc.Meshes, m)
 		}
-		if err := part.Mesh.Validate(); err != nil {
-			return nil, fmt.Errorf("author: part %q: %w", part.Name, err)
+		node, err := instanceNode(instance, index)
+		if err != nil {
+			return nil, fmt.Errorf("author: instance %q: %w", instance.Name, err)
 		}
-		var primitive gltf.Primitive
-		if part.Material != "" {
-			index, ok := indices[part.Material]
-			if !ok {
-				return nil, fmt.Errorf("author: part %q uses unknown material %q", part.Name, part.Material)
-			}
-			primitive.Material = gltf.Int(index)
-		}
-		meshglb.Append(&primitive, part.Mesh)
-		node := gltf.Node{Name: part.Name, Mesh: gltf.Int(len(doc.Meshes))}
-		if part.Translation != (mesh.Vec3{}) {
-			translation := part.Translation.F32()
-			node.Translation = &translation
-		}
-		doc.Meshes = append(doc.Meshes, gltf.Mesh{Name: part.Name, Primitives: []gltf.Primitive{primitive}})
+		names[instance.Name] = len(doc.Nodes)
 		doc.Nodes[0].Children = append(doc.Nodes[0].Children, len(doc.Nodes))
 		doc.Nodes = append(doc.Nodes, node)
 	}
-	if err := attachSockets(doc, names, sockets); err != nil {
+	if err := attachSockets(doc, names, asset.Sockets); err != nil {
 		return nil, err
 	}
 	glb, err := gltf.Encode(doc)
@@ -145,6 +190,53 @@ func BuildWithSockets(asset Asset, sockets []Socket) ([]byte, error) {
 		return nil, fmt.Errorf("author: asset %q: %w", asset.Name, err)
 	}
 	return glb, nil
+}
+
+func packPrototype(p Prototype, materials map[string]int, remaining *int, limit int) (gltf.Mesh, error) {
+	if p.Mesh == nil || len(p.Mesh.Tris) == 0 {
+		return gltf.Mesh{}, fmt.Errorf("author: prototype %q has no triangles", p.Name)
+	}
+	for _, count := range []int{len(p.Mesh.Positions), len(p.Mesh.Corners), len(p.Mesh.Tris)} {
+		if count > *remaining {
+			return gltf.Mesh{}, fmt.Errorf("author: prototype %q exceeds the %d surface element limit", p.Name, limit)
+		}
+		*remaining -= count
+	}
+	if err := p.Mesh.Validate(); err != nil {
+		return gltf.Mesh{}, fmt.Errorf("author: prototype %q: %w", p.Name, err)
+	}
+	var primitive gltf.Primitive
+	if p.Material != "" {
+		index, ok := materials[p.Material]
+		if !ok {
+			return gltf.Mesh{}, fmt.Errorf("author: prototype %q uses unknown material %q", p.Name, p.Material)
+		}
+		primitive.Material = gltf.Int(index)
+	}
+	meshglb.Append(&primitive, p.Mesh)
+	return gltf.Mesh{Name: p.Name, Primitives: []gltf.Primitive{primitive}}, nil
+}
+
+func instanceNode(instance Instance, index int) (gltf.Node, error) {
+	q, err := encodeRotation(instance.Rotation)
+	if err != nil {
+		return gltf.Node{}, err
+	}
+	node := gltf.Node{Name: instance.Name, Mesh: gltf.Int(index), Rotation: q}
+	if instance.Translation != (mesh.Vec3{}) {
+		t := instance.Translation.F32()
+		node.Translation = &t
+	}
+	if instance.Scale != (mesh.Vec3{}) {
+		s := instance.Scale.F32()
+		for _, axis := range s {
+			if axis == 0 {
+				return gltf.Node{}, fmt.Errorf("scale axes must be nonzero at glTF precision")
+			}
+		}
+		node.Scale = &s
+	}
+	return node, nil
 }
 
 func validName(name string) bool { return name != "" && utf8.ValidString(name) }

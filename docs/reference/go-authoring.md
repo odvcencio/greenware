@@ -48,6 +48,14 @@ The API writes one rigid scene. Parts are placed in slice order, directly below 
 
 This API covers rigid meshes and portable PBR factors. For source-authored levels, textures, skins, clips, and build receipts, use the `.gw` compiler.
 
+## Assemble a reusable mesh kit
+
+`author.BuildAssembly` accepts named prototypes and a slice of instances. Each instance places one prototype under the root with its own translation, rotation and scale. The packer writes each referenced mesh once and points the instances at it with core glTF nodes. Unused prototypes emit no mesh. First use determines mesh order and instance order determines node order.
+
+An instance's zero rotation or zero scale vector uses identity. A supplied scale needs three nonzero axes at glTF precision. Sockets can use an instance name as their parent, so their model-space frames follow its transform. One assembly accepts up to 4,096 prototypes, instances, materials and sockets. The existing combined surface budget counts each stored prototype once. The recipe should also bound the number of visible instances for its runtime draw budget.
+
+The [field beacon](../../examples/field-beacon) builds a different asset from seed, tier count and panels per tier. Game code can call its recipe builder for GLB bytes and use the socket API to place effects or gameplay attachments.
+
 ## Publish and read attachment frames
 
 Use `author.BuildWithSockets` with a slice of `author.Socket` values to attach an anchor to the scene root or to a named part. A socket's translation is in metres relative to its parent. Its rotation is a quaternion in glTF order `(x, y, z, w)`. The zero-value rotation uses identity, and an empty kind defaults to `anchor`. Builds allow up to 4,096 sockets with unique names.

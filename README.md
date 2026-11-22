@@ -60,6 +60,7 @@ Import `m31labs.dev/greenware/author` to build rigid GLBs from named Greenware m
 | --- | --- |
 | [Bollard](examples/bollard) | Small rigid prop with a passing acceptance file |
 | [Goal post](examples/goalpost) | Multiple outputs, levels and decoded geometry checks |
+| [Field beacon](examples/field-beacon) | Go builds procedural variants from a shared mesh kit |
 | [Goal-post wind flags](examples/gosx-goalpost) | GoSX Scene3D mounts animated flags on Greenware sockets |
 | [Arm](examples/arm) | Introductory rig with hand-painted weight bands and animation |
 | [Helmet](examples/helmet) | Offline PBR materials and visible variants |

@@ -75,10 +75,15 @@ jobs:
         run: |
           go build -o "$RUNNER_TEMP/greenware" ./cmd/greenware
           python3 scripts/rigid-evidence.py witness "$RUNNER_TEMP/witness" --greenware "$RUNNER_TEMP/greenware"
+          "$RUNNER_TEMP/greenware" verify "$RUNNER_TEMP/witness/goalpost/goalpost.build.json" --strict
+          go run ./examples/field-beacon -seed 17 -tiers 3 -panels 5 -out "$RUNNER_TEMP/field-beacon.glb"
+          python3 -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$RUNNER_TEMP/field-beacon.glb" > "$RUNNER_TEMP/witness/field-beacon.sha256"
       - uses: actions/upload-artifact@v4
         with:
           name: witness-${{ matrix.arch }}
-          path: ${{ runner.temp }}/witness/manifest.sha256
+          path: |
+            ${{ runner.temp }}/witness/manifest.sha256
+            ${{ runner.temp }}/witness/field-beacon.sha256
           if-no-files-found: error
       - name: Full workspace suite
         if: github.event_name == 'schedule' || inputs.full
@@ -101,3 +106,5 @@ jobs:
           pattern: witness-*
           path: witness
       - run: python3 scripts/rigid-evidence.py compare witness/witness-amd64/manifest.sha256 witness/witness-arm64/manifest.sha256
+      - name: Compare generated beacon bytes
+        run: cmp witness/witness-amd64/field-beacon.sha256 witness/witness-arm64/field-beacon.sha256

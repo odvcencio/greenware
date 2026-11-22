@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `author.BuildAssembly` packs a mesh kit into a GLB with per-instance transforms and attachment frames. The field beacon example generates variants from a small gameplay recipe.
+- `greenware verify` checks a published GLB inventory against its build record and can flag extra files in a dedicated output folder.
+
 - `greenware view` opens a live browser preview with orbit, camera presets, output and level selection, animation playback and GLB download. Rejected edits preserve the last successful view.
 - The `author` package builds rigid GLBs from Go. The `.gw` compiler and Go API share indexed vertex packing and deterministic sRGB conversion.
 - `material(node)` in acceptance files measures the visible node's decoded base colour, alpha, metallic and roughness.
