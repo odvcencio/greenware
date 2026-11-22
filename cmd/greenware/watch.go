@@ -81,6 +81,21 @@ func runWatch(ctx context.Context, args []string, stdout, stderr io.Writer) int 
 
 func watch(ctx context.Context, ticks <-chan time.Time, o options, stdout, stderr io.Writer) {
 	fmt.Fprintln(stdout, "watch: preview builds; acceptance and independent validation not run")
+	watchInputs(ctx, ticks, o, func(o options, src []byte, readErr error) {
+		if readErr != nil {
+			fmt.Fprintf(stderr, "watch: %v; preview not updated\n", readErr)
+			return
+		}
+		switch runBuild(o, src, stdout, stderr) {
+		case 1:
+			fmt.Fprintln(stderr, "watch: build rejected; preview not updated")
+		case 2:
+			fmt.Fprintln(stderr, "watch: preview could not be published")
+		}
+	})
+}
+
+func watchInputs(ctx context.Context, ticks <-chan time.Time, o options, build func(options, []byte, error)) {
 	var lastSource fileSnapshot
 	var reads *buildReads
 	first := true
@@ -98,16 +113,7 @@ func watch(ctx context.Context, ticks <-chan time.Time, o options, stdout, stder
 				reads = &buildReads{FS: p.FS, files: make(map[string]capturedFile)}
 				p.FS = reads
 			}
-			if readErr != nil {
-				fmt.Fprintf(stderr, "watch: %v; preview not updated\n", readErr)
-			} else {
-				switch runBuild(o, src, stdout, stderr) {
-				case 1:
-					fmt.Fprintln(stderr, "watch: build rejected; preview not updated")
-				case 2:
-					fmt.Fprintln(stderr, "watch: preview could not be published")
-				}
-			}
+			build(o, src, readErr)
 		}
 		select {
 		case <-ctx.Done():

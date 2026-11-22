@@ -40,13 +40,17 @@ const usage = `usage:
   greenware check <file> [--project DIR] [--geometry-only] [--json]
   greenware fmt <file> [--check] [--write] [--json]
   greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--project DIR]
-` + watchUsage + printUsage + lspUsage + toolsUsage + versionUsage
+` + watchUsage + viewUsage + printUsage + lspUsage + toolsUsage + versionUsage
 
 func main() {
 	args := os.Args[1:]
-	if len(args) > 0 && args[0] == "watch" {
+	if len(args) > 0 && (args[0] == "watch" || args[0] == "view") {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		code := runWatch(ctx, args[1:], os.Stdout, os.Stderr)
+		command := runWatch
+		if args[0] == "view" {
+			command = runView
+		}
+		code := command(ctx, args[1:], os.Stdout, os.Stderr)
 		stop()
 		os.Exit(code)
 	}
@@ -440,13 +444,7 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 		}
 		opts.Accept = accAST
 	}
-	var p *compiler.Product
-	var receipt *compiler.Receipt
-	if !diag.HasErrors(ds) {
-		var more []diag.Diagnostic
-		p, receipt, more = compiler.BuildWith(f, o.output, opts)
-		ds = diag.Dedup(append(ds, more...))
-	}
+	p, receipt, ds := buildChecked(f, ds, o.output, opts)
 	rep := buildReport{Schema: "greenware.build/1", Outputs: []buildOutput{}, Census: []compiler.CensusRow{}, Unsupported: []string{}, Cost: receipt}
 	code := status(ds)
 	var writeErr error
@@ -515,4 +513,13 @@ func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
 		}
 	}
 	return code
+}
+
+// buildChecked is the shared compiler entry point for build, watch and view.
+func buildChecked(file *ast.File, diagnostics []diag.Diagnostic, output string, opts compiler.Options) (*compiler.Product, *compiler.Receipt, []diag.Diagnostic) {
+	if diag.HasErrors(diagnostics) {
+		return nil, nil, diagnostics
+	}
+	product, receipt, more := compiler.BuildWith(file, output, opts)
+	return product, receipt, diag.Dedup(append(diagnostics, more...))
 }

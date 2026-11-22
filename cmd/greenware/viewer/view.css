@@ -1,0 +1,72 @@
+:root {
+  color-scheme: dark;
+  --base: #101714;
+  --panel: #17201b;
+  --line: #324038;
+  --text: #f1f6ef;
+  --muted: #b0bfb4;
+  --accent: #b2efbe;
+  --pending: #eac98b;
+  --error: #ffc3a7;
+  font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+  background: var(--base);
+  color: var(--text);
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+a { color: inherit; }
+.top { display: flex; align-items: center; gap: 1rem; min-height: 58px; padding: 0 2rem; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: .7rem; font-weight: 700; font-size: 1.2rem; text-decoration: none; }
+.mark { width: 16px; height: 16px; border: 2px solid var(--accent); border-radius: 5px 2px; transform: rotate(-12deg); }
+.separator { height: 19px; width: 1px; background: var(--line); }
+.mode { color: var(--muted); }
+.source { margin-inline-start: auto; color: var(--muted); overflow-wrap: anywhere; text-align: right; }
+main { max-width: 1680px; padding: 1.25rem 2rem 2rem; margin-inline: auto; }
+#status { margin-bottom: 1rem; }
+.notice { display: flex; align-items: center; flex-wrap: wrap; min-height: 40px; gap: .6rem; color: var(--accent); font-weight: 600; }
+.notice span { margin-inline-start: auto; color: var(--muted); font-weight: 400; }
+.indicator { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.notice.error, .diagnostics { color: var(--error); }
+.notice.pending { color: var(--pending); }
+.diagnostics { padding: .65rem .85rem; border: 1px solid #6e4b3a; border-radius: 6px; }
+summary { cursor: pointer; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 0; }
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 268px; gap: 1rem; align-items: start; }
+.stage { position: relative; min-height: 520px; height: calc(100dvh - 157px); grid-column: 1; background: radial-gradient(ellipse at 50% 35%, #506055, #222d26 62%, #19221c 96%); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.stage:only-child { grid-column: 1/-1; }
+model-viewer { display: block; width: 100%; height: 100%; --progress-bar-color: var(--accent); }
+.gesture { position: absolute; bottom: 12px; left: 12px; color: var(--text); background: #19231dee; padding: .35rem .65rem; border-radius: 5px; pointer-events: none; }
+.touch-gesture { display: none; }
+.empty { display: grid; place-items: center; height: 100%; padding: 2rem; color: var(--text); text-align: center; }
+.inspector { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 1.15rem; }
+h1 { font-size: 1.4rem; margin: 0 0 1.1rem; overflow-wrap: anywhere; font-weight: 650; }
+label, legend { display: block; color: var(--muted); font-size: .93rem; margin: 0 0 .4rem; }
+select, button { background: var(--base); color: var(--text); font: inherit; border-radius: 5px; border: 1px solid var(--line); min-height: 37px; }
+select { width: 100%; margin-bottom: .8rem; padding: 0 .6rem; }
+button { cursor: pointer; padding: .35rem .6rem; }
+button:hover { border-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.apply, button[aria-pressed="true"] { border-color: #699476; background: #243b2c; color: var(--accent); }
+.apply { width: 100%; }
+fieldset { margin: 1.1rem 0 0; padding: 0; border: none; min-width: 0; }
+.cameras { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; }
+.facts { margin: 1.25rem 0 .75rem; padding-top: .7rem; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.facts div { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .3rem; }
+dt { color: var(--muted); }
+dd { margin: 0; }
+.download { color: var(--accent); text-underline-offset: .23em; }
+@media (max-width: 740px) {
+  .top { padding-inline: 1rem; }
+  main { padding: .8rem 1rem 1.4rem; }
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .stage { min-height: 300px; height: 50dvh; }
+  .notice span { margin-inline-start: 0; flex-basis: 100%; }
+}
+@media (max-width: 430px) {
+  .mode, .separator { display: none; }
+  .stage { min-height: 275px; height: 43dvh; }
+}
+@media (pointer: coarse) {
+  .desktop-gesture { display: none; }
+  .touch-gesture { display: inline; }
+}

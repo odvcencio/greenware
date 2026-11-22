@@ -7,7 +7,7 @@
 1. A flag can come before or after the operands. `--flag value` and `--flag=value` both work. `--` ends the flags.
 2. `--json` makes a command write exactly one JSON value to standard output, with a `schema` key first and the keys in a fixed order. Text for people goes to standard output in plain mode and diagnostics go to standard error.
 3. Exit status: 0 success; 1 findings (an error diagnostic, a refused or failed gate, a drift, a conflict); 2 a usage or read error (a bad flag, a missing file, an unknown diagnostic code).
-4. `build`, `watch` and `print` build geometry. `accept` reads and measures existing GLBs.
+4. `build`, `watch`, `view` and `print` build geometry. `accept` reads and measures existing GLBs.
 5. Positions are one-based lines and columns. Byte offsets are zero-based and count UTF-8 bytes.
 
 ## greenware check
@@ -312,6 +312,12 @@ A source or compiler error leaves the previous files untouched. The build record
 ```text
 greenware watch examples/bollard/bollard.gw
 ```
+
+## greenware view
+
+`greenware view <file> [--output NAME] [--project DIR]` prints a loopback URL for an interactive preview. Open it in a browser with WebGL. It embeds its viewer and refreshes when the source or a local build input changes. Orbit or zoom in the viewport, choose an output and level, switch camera presets, and select an animation when the GLB has clips. The Download GLB link saves the displayed level.
+
+A rejected edit keeps the last successful model visible and shows the diagnostics. Acceptance and independent validation are separate commands. Stop the preview with Ctrl+C.
 
 ## Rigid silhouette acceptance
 

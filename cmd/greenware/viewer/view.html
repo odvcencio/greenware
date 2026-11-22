@@ -1,0 +1,91 @@
+{{define "page"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false}'>
+  <title>Greenware Preview</title>
+  <link rel="stylesheet" href="/view.css">
+  <script src="/htmx.min.js" defer></script>
+  <script type="module" src="/model-viewer.min.js"></script>
+</head>
+<body>
+  <header class="top">
+    <a href="/" class="brand" aria-label="Greenware preview home"><span class="mark" aria-hidden="true"></span>Greenware</a>
+    <span class="separator" aria-hidden="true"></span>
+    <span class="mode">Asset preview</span>
+    <span class="source">{{.Source}}</span>
+  </header>
+  <main>
+    {{template "status" .}}
+    {{template "workspace" .}}
+  </main>
+</body>
+</html>{{end}}
+
+{{define "update"}}
+{{template "status" .}}
+{{if .Swap}}{{template "workspace" .}}{{end}}
+{{end}}
+
+{{define "status"}}
+<section id="status" aria-live="polite" hx-get="{{.PollURL}}" hx-trigger="every 200ms" hx-swap="outerHTML">
+  {{if .Problem}}
+  <div class="notice error"><div class="indicator" aria-hidden="true"></div>{{if .Revision}}Build failed · showing last good build{{else}}Build failed{{end}}</div>
+  <details class="diagnostics"><summary>Compiler diagnostics</summary><pre>{{.Problem}}</pre></details>
+  {{else if .Revision}}
+  <div class="notice"><div class="indicator" aria-hidden="true"></div>Watching for changes<span>Acceptance and independent validation not run</span></div>
+  {{else}}
+  <div class="notice pending"><div class="indicator" aria-hidden="true"></div>Building preview</div>
+  {{end}}
+</section>
+{{end}}
+
+{{define "workspace"}}
+<div id="workspace" class="workspace"{{if .Swap}} hx-swap-oob="true"{{end}}>
+  <section class="stage" aria-label="3D viewport">
+    {{if .ModelURL}}
+    <model-viewer src="{{.ModelURL}}" alt="3D model of {{.Asset}}" camera-controls touch-action="pan-y"
+      camera-orbit="{{.Orbit}}" interaction-prompt="none" shadow-intensity="1.1" shadow-softness="0.75"
+      {{if .Animation}} animation-name="{{.Animation}}" autoplay{{end}}></model-viewer>
+    <div class="gesture"><span class="desktop-gesture">Drag to orbit · Scroll to zoom</span><span class="touch-gesture">Drag to orbit · Pinch to zoom</span></div>
+    {{else}}
+    <div class="empty">The model will appear after a successful build.</div>
+    {{end}}
+  </section>
+  {{if .ModelURL}}
+  <aside class="inspector" aria-label="Preview controls">
+    <h1>{{.Asset}}</h1>
+    <form method="get" action="/">
+      <label for="file">Output and level</label>
+      <select name="file" id="file">
+        {{range .Variants}}<option value="{{.Name}}"{{if eq .Name $.Selected.Name}} selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+      {{if .Selected.Animations}}
+      <label for="animation">Animation</label>
+      <select name="animation" id="animation">
+        <option value="">Rest pose</option>
+        {{range .Selected.Animations}}<option value="{{.}}"{{if eq . $.Animation}} selected{{end}}>{{.}}</option>{{end}}
+      </select>
+      {{end}}
+      <button class="apply" name="camera" value="{{.Camera}}" type="submit">Apply selection</button>
+      <fieldset>
+        <legend>Camera</legend>
+        <div class="cameras">
+          <button type="submit" name="camera" value="three-quarter" aria-pressed="{{eq .Camera "three-quarter"}}">¾ view</button>
+          <button type="submit" name="camera" value="front" aria-pressed="{{eq .Camera "front"}}">Front</button>
+          <button type="submit" name="camera" value="side" aria-pressed="{{eq .Camera "side"}}">Side</button>
+          <button type="submit" name="camera" value="top" aria-pressed="{{eq .Camera "top"}}">Top</button>
+        </div>
+      </fieldset>
+    </form>
+    <dl class="facts">
+      <div><dt>Triangles</dt><dd>{{.Selected.Triangles}}</dd></div>
+      <div><dt>Draw calls</dt><dd>{{.Selected.Draws}}</dd></div>
+      <div><dt>GLB bytes</dt><dd>{{.Selected.Bytes}}</dd></div>
+    </dl>
+    <a class="download" href="{{.ModelURL}}" download="{{.Selected.Name}}">Download GLB</a>
+  </aside>
+  {{end}}
+</div>
+{{end}}
