@@ -22,7 +22,7 @@ accept goalpost {
   expect (bounds().min.y > -1mm, "nothing below the turf")
   expect (closed(node(goalpost)), "no holes in the painted frame")
   expect (connected(node(goalpost)), "the painted frame is one piece: post, crossbar and uprights touch")
-  expect (outline(front, "ref/goalpost-{output}.png", within = 3px) >= 0.95, "front outline")
+  expect (outline(front, "ref/goalpost-{output}-lod{lod}.png", within = 3px) >= 0.95, "front outline")
 
   when output == stadium {
     expect (bounds().max.y > 12m, "uprights rise about 30 ft above the bar")

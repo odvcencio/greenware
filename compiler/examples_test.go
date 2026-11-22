@@ -25,6 +25,7 @@ const (
 	gapExpect      = "uprights' inside faces 18 ft 6 in apart"
 	socketsExpect  = "the rule anchors agree"
 	closedExpect   = "no holes in the painted frame"
+	outlineExpect  = "front outline"
 	outlineExpects = 6 // one outline expect, at three levels, for two outputs
 )
 
@@ -70,26 +71,64 @@ func TestExampleGoalPostAcceptance(t *testing.T) {
 	_, dir := buildInto(t, examplePath)
 	code, rep := runAccept(t, examplePath, dir)
 	logTable(t, rep)
-	if code != accept.ExitUnavailable {
-		t.Errorf("exit %d, want 3 (only outline unavailable)", code)
+	if code != accept.ExitPass {
+		t.Errorf("exit %d, want %d", code, accept.ExitPass)
 	}
-	unavailable := 0
+	outlines, checks := 0, 0
 	for _, l := range rep.Levels {
 		if l.Problem != "" {
 			t.Errorf("%s lod %d: %s", l.Output, l.LOD, l.Problem)
 		}
 		for _, e := range l.Expects {
-			isOutline := strings.Contains(e.Message, "outline")
-			switch {
-			case isOutline && e.Verdict == accept.Unavailable:
-				unavailable++
-			case e.Verdict != accept.Pass:
+			checks++
+			if e.Message == outlineExpect {
+				outlines++
+			}
+			if e.Verdict != accept.Pass {
 				t.Errorf("%s lod %d: %q is %s: %s", l.Output, l.LOD, e.Message, e.Verdict, e.Detail)
 			}
 		}
 	}
-	if unavailable != outlineExpects {
-		t.Errorf("%d outline expects unavailable, want %d", unavailable, outlineExpects)
+	if checks != 60 || outlines != outlineExpects {
+		t.Errorf("got %d checks with %d outlines, want 60 and %d", checks, outlines, outlineExpects)
+	}
+}
+
+// Move the uprights and caps 12 cm outward, past the reference tolerance.
+// Leave the sockets at their authored positions.
+func TestApprovedGoalPostOutlineRejectsMovedUprights(t *testing.T) {
+	source, err := os.ReadFile(examplePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const original = "at = (half_span, crossbar_height +"
+	if got := strings.Count(string(source), original); got != 3 {
+		t.Fatalf("found %d upright placements, want 3", got)
+	}
+	changed := strings.Replace(string(source), original, "at = (half_span + 0.12m, crossbar_height +", 2)
+	path := filepath.Join(t.TempDir(), "moved.gw")
+	if err := os.WriteFile(path, []byte(changed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, dir := buildInto(t, path)
+	code, rep := runAccept(t, path, dir)
+	logTable(t, rep)
+	if code != accept.ExitFail {
+		t.Errorf("exit %d, want %d", code, accept.ExitFail)
+	}
+	outlines := 0
+	for _, l := range rep.Levels {
+		for _, e := range l.Expects {
+			if e.Message == outlineExpect {
+				outlines++
+				if e.Verdict != accept.Fail {
+					t.Errorf("%s lod %d: outline is %s, want fail", l.Output, l.LOD, e.Verdict)
+				}
+			}
+		}
+	}
+	if outlines != outlineExpects {
+		t.Errorf("got %d outlines, want %d", outlines, outlineExpects)
 	}
 }
 

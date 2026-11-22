@@ -14,6 +14,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "testdata/compiler/approved/examples-goalpost.provisional.sha256"
+REFERENCES = ROOT / "examples/goalpost/ref/references.sha256"
+REFERENCES_V1_SHA256 = "4dc5de8c22520c7eaa971b2de7e665a23a42ef13ad7ddb5c0f1f5a79b101226f"
 FIXTURES = {
     "goalpost": (
         "goalpost-lod1.glb", "goalpost-lod2.glb", "goalpost-practice-lod1.glb",
@@ -28,6 +30,7 @@ CONTROLS = (
     "TestControlCapRemoval",
     "TestControlShiftedSweepDetaches",
     "TestMovedUprightIsCaught",
+    "TestApprovedGoalPostOutlineRejectsMovedUprights",
     "TestStalePinRefusesTheBuild",
     "TestDecodedRingCorrespondenceControl",
     "TestOutlineLockedCamera",
@@ -110,6 +113,26 @@ def compare(left, right):
     print(f"Matched SHA-256 and length for all {len(a)} files")
 
 
+def verify_references(levels):
+    manifest = REFERENCES.read_bytes()
+    if hashlib.sha256(manifest).hexdigest() != REFERENCES_V1_SHA256:
+        raise ValueError("goal post reference manifest differs from approved v1")
+    rows = dict((name, digest) for digest, name in (
+        row.split() for row in manifest.decode("ascii").splitlines()
+    ))
+    expected = {
+        f"ref/goalpost-{output}-lod{lod}.png{suffix}"
+        for output, lod in levels
+        for suffix in ("", ".view.json")
+    }
+    if rows.keys() != expected:
+        raise ValueError("unexpected goal post reference inventory")
+    for name, digest in rows.items():
+        if hashlib.sha256((REFERENCES.parent.parent / name).read_bytes()).hexdigest() != digest:
+            raise ValueError(f"{name} differs from approved v1")
+    return rows
+
+
 def check_acceptance(report_path):
     report = json.loads(report_path.read_bytes())
     if report["schema"] != "greenware.accept/1":
@@ -119,20 +142,26 @@ def check_acceptance(report_path):
     actual = {(level["output"], level["lod"]) for level in levels}
     if len(levels) != len(expected) or actual != expected:
         raise ValueError("unexpected acceptance output or level inventory")
-    outline_pass = 0
+    references = verify_references(expected)
     for level in levels:
         if level.get("problem"):
             raise ValueError(level["problem"])
-        outlines = [e for e in level["expects"] if e["message"] == "front outline"]
-        if len(outlines) != 1 or outlines[0]["verdict"] not in {"pass", "unavailable"}:
-            raise ValueError(f"expected a single measured or unavailable outline per level in {report_path}")
-        outline_pass += outlines[0]["verdict"] == "pass"
-        for expect in level["expects"]:
-            if expect["message"] != "front outline" and expect["verdict"] != "pass":
-                raise ValueError(f"unexpected verdict for {expect['message']!r}")
+        name = f"ref/goalpost-{level['output']}-lod{level['lod']}.png"
+        expects = level["expects"]
+        outlines = [e for e in expects if e["message"] == "front outline"]
+        count = 11 if level["output"] == "stadium" else 9
+        if len(expects) != count or len(outlines) != 1:
+            raise ValueError(f"{name}: expected {count} checks including one outline")
+        for expect in expects:
+            if expect["verdict"] != "pass":
+                raise ValueError(f"{name}: {expect['message']!r} was {expect['verdict']}")
+        measurements = {m["name"]: m["value"] for m in outlines[0]["measures"]}
+        if (measurements.get("outline mask sha256") != references[name]
+                or measurements.get("outline camera sha256") != references[name + ".view.json"]):
+            raise ValueError(f"{name}: acceptance did not use the approved mask and camera")
     totals = report["totals"]
-    if totals["pass"] != 54 + outline_pass or totals["unavailable"] != 6 - outline_pass or any(
-        totals.get(key, 0) != 0 for key in ("fail", "refused", "missing")
+    if totals["pass"] != 60 or any(
+        totals.get(key, 0) != 0 for key in ("fail", "refused", "missing", "unavailable")
     ):
         raise ValueError(f"unexpected acceptance totals: {totals}")
     return totals
@@ -169,7 +198,7 @@ def qualify(out, validator, validator_digest):
         acceptance = out / "goalpost.acceptance.json"
         run([greenware, "accept", ROOT / "examples/goalpost/goalpost.gw",
              ROOT / "examples/goalpost/goalpost.accept.gw", "--glb-dir", out / "goalpost", "--json"],
-            output=acceptance, expected=(0, 3))
+            output=acceptance)
         totals = check_acceptance(acceptance)
         for name in FIXTURES["goalpost"]:
             run([oracle, "check", out / "goalpost" / name], output=out / f"{name}.oracle.json")
@@ -181,9 +210,8 @@ def qualify(out, validator, validator_digest):
                   if event["Action"] == "pass"}
         if not set(CONTROLS) <= passed:
             raise ValueError(f"missing passing controls: {sorted(set(CONTROLS) - passed)}")
-    pending = ["native peer comparison", "stock-viewer capture", "intent-only prop trial", "owner sign-off"]
-    if totals["unavailable"]:
-        pending.append("outline masks and camera approval")
+    pending = ["native peer comparison", "stock-viewer capture", "intent-only prop trial",
+               "published CLI reproduction", "owner sign-off"]
     if khronos is None:
         pending.append("Khronos validator")
     summary = {
@@ -191,6 +219,7 @@ def qualify(out, validator, validator_digest):
         "scope": "goalpost geometry",
         "status": "geometry evidence collected",
         "acceptance": totals,
+        "reference_manifest_sha256": REFERENCES_V1_SHA256,
         "oracle_files_checked": len(FIXTURES["goalpost"]),
         "controls_passed": list(CONTROLS),
         "khronos": khronos,

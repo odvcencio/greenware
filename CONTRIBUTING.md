@@ -14,6 +14,10 @@ CI repeats the checks with `GOWORK=off` in the root, `det/`, `gltf/` and `confor
 
 Run `python3 scripts/rigid-evidence.py qualify /path/to/new-packet`. The packet contains the compiled files and receipts, acceptance results, independent oracle reports, controls, and the work that remains before sign-off. A local Khronos glTF Validator `2.0.0-dev.3.10` can be passed with `--validator /path/to/gltf_validator`. The command checks the executable's SHA-256 before running it. The Linux amd64 executable has a default pin. For another platform pass the verified executable digest with `--validator-sha256`. [Khronos release binaries and license](https://github.com/KhronosGroup/glTF-Validator/releases/tag/2.0.0-dev.3.10)
 
+The v1 silhouette references in [examples/goalpost/ref](examples/goalpost/ref) were drawn from the authored dimensions independently of the GLBs. Each variant and level has its own mask and a locked orthographic camera at 100 pixels per metre. Acceptance requires at least 95% of the reference boundary to fall within 3 pixels (30 mm) of the decoded silhouette. Qualification verifies the hash of every approved input and compares it with the digest reported by `greenware accept`. A control moves the uprights 120 mm and must fail all six silhouette checks.
+
+The release gate also includes the native comparison, stock-viewer captures at the locked cameras, a fresh intent-only prop trial, a clean installation of the candidate CLI from its published commit, and owner sign-off.
+
 To reproduce the native byte check, build the CLI and run `python3 scripts/rigid-evidence.py witness /path/to/new-witness --greenware /path/to/greenware`. On two native runners, compare the resulting manifests with `python3 scripts/rigid-evidence.py compare <amd64-manifest> <arm64-manifest>`. The manifests cover the goal post, helmet and arm GLBs and their build records.
 
 ## Rules for every change

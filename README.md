@@ -65,7 +65,7 @@ Import `m31labs.dev/greenware/author` to build rigid GLBs from named Greenware m
 | [Athlete](examples/athlete) | Historical regression fixture with known clearance failures |
 | [Solved arm](examples/arm-solved) | Experimental skin-weight solver |
 
-CI runs on native Linux amd64 and macOS arm64 and compares the GLB and build-record digests for the goal post, helmet and arm. The goal post's six silhouette checks need approved reference masks and cameras. See the [evidence workflow](CONTRIBUTING.md#rigid-prop-evidence) for the independent oracle, Khronos validator and negative controls.
+CI runs on native Linux amd64 and macOS arm64 and compares the GLB and build-record digests for the goal post, helmet and arm. The goal post acceptance file checks both variants at all three levels against the [approved v1 masks and locked cameras](examples/goalpost/ref). See the [evidence workflow](CONTRIBUTING.md#rigid-prop-evidence) for the independent oracle, Khronos validator and negative controls.
 
 ## Commands
 
