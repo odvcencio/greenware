@@ -8,7 +8,7 @@ Read `README.md` and `AGENTS.md` first. `AGENTS.md` holds the full rules; this p
 
 Set `CGO_ENABLED=0` and run `go build -mod=readonly ./...`, `go vet -mod=readonly ./...` and `go test -mod=readonly -short -count=1 ./...` from the checkout root. Follow the same commands inside `det/` and `gltf/`. The workspace links both modules to their local source.
 
-CI repeats the checks with `GOWORK=off` in the root, `det/`, `gltf/` and `conformance/`. The standalone root resolves the tagged modules. Run the full suite with `local-heavy go test -count=1 ./...` or the repository's remote test runner. The short suite keeps the small rigging and solver fixtures. The full suite also executes the historical athlete bakes and the solver protocol.
+CI repeats the checks with `GOWORK=off` in the root, `det/`, `gltf/` and `conformance/`. The standalone root resolves the tagged modules. Run the full suite with `local-heavy go test -count=1 ./...` or the repository's remote test runner. The short suite keeps the small rigging and solver fixtures. The full suite also executes the historical athlete bakes and the solver protocol. Hosted full CI runs the LSP latency test in a separate step to keep other package tests from competing with its wall-clock measurements.
 
 ### Rigid-prop evidence
 

@@ -82,7 +82,10 @@ jobs:
           if-no-files-found: error
       - name: Full workspace suite
         if: github.event_name == 'schedule' || inputs.full
-        run: go test -count=1 ./...
+        run: go test -count=1 -skip '^TestPerformance$' ./...
+      - name: Measure LSP latency in isolation
+        if: github.event_name == 'schedule' || inputs.full
+        run: go test -count=1 -v -run '^TestPerformance$' ./lsp
 
   compare:
     name: Compare native build bytes
