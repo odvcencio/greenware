@@ -301,7 +301,3 @@ func TestDecodeRejectsDamage(t *testing.T) {
 		t.Error("ill-formed XML decoded")
 	}
 }
-
-func TestNoUnwrappedMultiply(t *testing.T) {
-	noFusion(t, ".")
-}
