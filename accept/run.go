@@ -16,7 +16,7 @@
 //     own visible triangles, not its children's. bounds(node) reads the
 //     subtree. bounds() and draw_calls() read the whole active scene.
 //   - A socket is the meshless node named "socket.<name>".
-//   - outline needs reference masks that do not exist yet; it reports
+//   - outline without a reference mask and camera reports
 //     Unavailable and never passes.
 package accept
 
@@ -70,6 +70,10 @@ func Run(acc *ast.Accept, inputs Inputs) (*Report, []diag.Diagnostic) {
 // from LoadData and has passed Check; nil means the file imports none. The
 // report lists the data inputs.
 func RunWith(acc *ast.Accept, inputs Inputs, data *Data) (*Report, []diag.Diagnostic) {
+	return runWithReferences(acc, inputs, data, nil)
+}
+
+func runWithReferences(acc *ast.Accept, inputs Inputs, data *Data, refs *outlineRefs) (*Report, []diag.Diagnostic) {
 	rep := &Report{Schema: Schema, Accept: acc.Name.Name}
 	if data != nil {
 		rep.Inputs = data.Inputs
@@ -93,7 +97,7 @@ func RunWith(acc *ast.Accept, inputs Inputs, data *Data) (*Report, []diag.Diagno
 					lr.Distance = jsonNum(prod.Distance)
 				}
 				sc := newScene(prod.Doc)
-				ev := &evaluator{sc: sc, output: out, lod: lod, lodErr: prod.LODError, lodKnown: !prod.LODErrorUnknown, d: units.DefaultUnits(), data: data}
+				ev := &evaluator{sc: sc, output: out, lod: lod, lodErr: prod.LODError, lodKnown: !prod.LODErrorUnknown, d: units.DefaultUnits(), data: data, outlineRefs: refs}
 				walkItems(acc.Items, ev, &lr, &ds)
 			} else {
 				lr.Problem = prod.Problem

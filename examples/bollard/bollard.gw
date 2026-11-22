@@ -1,0 +1,55 @@
+greenware 1
+
+asset loading_bollard {
+  title = "Loading-lane bollard"
+  root = bollard
+  length = m
+  angle = deg
+  up = y
+  forward = -z
+}
+
+let base_height = 180mm
+let top = 950mm
+let post_radius = 80mm
+let band_bottom = 720mm
+let band_height = 80mm
+
+material dark_steel = pbr { base = #34393c metallic = 1 roughness = 0.62 }
+material safety_yellow = pbr { base = #ffcc16 metallic = 0 roughness = 0.36 }
+material brushed_silver = pbr { base = #c6cacf metallic = 1 roughness = 0.32 }
+
+part bollard {
+  part base {
+    export = on
+    material = dark_steel
+    box {
+      size = (600mm, base_height, 400mm)
+      at = (0, base_height / 2, 0)
+    }
+  }
+  part post {
+    export = on
+    material = safety_yellow
+    cylinder {
+      at = (0, (base_height + top) / 2, 0)
+      height = top - base_height
+      radius = post_radius
+      segments = 24
+      caps = on
+    }
+  }
+  part band {
+    export = on
+    material = brushed_silver
+    cylinder {
+      at = (0, band_bottom + band_height / 2, 0)
+      height = band_height
+      radius = post_radius + 2mm
+      segments = 24
+      caps = on
+    }
+  }
+}
+
+output main { file = "bollard.glb" }

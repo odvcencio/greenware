@@ -20,6 +20,7 @@ const athletePath = "../examples/athlete/athlete.gw"
 // lifted.
 func buildAthlete(t testing.TB, edit func(string) string) (*OutputProduct, *gltf.Document) {
 	t.Helper()
+	requireFullSuite(t)
 	b, err := os.ReadFile(athletePath)
 	if err != nil {
 		t.Fatal(err)

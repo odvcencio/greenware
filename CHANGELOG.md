@@ -2,9 +2,12 @@
 
 ## Unreleased
 
-What works now, as of this list:
+- `greenware watch` rebuilds preview GLBs when the source, a local import, or pinned data changes. A rejected build leaves the last good preview available.
+- `greenware accept` can measure rigid silhouettes against a locked camera and a binary reference mask. The report records the mask and camera digests.
+- The CI workflow checks workspace and standalone module builds, runs a short test suite on Linux amd64 and macOS arm64, and compares both runners' native GLB and receipt digests. The full workspace suite runs on the schedule or when explicitly requested.
+- The bollard example provides a small rigid prop and acceptance file. The VS Code extension adds syntax highlighting, with build and watch tasks available from the checkout.
 
-- `output { grid = n }` snaps every number written to the GLB to a multiple of 2^-n (1 to 30), so builds match the game's Go bake byte for byte (`docs/reference/athlete.md`, "`grid`"). Absent, the output does not change.
+- `output { grid = n }` snaps GLB values to a multiple of 2^-n (1 to 30) for the historical athlete comparison (`docs/reference/athlete.md`, "`grid`"). Absent, the output does not change.
 - The athlete is the body of the game's Go bake (`examples/athlete/athlete.gw`): the same ring tables, skeleton, skin steps and seven build targets, 13,016 triangles and 6,836 vertices part for part, with the game's 27 body clips installed from `examples/athlete/clips`. New for it: `seam = off` and `weld_caps = on` on `loft`, `ellipsoid` and `tube` (n vertices a ring, caps that share the end rings' vertices), and the `girth` morph operation (`docs/reference/rig.md`). The old Python port's `height` parameter and its `tall`, `short`, `neck-long`, `neck-short` and `brow` targets are gone from it (`testdata/athlete-frozen` keeps the old file). A file with runtime morph weights and no joint offsets now records `rig_base`, so the acceptance can pose it at another runtime point. The rig classes grew: 18,432 triangles, 16,384 bound positions and 64 clips.
 - Examples that build with `greenware build`: the goal post (`examples/goalpost`), the helmet, the rigged arm and the athlete, each with an acceptance file.
 - The skin weight solver (milestone M5): `skin { solve { ... } }` chooses weights on the supplied joints from the distance to the bones, smooths them over the mesh and refuses with `GW-SOLVE` when the smoothing does not settle in the iteration cap. New ticket `solve`, new example `examples/arm-solved`. It is not qualified: on the athlete it is worse than the hand skin at both feet (`docs/reference/rig.md`, "Solved skin"). The worker refuses it with `GW-RUNTIME-UNSAFE`.
@@ -34,4 +37,4 @@ What works now, as of this list:
 - Morph targets are written as sparse accessors when smaller, which changes the bytes of every rigged file (the arm candidate and the athlete files).
 - `greenware accept` measures rigs on decoded files: `joint_count`, `morph_count`, `animation_count`, `has_animation`, `animations_present`, `runtime_points`, `posed_lowest`, `posed_position`, `mounted_clearance`; `lods` defaults to `files`. New package `kernel/geom` (triangle distance and a bounding-volume tree).
 - Fixed `if c then a else b`, which returned `a` for any condition when both branches were numbers.
-- Repository skeleton, dependency boundary check, CI on Linux and macOS arm64.
+- Repository skeleton and dependency boundary check.

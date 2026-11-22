@@ -188,6 +188,7 @@ func TestRuntimePointsOfTheAthlete(t *testing.T) {
 // Above the limit the plan keeps the default, every case and one axis at a
 // time, says what it left out, and never drops a named case.
 func TestRuntimePointsPartial(t *testing.T) {
+	requireFullSuite(t)
 	f := loadFrozenAthlete(t)
 	r, _ := resolve.EvaluateOutput(f, "match")
 	e := &elab{r: r, mounts: mountModes(r)}

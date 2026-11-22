@@ -1,0 +1,25 @@
+{
+  "name": "greenware-language",
+  "displayName": "Greenware",
+  "description": "Syntax highlighting and editing support for Greenware asset sources.",
+  "version": "0.1.0",
+  "publisher": "m31labs",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/odvcencio/greenware.git", "directory": "editors/vscode" },
+  "files": ["LICENSE", "language-configuration.json", "syntaxes/*.json"],
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [{
+      "id": "greenware",
+      "aliases": ["Greenware"],
+      "extensions": [".gw"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "greenware",
+      "scopeName": "source.greenware",
+      "path": "./syntaxes/greenware.tmLanguage.json"
+    }]
+  }
+}

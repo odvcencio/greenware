@@ -23,6 +23,7 @@ var (
 
 func athleteAll(t testing.TB) *Product {
 	t.Helper()
+	requireFullSuite(t)
 	athleteOnce.Do(func() {
 		f := loadProject(t, athletePath)
 		athleteProd, athleteRc, athleteDiags = BuildWith(f, "", Options{})
@@ -228,6 +229,7 @@ func TestAthleteEveryProfileTicketRefusesOnItsOwn(t *testing.T) {
 // The old limits stay as refusal tests, each isolated: only the figure under
 // test is over its limit.
 func TestAthleteOldLimitsRefuseWithGWBudget(t *testing.T) {
+	requireFullSuite(t)
 	src, err := os.ReadFile(athletePath)
 	if err != nil {
 		t.Fatal(err)
@@ -409,6 +411,7 @@ func TestAthleteAudit(t *testing.T) {
 // bands = error promotes the natural-band warning; without it the pose is
 // written with a warning.
 func TestAthleteBandsErrorPromotesBandWarnings(t *testing.T) {
+	requireFullSuite(t)
 	src, err := os.ReadFile(athletePath)
 	if err != nil {
 		t.Fatal(err)

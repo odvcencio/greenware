@@ -154,12 +154,19 @@ func Command(args []string, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 
+	refRoot, err := os.OpenRoot(filepath.Dir(accPath))
+	if err != nil {
+		fmt.Fprintf(stderr, "greenware accept: %v\n", err)
+		return ExitUsage
+	}
+	defer refRoot.Close()
+	refs := &outlineRefs{fs: refRoot.FS(), loaded: make(map[string]outlineInput)}
 	plan := stagedFiles(srcAST)
 	var reports []*Report
 	exit := ExitPass
 	for _, acc := range accAST.Accepts {
 		inputs := loadInputs(acc, plan, glbDir, lod0Err)
-		rep, ds := RunWith(acc, inputs, data)
+		rep, ds := runWithReferences(acc, inputs, data, refs)
 		reports = append(reports, rep)
 		if !asJSON {
 			writeText(stdout, rep)

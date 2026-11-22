@@ -1,0 +1,18 @@
+greenware 1
+
+// Dimensions and thresholds were written before the intent-only trial.
+accept loading_bollard {
+  of = "bollard.gw"
+  outputs = [main]
+  lods = all
+
+  expect (abs(bounds().min.y) < 1mm, "the assembly starts at the floor")
+  expect (abs(bounds().max.y - 0.95m) < 1mm, "the top is 950 mm above the floor")
+  expect (abs(bounds().max.x - bounds().min.x - 0.60m) < 1mm, "the base is 600 mm wide")
+  expect (abs(bounds().max.z - bounds().min.z - 0.40m) < 1mm, "the base is 400 mm deep")
+  expect (abs(bounds(node(base)).max.y - 0.18m) < 1mm, "the base is 180 mm tall")
+  expect (abs(bounds(node(post)).max.x - bounds(node(post)).min.x - 0.16m) < 1mm, "the upright is 160 mm across")
+  expect (closed(node(base)) && closed(node(post)) && closed(node(band)), "the three parts have closed surfaces")
+  expect (abs(bounds(node(band)).min.y - 0.72m) < 1mm && abs(bounds(node(band)).max.y - 0.80m) < 1mm, "the band runs from 720 to 800 mm")
+  expect (triangles() <= 320, "the assembly uses at most 320 triangles")
+}

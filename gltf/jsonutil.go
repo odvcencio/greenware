@@ -41,8 +41,8 @@ func canonicalExt(m map[string]json.RawMessage, path string) (map[string]json.Ra
 		return nil, nil
 	}
 	out := make(map[string]json.RawMessage, len(m))
-	for k, v := range m {
-		c, err := canonicalJSON(v)
+	for _, k := range sortedKeys(m) {
+		c, err := canonicalJSON(m[k])
 		if err != nil {
 			return nil, errf(path+"."+k, "invalid JSON: %v", err)
 		}

@@ -7,7 +7,7 @@
 1. A flag can come before or after the operands. `--flag value` and `--flag=value` both work. `--` ends the flags.
 2. `--json` makes a command write exactly one JSON value to standard output, with a `schema` key first and the keys in a fixed order. Text for people goes to standard output in plain mode and diagnostics go to standard error.
 3. Exit status: 0 success; 1 findings (an error diagnostic, a refused or failed gate, a drift, a conflict); 2 a usage or read error (a bad flag, a missing file, an unknown diagnostic code).
-4. Every command here except `print` runs the front end only (parse, lower, evaluate the constant values). They build no geometry. `print` builds one output level.
+4. `build`, `watch` and `print` build geometry. `accept` reads and measures existing GLBs.
 5. Positions are one-based lines and columns. Byte offsets are zero-based and count UTF-8 bytes.
 
 ## greenware check
@@ -302,6 +302,22 @@ goalpost.3mf  101981 bytes, 16 objects, 1340 triangles, sha256 2c4f1a0c...
 goalpost/post/sweep  316 triangles, closed true, 124821.601 cm3, bounds (-100.00, -1930.00, 0.00) to (100.00, 9.80, 3149.52) mm
 ...
 ```
+
+## greenware watch
+
+`greenware watch <file> [--output NAME] [--out-dir DIR | -o DIR] [--project DIR]` builds once, then polls the source and any local inputs read during the build. This includes project imports, JSON tables, and data-package locks, schemas and payloads. A missing import is tracked so creating it can recover the preview. Edit the source or its inputs to retry a rejected build. Cancel with Ctrl+C. Watch defaults to `out/preview` and reports that acceptance and independent validation have not run.
+
+A source or compiler error leaves the previous files untouched. The build record is written last. If publication fails partway, use the record to determine whether the output set is complete.
+
+```text
+greenware watch examples/bollard/bollard.gw
+```
+
+## Rigid silhouette acceptance
+
+`outline(front, "ref/main.png", within = 3px)` measures what fraction of the locked reference boundary is within three pixels of the rendered boundary. The CLI resolves the PNG relative to the acceptance file's directory. `{output}` and `{lod}` can appear in its path. Use opaque black for background and opaque white for foreground. The image can be up to 2048 pixels on each side.
+
+Set `schema` to `greenware.outline/1` and `view` to the requested view name in `ref/main.png.view.json`. The sidecar also contains `width` and `height` to match the PNG, and `model_to_eye` and `eye_to_clip` as 16-number column-major matrices. Use the same mask and camera for every level unless the acceptance path explicitly selects another pair. The geometric silhouette uses the active scene and rigid transforms. It supports opaque surfaces and blended surfaces with positive base alpha. A missing mask or camera reports unavailable. Invalid reference files and unsupported mesh or material modes refuse the check. The report includes the SHA-256 of both reference files.
 
 ## Other commands
 

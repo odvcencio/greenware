@@ -414,6 +414,7 @@ func firstDifference(t testing.TB, want, got string) {
 // GW_SOLVE_PROTOCOL=print writes the record to the log between <<<RECORD and
 // >>>RECORD, for a machine whose files do not come back.
 func TestSolveProtocolMatchesRecord(t *testing.T) {
+	requireFullSuite(t)
 	mode := os.Getenv("GW_SOLVE_PROTOCOL")
 	if mode == "" {
 		t.Skip("set GW_SOLVE_PROTOCOL=1 to rebuild the 48 vectors of the grid")
@@ -455,6 +456,7 @@ func TestSolveProtocolMatchesRecord(t *testing.T) {
 // added to the library, shows up here as a difference; rerun the protocol
 // (see above) to record it. The verdict is printed as JSON.
 func TestSolveFinalVectorMatchesRecord(t *testing.T) {
+	requireFullSuite(t)
 	rec, text := readRecord(t)
 	fin := rec.Final.Params
 	lib := clipLibrary(clipLibraryDir)

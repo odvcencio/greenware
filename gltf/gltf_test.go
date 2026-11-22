@@ -585,3 +585,16 @@ func TestAssetExtrasMalformed(t *testing.T) {
 		t.Fatalf("want error naming asset.extras, got %v", err)
 	}
 }
+
+func TestMalformedExtensionReportsFirstKey(t *testing.T) {
+	extensions := map[string]json.RawMessage{
+		"z_extension": json.RawMessage("["),
+		"a_extension": json.RawMessage("{"),
+	}
+	for range 32 {
+		_, err := canonicalExt(extensions, "extensions")
+		if err == nil || !strings.Contains(err.Error(), "extensions.a_extension") {
+			t.Fatalf("got %v, want the diagnostic for a_extension", err)
+		}
+	}
+}

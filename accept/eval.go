@@ -62,7 +62,8 @@ type evaluator struct {
 	// dataUsed is set once the current expect has read a data field.
 	dataUsed bool
 	// rd is the rig of the file, prepared on first use.
-	rd *rigDoc
+	rd          *rigDoc
+	outlineRefs *outlineRefs
 }
 
 func (ev *evaluator) record(name, text string, num *float64) {
@@ -706,6 +707,9 @@ func (ev *evaluator) call(c *ast.Call) (val, *evalErr) {
 				n += len(ev.sc.ownTris(i))
 			}
 		} else {
+			if len(c.Args) == 0 {
+				return val{}, refuse("drawn_triangles needs a node; use triangles() for the whole scene")
+			}
 			args, err := bind(c, "node")
 			if err != nil {
 				return val{}, err
@@ -731,7 +735,7 @@ func (ev *evaluator) call(c *ast.Call) (val, *evalErr) {
 		return uval(units.Num(float64(n))), nil
 
 	case "outline":
-		return val{}, ev.outline(c)
+		return ev.outline(c)
 
 	case "material", "joints", "clip":
 		return val{}, unavailable("%s is not implemented by this evaluator", c.Func)
@@ -776,23 +780,6 @@ func (ev *evaluator) pointArg(e ast.Expr, what string) (v3, *evalErr) {
 		return ev.sc.position(v.h.idx), nil
 	}
 	return ev.point(v.u)
-}
-
-// outline needs a reference mask and a locked camera (language reference,
-// section 6.6). Neither exists yet, and this evaluator draws no pictures, so
-// it never produces a score.
-func (ev *evaluator) outline(c *ast.Call) *evalErr {
-	args, err := bind(c, "view", "file", "within")
-	if err != nil {
-		return err
-	}
-	file := "(no reference file given)"
-	if args[1] != nil {
-		if s, ok := unparen(args[1]).(*ast.StringLit); ok {
-			file = strings.NewReplacer("{output}", ev.output, "{lod}", strconv.Itoa(ev.lod)).Replace(s.Value)
-		}
-	}
-	return unavailable("outline needs the reference mask %q and a rendered silhouette; neither exists yet", file)
 }
 
 // exprString writes an expression as short source text for a measurement name.

@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Greenware: Build active asset",
+      "type": "process",
+      "command": "greenware",
+      "args": ["build", "${file}", "--out-dir", "${workspaceFolder}/out"],
+      "group": "build",
+      "problemMatcher": {
+        "fileLocation": "absolute",
+        "source": "greenware",
+        "pattern": {
+          "regexp": "^(.+):(\\d+):(\\d+): (error|warning|note) (GW-[A-Z-]+): (.*)$",
+          "file": 1, "line": 2, "column": 3, "severity": 4, "code": 5, "message": 6
+        }
+      }
+    },
+    {
+      "label": "Greenware: Watch active asset",
+      "type": "process",
+      "command": "greenware",
+      "args": ["watch", "${file}", "--out-dir", "${workspaceFolder}/out/preview"],
+      "problemMatcher": []
+    }
+  ]
+}

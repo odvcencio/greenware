@@ -387,6 +387,9 @@ const athleteSrc = "../../examples/athlete/athlete.gw"
 // helper: three outputs, two levels each, a census row for every file, and the
 // audit in the record.
 func TestBuildAthlete(t *testing.T) {
+	if testing.Short() {
+		t.Skip("full athlete bake")
+	}
 	dir := filepath.Join(t.TempDir(), "out")
 	code, out, errOut := exec(t, "build", athleteSrc, "--out-dir", dir, "--json")
 	if code != 0 {

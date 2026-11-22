@@ -263,6 +263,7 @@ func TestGridRange(t *testing.T) {
 // With `grid = 20` the athlete's every dense float without bounds is a
 // multiple of 2^-20, and two builds write the same bytes.
 func TestAthleteGrid(t *testing.T) {
+	requireFullSuite(t)
 	const old = "file = \"athlete.glb\"\n  mounts = runtime"
 	build := func() *Product {
 		t.Helper()

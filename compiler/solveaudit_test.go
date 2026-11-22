@@ -333,6 +333,7 @@ func failing(rows []auditRow, keep func(auditRow) bool) []string {
 // source first.
 func buildFrozenAthlete(t testing.TB, edit func(string) string) (*OutputProduct, *gltf.Document) {
 	t.Helper()
+	requireFullSuite(t)
 	b, err := os.ReadFile(filepath.FromSlash(frozenAthletePath))
 	if err != nil {
 		t.Fatal(err)

@@ -4,30 +4,91 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "31 8 * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run the full suite, including historical athlete bakes and solver research
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+env:
+  CGO_ENABLED: "0"
+  GOFLAGS: "-mod=readonly -trimpath"
+  GOTOOLCHAIN: local
+
 jobs:
   test:
-    name: ${{ matrix.os }}
+    name: ${{ matrix.os }} (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        include:
+          - os: ubuntu-24.04
+            arch: amd64
+          - os: macos-15
+            arch: arm64
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    env:
-      CGO_ENABLED: "0"
-      GOFLAGS: -trimpath
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
-      - name: Build
-        run: go build ./... && (cd det && go build ./...) && (cd gltf && go build ./...) && (cd conformance && go build ./...)
-      - name: Vet
-        run: go vet ./... && (cd det && go vet ./...) && (cd gltf && go vet ./...) && (cd conformance && go vet ./...)
-      - name: Test
-        run: go test ./... && (cd det && go test ./...) && (cd gltf && go test ./...) && (cd conformance && go test ./...)
+          go-version: "1.26.11"
+          cache-dependency-path: |
+            go.sum
+            gltf/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check native architecture
+        shell: bash
+        run: test "$(go env GOHOSTARCH)" = "$EXPECTED_ARCH" && test "$(go env GOARCH)" = "$EXPECTED_ARCH"
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+      - name: Build, vet and test in the workspace
+        shell: bash
+        run: |
+          for module in . det gltf; do
+            (cd "$module" && go build ./... && go vet ./... && go test -short -count=1 ./...)
+          done
+      - name: Build, vet and test standalone modules
+        shell: bash
+        env:
+          GOWORK: "off"
+        run: |
+          for module in . det gltf conformance; do
+            (cd "$module" && go build ./... && go vet ./... && go test -short -count=1 ./...)
+          done
+      - name: Build the byte witness
+        shell: bash
+        run: |
+          go build -o "$RUNNER_TEMP/greenware" ./cmd/greenware
+          python3 scripts/rigid-evidence.py witness "$RUNNER_TEMP/witness" --greenware "$RUNNER_TEMP/greenware"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: witness-${{ matrix.arch }}
+          path: ${{ runner.temp }}/witness/manifest.sha256
+          if-no-files-found: error
+      - name: Full workspace suite
+        if: github.event_name == 'schedule' || inputs.full
+        run: go test -count=1 ./...
+
+  compare:
+    name: Compare native build bytes
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: witness-*
+          path: witness
+      - run: python3 scripts/rigid-evidence.py compare witness/witness-amd64/manifest.sha256 witness/witness-arm64/manifest.sha256

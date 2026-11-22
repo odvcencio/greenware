@@ -6,17 +6,15 @@ Read `README.md` and `AGENTS.md` first. `AGENTS.md` holds the full rules; this p
 
 ## Build and test
 
-Run these commands from the repository root. The root `go.work` links the nested modules `det` and `gltf` to their local folders.
+Set `CGO_ENABLED=0` and run `go build -mod=readonly ./...`, `go vet -mod=readonly ./...` and `go test -mod=readonly -short -count=1 ./...` from the checkout root. Follow the same commands inside `det/` and `gltf/`. The workspace links both modules to their local source.
 
-Set `CGO_ENABLED=0`, as `AGENTS.md` asks.
+CI repeats the checks with `GOWORK=off` in the root, `det/`, `gltf/` and `conformance/`. The standalone root resolves the tagged modules. Run the full suite with `local-heavy go test -count=1 ./...` or the repository's remote test runner. The short suite keeps the small rigging and solver fixtures. The full suite also executes the historical athlete bakes and the solver protocol.
 
-1. Build and vet the root module: `go build ./...` and `go vet ./...`.
-2. Test the root module: `go test ./...`. This includes `internal/depcheck`, which must pass.
-3. Test `det`: `(cd det && go test ./...)`.
-4. Test `gltf`: `(cd gltf && go test ./...)`.
-5. Test `conformance`: `(cd conformance && GOWORK=off go test ./...)`. The `go.work` does not list `conformance`, so this module needs `GOWORK=off`.
+### Rigid-prop evidence
 
-Maintainers run heavy suites on remote machines, as `AGENTS.md` describes.
+Run `python3 scripts/rigid-evidence.py qualify /path/to/new-packet`. The packet contains the compiled files and receipts, acceptance results, independent oracle reports, controls, and the work that remains before sign-off. A local Khronos glTF Validator `2.0.0-dev.3.10` can be passed with `--validator /path/to/gltf_validator`. The command checks the executable's SHA-256 before running it. The Linux amd64 executable has a default pin. For another platform pass the verified executable digest with `--validator-sha256`. [Khronos release binaries and license](https://github.com/KhronosGroup/glTF-Validator/releases/tag/2.0.0-dev.3.10)
+
+To reproduce the native byte check, build the CLI and run `python3 scripts/rigid-evidence.py witness /path/to/new-witness --greenware /path/to/greenware`. On two native runners, compare the resulting manifests with `python3 scripts/rigid-evidence.py compare <amd64-manifest> <arm64-manifest>`. The manifests cover the goal post, helmet and arm GLBs and their build records.
 
 ## Rules for every change
 

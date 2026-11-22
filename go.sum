@@ -1,2 +1,6 @@
 github.com/odvcencio/gotreesitter v0.57.0 h1:WhRBJSZy8FgLvisB+C2eZkdjfBX52ND+B1mw/ruvEtM=
 github.com/odvcencio/gotreesitter v0.57.0/go.mod h1:hBVkghd0paaYAVwd2087vfwdeU984bQbMo9LvpE0moo=
+m31labs.dev/greenware/det v0.1.0 h1:DC8qJ/RlhEfpxDgcZZ0KaRGJ6uFPtbVDgvY8NtVDGcM=
+m31labs.dev/greenware/det v0.1.0/go.mod h1:sBRralUoo5LP9gUXz6pho+MRFMUm50HieShcdSPAeHg=
+m31labs.dev/greenware/gltf v0.4.0 h1:jaYFjTFjYa4rcXREJ9uhkreGMOfzc+PLpbRP+/a2fq0=
+m31labs.dev/greenware/gltf v0.4.0/go.mod h1:rZrrKXh9FVR/NGlKqzCQ9w1BMxvbhDHYE+nUVSnfY38=

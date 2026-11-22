@@ -1,0 +1,52 @@
+{
+  "name": "Greenware",
+  "scopeName": "source.greenware",
+  "patterns": [
+    { "name": "comment.line.double-slash.greenware", "match": "//.*$" },
+    {
+      "name": "string.quoted.double.greenware",
+      "begin": "\"", "end": "\"",
+      "patterns": [{ "name": "constant.character.escape.greenware", "match": "\\\\." }]
+    },
+    {
+      "name": "constant.other.color.rgb.greenware",
+      "match": "#[0-9a-fA-F]{6}\\b"
+    },
+    {
+      "match": "(?<!\\w)(?:\\d+(?:\\.(?!\\.)\\d+)?|\\.\\d+)(?:[Ee][+-]?\\d+)?(mm|cm|km|m|in|ft|yd|deg|rad|ms|s|px|KiB|MiB|GiB|B|%)?(?!\\w)",
+      "name": "constant.numeric.greenware",
+      "captures": { "1": { "name": "keyword.other.unit.greenware" } }
+    },
+    {
+      "name": "constant.language.greenware",
+      "match": "\\b(?:on|off|true|false)\\b"
+    },
+    {
+      "name": "keyword.control.greenware",
+      "match": "\\b(?:if|then|else|when|in|as|for_each|expect|require)\\b"
+    },
+    {
+      "match": "\\b(greenware|asset|import|let|param|part|material|socket|collider|lod|output|accept|table|case|clip|template|painter|texture|mount|skeleton|joint|morph)\\b\\s+([A-Za-z_][\\w-]*)",
+      "captures": {
+        "1": { "name": "keyword.declaration.greenware" },
+        "2": { "name": "entity.name.label.greenware" }
+      }
+    },
+    {
+      "name": "keyword.declaration.greenware",
+      "match": "\\b(?:greenware|import|budget|meta|skin|blend|solve|check|keys|set)\\b"
+    },
+    {
+      "name": "storage.type.greenware",
+      "match": "\\b(?:box|cylinder|cone|sphere|ellipsoid|tube|sweep|loft|lathe|array|pbr)\\b(?=\\s*\\{)"
+    },
+    {
+      "name": "variable.other.property.greenware",
+      "match": "\\b[A-Za-z_][\\w-]*(?=\\s*=(?!=))"
+    },
+    {
+      "name": "keyword.operator.greenware",
+      "match": "==|!=|<=|>=|&&|\\|\\||\\.\\.|[-+*/=<>!]"
+    }
+  ]
+}

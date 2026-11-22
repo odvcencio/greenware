@@ -16,13 +16,16 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"m31labs.dev/greenware/accept"
 	"m31labs.dev/greenware/ast"
@@ -37,10 +40,17 @@ const usage = `usage:
   greenware check <file> [--project DIR] [--geometry-only] [--json]
   greenware fmt <file> [--check] [--write] [--json]
   greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--project DIR]
-` + printUsage + lspUsage + toolsUsage + versionUsage
+` + watchUsage + printUsage + lspUsage + toolsUsage + versionUsage
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	args := os.Args[1:]
+	if len(args) > 0 && args[0] == "watch" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		code := runWatch(ctx, args[1:], os.Stdout, os.Stderr)
+		stop()
+		os.Exit(code)
+	}
+	os.Exit(run(args, os.Stdout, os.Stderr))
 }
 
 // options holds the parsed command line after the subcommand.
@@ -64,7 +74,8 @@ type options struct {
 	accept string
 	// geometryOnly leaves out the look declarations the compiler does not read
 	// yet (imports, plugs, textures, cells); every material is a plain grey pbr.
-	geometryOnly bool
+	geometryOnly   bool
+	observeProject func(*ast.Project)
 }
 
 var errUsage = errors.New("usage")
@@ -239,11 +250,18 @@ func run(args []string, stdout, stderr io.Writer) int {
 // root say where the project is; an unreadable project leaves the source
 // without one, and a project import then reports that.
 func front(file, root string, src []byte, geometryOnly bool) (*ast.File, []diag.Diagnostic, diag.Locator) {
+	return frontWithProject(file, root, src, geometryOnly, nil)
+}
+
+func frontWithProject(file, root string, src []byte, geometryOnly bool, observe func(*ast.Project)) (*ast.File, []diag.Diagnostic, diag.Locator) {
 	tree := lang.Parse(src)
 	var proj *ast.Project
 	var projErr error
 	if file != "" {
 		proj, projErr = ast.OpenProject(file, root)
+	}
+	if proj != nil && observe != nil {
+		observe(proj)
 	}
 	f, ds := ast.LowerWith(tree, ast.Options{GeometryOnly: geometryOnly, Project: proj})
 	if projErr != nil && root != "" {
@@ -407,7 +425,7 @@ type buildReport struct {
 }
 
 func runBuild(o options, src []byte, stdout, stderr io.Writer) int {
-	f, ds, loc := front(o.file, o.project, src, o.geometryOnly)
+	f, ds, loc := frontWithProject(o.file, o.project, src, o.geometryOnly, o.observeProject)
 	opts := compiler.Options{Policy: compiler.Policy{MaxTotalWork: o.maxWork, RuntimePoints: o.runtimePoints}}
 	if o.accept != "" {
 		accSrc, err := os.ReadFile(o.accept)

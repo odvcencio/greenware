@@ -30,13 +30,16 @@ output main { file = "post.glb" }
 greenware build post.gw --out-dir out
 ```
 
-Status: early. The grammar, the geometry kernel, the compiler, the GLB codec and an independent checker exist. The compiler builds the goal post, helmet, rigged arm and athlete examples in `examples/`, and a 3MF print of the goal post. Much of the language is still unbuilt. See `CHANGELOG.md` for what works now.
+Start with the [bollard](examples/bollard) for a small rigid prop with a passing acceptance file. The [goal post](examples/goalpost) exercises multiple outputs and levels. Its geometry checks pass and its six outline checks await approved reference masks and cameras. The [hand-weighted arm](examples/arm) introduces rigging. The [helmet](examples/helmet) demonstrates an offline PBR build. The [athlete](examples/athlete) is a historical regression fixture with known helmet-clearance failures and unavailable measurements. Solved weights and 3MF are experimental.
+
+Run `greenware watch post.gw` to rebuild the preview GLBs under `out/preview` whenever a source or imported input changes. The [VS Code extension](editors/vscode) supplies highlighting and the checkout includes build and watch tasks.
 
 ## Commands
 
 | Command | Job |
 |---|---|
 | `build` | Compile a file to GLB files and a build record |
+| `watch` | Rebuild preview GLBs when the source or its inputs change |
 | `check` | List the diagnostics of a file |
 | `fmt` | Format a file |
 | `accept` | Run an acceptance file on built GLB files |
@@ -68,7 +71,7 @@ Flags, output and exit status are in `docs/reference/commands.md`.
 | `accept/` | The acceptance-file evaluator |
 | `tools/` | The authoring commands (`fix`, `diff`, `describe`, `ir`, `init`, `lock`, `explain`, `search`, `trace`) |
 | `cmd/greenware` | The command-line tool |
-| `examples/` | The goal post, helmet, rigged arm and athlete |
+| `examples/` | Rigid props, an introductory rig, and historical or experimental fixtures |
 | `conformance/` | An independent checker, in its own module |
 
 Greenware depends on no game engine. The core never imports GoSX or Kiln; `internal/depcheck` enforces that.

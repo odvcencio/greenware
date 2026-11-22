@@ -2,3 +2,5 @@
 /dist/
 .analyses/
 *.test
+
+/out/

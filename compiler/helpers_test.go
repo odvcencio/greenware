@@ -102,3 +102,12 @@ func loadProjectWith(t testing.TB, path, old, new string) *ast.File {
 	}
 	return lowerProjectSource(t, path, []byte(strings.Replace(string(src), old, new, 1)))
 }
+
+// requireFullSuite keeps historical athlete bakes and the solver protocol out
+// of the short suite. Small rig and solver fixtures run in both suites.
+func requireFullSuite(t testing.TB) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("full athlete or solver fixture")
+	}
+}
