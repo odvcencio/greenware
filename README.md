@@ -79,6 +79,7 @@ CI runs on native Linux amd64 and macOS arm64 and compares the GLB and build-rec
 | `fmt` | Format a file |
 | `accept` | Run an acceptance file on built GLB files |
 | `sockets` | Inspect the attachment frames in a GLB |
+| `verify` | Check that published GLBs match their build record |
 | `fix` | Apply the fixes that diagnostics offer |
 | `diff` | Compare two sources and report breaking changes |
 | `describe` | Summarise a file's declarations |

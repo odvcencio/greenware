@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 	"sort"
 
+	"m31labs.dev/greenware/buildrecord"
 	"m31labs.dev/greenware/datapkg"
 )
 
 // RecordSchema names the layout of the build record.
-const RecordSchema = "greenware.build/1"
+const RecordSchema = buildrecord.Schema
 
 type recordFile struct {
 	Name      string `json:"name"`

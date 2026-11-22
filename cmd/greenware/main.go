@@ -5,6 +5,7 @@
 //	greenware fmt <file> [--check] [--write] [--json]
 //	greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--project DIR]
 //	greenware print <file> [--output NAME] [--level N] [--scale S] [--out FILE] [--force] [--project DIR] [--json]
+//	greenware verify <asset.build.json> [--strict] [--json]
 //	greenware sockets <file.glb> [--json]
 //	greenware version [--json]   (also --version and -v)
 //	greenware fix | diff | describe | ir | init | lock | explain | search | trace (package tools; see docs/reference/commands.md)
@@ -41,7 +42,7 @@ const usage = `usage:
   greenware check <file> [--project DIR] [--geometry-only] [--json]
   greenware fmt <file> [--check] [--write] [--json]
   greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--project DIR]
-` + watchUsage + viewUsage + printUsage + lspUsage + toolsUsage + socketsUsage + versionUsage
+` + watchUsage + viewUsage + printUsage + lspUsage + toolsUsage + socketsUsage + verifyUsage + versionUsage
 
 func main() {
 	args := os.Args[1:]
@@ -64,6 +65,7 @@ type options struct {
 	output  string
 	outDir  string
 	json    bool
+	strict  bool
 	check   bool
 	write   bool
 	hasOut  bool
@@ -150,6 +152,8 @@ func parse(args []string, allowed map[string]bool) (options, error) {
 		}
 		var err error
 		switch name {
+		case "strict":
+			o.strict = true
 		case "json":
 			o.json = true
 		case "check":
@@ -220,6 +224,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runLSP(rest, stdout, stderr)
 	case "accept":
 		return accept.Command(rest, stdout, stderr)
+	case "verify":
+		return runVerify(rest, stdout, stderr)
 	case "sockets":
 		return runSockets(rest, stdout, stderr)
 	case "version", "--version", "-v":

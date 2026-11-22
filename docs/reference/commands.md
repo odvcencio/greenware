@@ -10,6 +10,14 @@
 4. `build`, `watch`, `view` and `print` build geometry. `accept` measures existing GLBs and `sockets` lists their attachments.
 5. Positions are one-based lines and columns. Byte offsets are zero-based and count UTF-8 bytes.
 
+## greenware verify
+
+`greenware verify <asset.build.json> [--strict] [--json]` reads the published `greenware.build/1` record. It compares each listed GLB's size and SHA-256 with the recorded values. Use `--strict` to flag additional GLBs beside the record. Reports list files in record order.
+
+JSON (`greenware.verify/1`) has `ok`, `files`, `unexpected` and `record_changed`. Each file reports its output, level, name, expected size and SHA-256, and a status. Observed size is included for regular files and the observed digest is included when hashing completes. A missing file, a mismatch, an unreadable artifact, an unlisted GLB in strict mode or a record that changes during the check fails verification.
+
+Exit 0 on a match, 1 for findings or an invalid record, and 2 for usage or read errors that prevent verification. Report JSON is written when verification runs against a parsed record.
+
 ## greenware sockets
 
 `greenware sockets <file.glb> [--json]` lists the named attachment frames in the GLB's default scene. If the default is unspecified it uses the first scene. It reports frames in model coordinates in metres, including parent transforms. For rigs, these are the initial node transforms.
@@ -313,7 +321,7 @@ goalpost/post/sweep  316 triangles, closed true, 124821.601 cm3, bounds (-100.00
 
 `greenware watch <file> [--output NAME] [--out-dir DIR | -o DIR] [--project DIR]` builds once, then polls the source and any local inputs read during the build. This includes project imports, JSON tables, and data-package locks, schemas and payloads. A missing import is tracked so creating it can recover the preview. Edit the source or its inputs to retry a rejected build. Cancel with Ctrl+C. Watch defaults to `out/preview` and reports that acceptance and independent validation have not run.
 
-A source or compiler error leaves the previous files untouched. The build record is written last. If publication fails partway, use the record to determine whether the output set is complete.
+A source or compiler error leaves the previous files untouched. The build record is written last. If publication fails partway, run `greenware verify` on the record to check whether the output set is complete.
 
 ```text
 greenware watch examples/bollard/bollard.gw
