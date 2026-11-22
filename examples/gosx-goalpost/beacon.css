@@ -1,0 +1,42 @@
+:root {
+  color-scheme: dark;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  color: #edf4ec;
+  background: #111c19;
+  font-synthesis: none;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.beacon-page { max-width: 1370px; margin: 0 auto; padding: clamp(16px, 3vw, 38px); }
+.beacon-page header { margin-bottom: 24px; }
+.beacon-back { display: inline-block; margin-bottom: 17px; font-size: .85rem; }
+h1 { margin: 0 0 7px; font-size: clamp(2.4rem, 6vw, 4.1rem); line-height: 1; letter-spacing: -.055em; }
+p { margin: 0; color: #b6c8be; line-height: 1.5; }
+.beacon-layout { display: grid; grid-template-columns: minmax(0, 1fr) 264px; gap: 16px; align-items: start; }
+.beacon-stage { position: relative; overflow: hidden; border: 1px solid #3b5448; border-radius: 10px; min-height: 240px; background: #739189; }
+.beacon-stage canvas { display: block; max-width: 100%; }
+.beacon-gesture { position: absolute; bottom: 12px; left: 13px; padding: 5px 10px; border-radius: 5px;
+  color: #eaf0e7; background: #16241fdf; font-size: .79rem; pointer-events: none; }
+.beacon-inspector { border: 1px solid #3b5448; border-radius: 10px; background: #1b2a24; padding: 22px; }
+form { display: grid; gap: 19px; }
+.beacon-field { min-width: 0; display: grid; gap: 8px; }
+label { color: #e7f1e9; font-size: .91rem; font-weight: 600; }
+.range-label { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+output { color: #efcc82; font-weight: 650; font-variant-numeric: tabular-nums; }
+input[type=text], button { width: 100%; min-height: 42px; padding: 7px 11px; border: 1px solid #496356;
+  border-radius: 6px; background: #12201a; color: #edf4ec; font: inherit; }
+input[type=text] { font: .9rem ui-monospace, monospace; }
+input[type=range] { width: 100%; margin: 0; accent-color: #efcc82; }
+button { background: #efcc82; color: #142119; font-weight: 700; cursor: pointer; }
+form[data-live] button { display: none; }
+#beacon-status { min-height: 2.8em; margin-top: 19px; border-top: 1px solid #3c5348; padding-top: 13px; font-size: .85rem; }
+#beacon-status[data-error="true"] { color: #ffc8a6; }
+#beacon-download { display: inline-block; margin-top: 13px; font-size: .85rem; }
+a { color: #efcc82; text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid #efcc82; outline-offset: 3px; }
+@media (max-width: 720px) {
+  .beacon-layout { grid-template-columns: minmax(0, 1fr); }
+  .beacon-inspector { grid-row: 1; padding: 14px; }
+  form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+  form > :first-child, form > button { grid-column: 1 / -1; }
+}

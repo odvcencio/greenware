@@ -49,7 +49,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Goal-post wind demo at http://%s\n", listener.Addr())
+	fmt.Printf("Goal-post wind demo at http://%s/\nField beacon at http://%s/beacon\n", listener.Addr(), listener.Addr())
 	web := http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 	log.Fatal(web.Serve(listener))
 }
@@ -119,6 +119,9 @@ func newDemo(source []byte, runtimeRoot string) (http.Handler, error) {
 		closeup := q.Get("view") != "full"
 		return page(ctx, byLevel[key{variant, lod}], wind, closeup)
 	})
+	if err := mountBeacon(app); err != nil {
+		return nil, fmt.Errorf("initialize field beacon: %w", err)
+	}
 	return app.Build(), nil
 }
 
@@ -213,6 +216,7 @@ func page(ctx *server.Context, post goalpost, wind windPreset, closeup bool) gos
 		gosx.El("div", gosx.Attrs(gosx.Attr("class", "viewport")), preview),
 		gosx.El("footer", nil,
 			gosx.El("span", nil, gosx.Text("Drag to orbit · scroll to zoom")),
+			gosx.El("a", gosx.Attrs(gosx.Attr("href", "/beacon")), gosx.Text("Field beacon")),
 			gosx.El("a", gosx.Attrs(gosx.Attr("href", assetURL(post, "frame")), gosx.Attr("download", fmt.Sprintf("goalpost-%s-lod%d.glb", post.variant, post.lod))), gosx.Text("Download rigid GLB")),
 		),
 	)

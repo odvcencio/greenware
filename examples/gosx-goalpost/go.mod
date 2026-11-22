@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	m31labs.dev/gosx v0.60.0
-	m31labs.dev/greenware v0.1.1-0.20261122063909-e6c3d53cf736
+	m31labs.dev/greenware v0.1.1-0.20261122065720-8809b808b487
 	m31labs.dev/greenware/det v0.1.0
 	m31labs.dev/greenware/gltf v0.4.0
 )

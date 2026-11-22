@@ -1,4 +1,6 @@
-# Goal-post wind flags
+# Greenware scenes in GoSX
+
+## Goal-post wind flags
 
 This GoSX Scene3D example compiles the [Greenware goal post](../goalpost/goalpost.gw) and mounts a flag on each upright. Try both goal-post variants, all three levels of detail, and the two wind presets. The Flags camera frames the tips. The Full post camera shows the entire prop.
 
@@ -17,3 +19,9 @@ Every rigid GLB carries `socket.ribbon_l` and `socket.ribbon_r`. The app uses Gr
 GoSX's `scene.Wind` supplies the direction, gust and flutter rate. The example samples the field at each socket, writes a three-second glTF morph animation, and plays it in Scene3D. The attached edge stays fixed as the free end moves and droops. Applying a wind preset selects its precomputed loops. The flags and staffs are scene assets, so the qualified goal-post GLBs can be reused in scenes with different attachments.
 
 Run `CGO_ENABLED=0 GOWORK=off go test ./...` here to verify the socket bindings, unchanged rigid bytes, and the cloth's fixed edge and loop seam.
+
+## Live field beacon
+
+Open `/beacon` from the printed address, or follow **Field beacon** from the goal-post page. Enter a seed and move the **Tiers** and **Panels per tier** sliders. The controls update the mounted scene automatically and preserve the orbit camera. The URL records the last applied recipe. Open it on another tab to recreate that recipe.
+
+The server calls the [field beacon generator](../field-beacon) for the GLB, decodes its attachment frames, and builds a Scene3D model for each yellow panel module and the top status light. The panel modules use the position and facing of their sockets. One `SetModelsCommand` replaces the beacon and its attachments together. The download link serves the generated beacon GLB; the panel modules and status light are separate game-scene assets.
