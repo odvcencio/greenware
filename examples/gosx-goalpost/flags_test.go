@@ -42,6 +42,21 @@ func TestGoalPostFlagSockets(t *testing.T) {
 		}
 		return recorder
 	}
+	form := request("/?post=practice&lod=2&wind=gusts&view=full").Body.Bytes()
+	for _, fragment := range []string{
+		"<form method=\"get\" action=\"/\">",
+		"<label for=\"post\">Post</label>",
+		"<select name=\"post\" id=\"post\">",
+		"<option value=\"practice\" selected>",
+		"<option value=\"2\" selected>",
+		"<option value=\"gusts\" selected>",
+		"<option value=\"full\" selected>",
+		"href=\"/assets/practice/2/frame.glb\" download=\"goalpost-practice-lod2.glb\"",
+	} {
+		if !bytes.Contains(form, []byte(fragment)) {
+			t.Errorf("missing rendered HTML %q", fragment)
+		}
+	}
 	for _, post := range posts {
 		model := request(assetURL(post, "frame"))
 		if !bytes.Equal(model.Body.Bytes(), post.model) {

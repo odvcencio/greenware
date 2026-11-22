@@ -181,11 +181,11 @@ func selectField(label, name, current string, options ...option) gosx.Node {
 	var children []gosx.Node
 	for _, choice := range options {
 		children = append(children, gosx.El("option",
-			gosx.Attrs("value", choice.value, "selected", choice.value == current), gosx.Text(choice.label)))
+			gosx.Attrs(gosx.Attr("value", choice.value), gosx.Attr("selected", choice.value == current)), gosx.Text(choice.label)))
 	}
-	return gosx.El("div", gosx.Attrs("class", "field"),
-		gosx.El("label", gosx.Attrs("for", name), gosx.Text(label)),
-		gosx.El("select", gosx.Attrs("name", name, "id", name), gosx.Fragment(children...)))
+	return gosx.El("div", gosx.Attrs(gosx.Attr("class", "field")),
+		gosx.El("label", gosx.Attrs(gosx.Attr("for", name)), gosx.Text(label)),
+		gosx.El("select", gosx.Attrs(gosx.Attr("name", name), gosx.Attr("id", name)), gosx.Fragment(children...)))
 }
 
 func page(ctx *server.Context, post goalpost, wind windPreset, closeup bool) gosx.Node {
@@ -203,17 +203,17 @@ func page(ctx *server.Context, post goalpost, wind windPreset, closeup bool) gos
 			gosx.El("h1", nil, gosx.Text("Goal-post wind flags")),
 			gosx.El("p", nil, gosx.Text("Greenware sockets hold two GoSX flags in place as the wind changes.")),
 		),
-		gosx.El("form", gosx.Attrs("method", "get", "action", "/"),
+		gosx.El("form", gosx.Attrs(gosx.Attr("method", "get"), gosx.Attr("action", "/")),
 			selectField("Post", "post", post.variant, option{"stadium", "Stadium"}, option{"practice", "Practice"}),
 			selectField("Detail", "lod", strconv.Itoa(post.lod), option{"0", "Full · LOD 0"}, option{"1", "Mid · LOD 1"}, option{"2", "Far · LOD 2"}),
 			selectField("Wind", "wind", wind.id, option{winds[0].id, winds[0].name}, option{winds[1].id, winds[1].name}),
 			selectField("View", "view", view, option{"flags", "Flags"}, option{"full", "Full post"}),
-			gosx.El("button", gosx.Attrs("type", "submit"), gosx.Text("Apply")),
+			gosx.El("button", gosx.Attrs(gosx.Attr("type", "submit")), gosx.Text("Apply")),
 		),
-		gosx.El("div", gosx.Attrs("class", "viewport"), preview),
+		gosx.El("div", gosx.Attrs(gosx.Attr("class", "viewport")), preview),
 		gosx.El("footer", nil,
 			gosx.El("span", nil, gosx.Text("Drag to orbit · scroll to zoom")),
-			gosx.El("a", gosx.Attrs("href", assetURL(post, "frame"), "download", fmt.Sprintf("goalpost-%s-lod%d.glb", post.variant, post.lod)), gosx.Text("Download rigid GLB")),
+			gosx.El("a", gosx.Attrs(gosx.Attr("href", assetURL(post, "frame")), gosx.Attr("download", fmt.Sprintf("goalpost-%s-lod%d.glb", post.variant, post.lod))), gosx.Text("Download rigid GLB")),
 		),
 	)
 }
