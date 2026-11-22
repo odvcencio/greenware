@@ -52,6 +52,9 @@ func TestGoalPostFlagSockets(t *testing.T) {
 			if props.Environment.Wind != wind.field {
 				t.Fatal("scene and flags must share a wind field")
 			}
+			if offset := post.sockets[0][1] - props.ControlTarget.Y; offset < 0 || offset > 0.5 {
+				t.Fatalf("%s close-up target is too far from the tips: %.2f m", post.variant, offset)
+			}
 			for i, socket := range post.sockets {
 				name := ribbonNames[i]
 				path := assetURL(post, wind.id+"/"+name)

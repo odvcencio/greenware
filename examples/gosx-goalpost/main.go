@@ -151,9 +151,15 @@ func sceneProps(post goalpost, wind windPreset, closeup bool) scene.Props {
 			},
 		)
 	}
-	eye, target, fov := scene.Vec3(2.6, 7.5, -27), scene.Vec3(0.2, 6.25, 0), 36.0
+	left, right := post.sockets[0], post.sockets[1]
+	tip := scene.Vec3((left[0]+right[0])/2, (left[1]+right[1])/2, (left[2]+right[2])/2)
+	target := scene.Vec3(tip.X+0.2, tip.Y/2+0.15, tip.Z)
+	eye := scene.Vec3(target.X+2.4, target.Y+1.25, target.Z-27)
+	fov := 36.0
 	if closeup {
-		eye, target, fov = scene.Vec3(3.2, 13.0, -10.7), scene.Vec3(0.25, 11.85, 0), 32
+		target = scene.Vec3(tip.X+0.25, tip.Y-0.34, tip.Z)
+		eye = scene.Vec3(target.X+2.95, target.Y+1.15, target.Z-10.7)
+		fov = 32
 	}
 	return scene.Props{
 		Width: 1080, Height: 574, Responsive: scene.Bool(true),
