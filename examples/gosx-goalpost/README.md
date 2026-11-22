@@ -6,6 +6,7 @@ From this directory, with Go 1.26 on your PATH:
 
 ```sh
 export CGO_ENABLED=0 GOWORK=off
+go mod download m31labs.dev/gosx
 go run . -runtime "$(go list -m -f '{{.Dir}}' m31labs.dev/gosx)"
 ```
 
