@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `greenware view` opens a live browser preview with orbit, camera presets, output and level selection, animation playback and GLB download. Rejected edits preserve the last successful view.
+- The `author` package builds rigid GLBs from Go. The `.gw` compiler and Go API share indexed vertex packing and deterministic sRGB conversion.
+- `material(node)` in acceptance files measures the visible node's decoded base colour, alpha, metallic and roughness.
+- The determinism lint uses the active Go build's type information, keeping integer arithmetic distinct from floating-point expressions under `-trimpath`.
+
 - `greenware watch` rebuilds preview GLBs when the source, a local import, or pinned data changes. A rejected build leaves the last good preview available.
 - `greenware accept` can measure rigid silhouettes against a locked camera and a binary reference mask. The report records the mask and camera digests.
 - The CI workflow checks workspace and standalone module builds, runs a short test suite on Linux amd64 and macOS arm64, and compares both runners' native GLB and receipt digests. The full workspace suite runs on the schedule or when explicitly requested.

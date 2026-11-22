@@ -8,6 +8,7 @@ import (
 
 	"m31labs.dev/greenware/ast"
 	"m31labs.dev/greenware/diag"
+	"m31labs.dev/greenware/gltf"
 	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/units"
 )
@@ -44,6 +45,7 @@ type val struct {
 	u units.Value
 	h *handle
 	b *bounds
+	m *gltf.Material
 }
 
 func uval(u units.Value) val { return val{u: u} }
@@ -192,6 +194,8 @@ func describe(v val) string {
 		return "node handle"
 	case v.b != nil:
 		return "bounds"
+	case v.m != nil:
+		return "material factors"
 	}
 	return v.u.Describe()
 }
@@ -208,6 +212,8 @@ func (ev *evaluator) eval(e ast.Expr) (val, *evalErr) {
 	switch x := e.(type) {
 	case *ast.NumberLit:
 		return uval(x.Value), nil
+	case *ast.ColorLit:
+		return uval(units.Col(x.Value)), nil
 	case *ast.StringLit:
 		return uval(units.Str(x.Value)), nil
 	case *ast.BoolLit:
@@ -245,7 +251,7 @@ func (ev *evaluator) eval(e ast.Expr) (val, *evalErr) {
 			if err != nil {
 				return val{}, err
 			}
-			if v.h != nil || v.b != nil {
+			if v.h != nil || v.b != nil || v.m != nil {
 				return val{}, refuse("a tuple holds numbers, not a %s", describe(v))
 			}
 			elems[i] = v.u
@@ -350,7 +356,7 @@ func (ev *evaluator) binary(x *ast.Binary) (val, *evalErr) {
 	if isCompare(x.Op) {
 		return ev.compare(x.Op, l, r)
 	}
-	if l.h != nil || l.b != nil || r.h != nil || r.b != nil {
+	if l.h != nil || l.b != nil || l.m != nil || r.h != nil || r.b != nil || r.m != nil {
 		return val{}, refuse("`%s` does not apply to a %s", x.Op, describe(l))
 	}
 	var u units.Value
@@ -374,7 +380,7 @@ func (ev *evaluator) binary(x *ast.Binary) (val, *evalErr) {
 }
 
 func (ev *evaluator) compare(op string, l, r val) (val, *evalErr) {
-	if l.h != nil || l.b != nil || r.h != nil || r.b != nil {
+	if l.h != nil || l.b != nil || l.m != nil || r.h != nil || r.b != nil || r.m != nil {
 		return val{}, refuse("`%s` does not apply to a %s", op, describe(l))
 	}
 	a, b := l.u, r.u
@@ -390,6 +396,9 @@ func (ev *evaluator) compare(op string, l, r val) (val, *evalErr) {
 }
 
 func (ev *evaluator) member(v val, name string) (val, *evalErr) {
+	if v.m != nil {
+		return ev.materialField(v.m, name)
+	}
 	if v.b != nil {
 		switch name {
 		case "min":
@@ -737,7 +746,10 @@ func (ev *evaluator) call(c *ast.Call) (val, *evalErr) {
 	case "outline":
 		return ev.outline(c)
 
-	case "material", "joints", "clip":
+	case "material":
+		return ev.material(c)
+
+	case "joints", "clip":
 		return val{}, unavailable("%s is not implemented by this evaluator", c.Func)
 	}
 
@@ -752,7 +764,7 @@ func (ev *evaluator) call(c *ast.Call) (val, *evalErr) {
 			if err != nil {
 				return val{}, err
 			}
-			if v.h != nil || v.b != nil {
+			if v.h != nil || v.b != nil || v.m != nil {
 				return val{}, refuse("%s needs numbers, found a %s", c.Func, describe(v))
 			}
 			args[i] = v.u
@@ -787,6 +799,8 @@ func exprString(e ast.Expr) string {
 	switch x := e.(type) {
 	case *ast.NumberLit:
 		return x.Text
+	case *ast.ColorLit:
+		return colorText(x.Value)
 	case *ast.StringLit:
 		return strconv.Quote(x.Value)
 	case *ast.BoolLit:

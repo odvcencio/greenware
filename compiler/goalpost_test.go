@@ -12,6 +12,7 @@ import (
 
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/gltf"
+	"m31labs.dev/greenware/internal/pbrcolor"
 	"m31labs.dev/greenware/kernel/build"
 	"m31labs.dev/greenware/kernel/mesh"
 )
@@ -247,12 +248,12 @@ func TestSRGBConversion(t *testing.T) {
 		if c > 0.04045 {
 			want = math.Pow((c+0.055)/1.055, 2.4)
 		}
-		if got := srgbToLinear(uint8(b)); math.Abs(got-want) > 1e-14 {
-			t.Errorf("srgbToLinear(%d) = %.17g, want %.17g", b, got, want)
+		if got := pbrcolor.Linear(uint8(b)); math.Abs(got-want) > 1e-14 {
+			t.Errorf("pbrcolor.Linear(%d) = %.17g, want %.17g", b, got, want)
 		}
 	}
 	// The crate colour of spec Appendix A.1: #8a6b48 -> (0.2542, 0.1470, 0.0648).
-	got := [3]float64{srgbToLinear(0x8a), srgbToLinear(0x6b), srgbToLinear(0x48)}
+	got := [3]float64{pbrcolor.Linear(0x8a), pbrcolor.Linear(0x6b), pbrcolor.Linear(0x48)}
 	for i, w := range [3]float64{0.2542, 0.1470, 0.0648} {
 		if math.Abs(got[i]-w) > 5e-5 {
 			t.Errorf("crate channel %d = %v, want about %v", i, got[i], w)

@@ -9,6 +9,7 @@ import (
 	"m31labs.dev/greenware/det"
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/gltf"
+	"m31labs.dev/greenware/internal/meshglb"
 	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/resolve"
 )
@@ -63,46 +64,15 @@ type level struct {
 	audit                                                  *AuditReport
 }
 
-// vertexKey identifies a written vertex.
-type vertexKey struct {
-	p  [3]float32
-	n  [3]float32
-	uv [2]float32
-}
-
-// primitiveOfCounted merges the pieces of one material into one primitive.
-// Vertices that are equal in position, normal and uv inside one piece share an
-// index. It also returns, for each piece, the number of indexed vertices it
-// wrote.
+// primitiveOfCounted merges pieces of one material and returns each piece's
+// indexed vertex count.
 func primitiveOfCounted(ps []piece) (gltf.Primitive, []int) {
-	var prim gltf.Primitive
+	var primitive gltf.Primitive
 	counts := make([]int, 0, len(ps))
-	for _, p := range ps {
-		first := len(prim.Positions) / 3
-		seen := map[vertexKey]uint32{} // lookup only
-		remap := make([]uint32, len(p.m.Corners))
-		for i, c := range p.m.Corners {
-			k := vertexKey{
-				p:  p.m.Positions[c.Pos].F32(),
-				n:  c.Normal.F32(),
-				uv: c.UV.F32(),
-			}
-			idx, ok := seen[k]
-			if !ok {
-				idx = uint32(len(prim.Positions) / 3)
-				seen[k] = idx
-				prim.Positions = append(prim.Positions, k.p[0], k.p[1], k.p[2])
-				prim.Normals = append(prim.Normals, k.n[0], k.n[1], k.n[2])
-				prim.UV0 = append(prim.UV0, k.uv[0], k.uv[1])
-			}
-			remap[i] = idx
-		}
-		for _, t := range p.m.Tris {
-			prim.Indices = append(prim.Indices, remap[t[0]], remap[t[1]], remap[t[2]])
-		}
-		counts = append(counts, len(prim.Positions)/3-first)
+	for _, part := range ps {
+		counts = append(counts, meshglb.Append(&primitive, part.m))
 	}
-	return prim, counts
+	return primitive, counts
 }
 
 // groupPieces splits a node's pieces by material, in the order the materials

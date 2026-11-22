@@ -20,6 +20,7 @@ import (
 	"m31labs.dev/greenware/ast"
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/gltf"
+	"m31labs.dev/greenware/internal/pbrcolor"
 	"m31labs.dev/greenware/kernel/image"
 	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/lang"
@@ -264,7 +265,7 @@ func TestHelmetImagesArePixelCorrect(t *testing.T) {
 			got := fall.At(cx, cy)
 			sh := float64(m[0]) / 255
 			for k := 0; k < 3; k++ {
-				lin := srgbToLinear(c.colour[k]) * sh
+				lin := pbrcolor.Linear(c.colour[k]) * sh
 				var enc float64
 				if lin <= 0.0031308 {
 					enc = 12.92 * lin

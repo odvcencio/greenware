@@ -13,6 +13,7 @@ import (
 	"m31labs.dev/greenware/datapkg"
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/gltf"
+	"m31labs.dev/greenware/internal/meshglb"
 	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/resolve"
 	"m31labs.dev/greenware/std"
@@ -20,7 +21,7 @@ import (
 )
 
 // Generator is written to asset.generator of every file.
-const Generator = "greenware 0.1"
+const Generator = meshglb.Generator
 
 // File is one built GLB: one level of one output.
 type File struct {

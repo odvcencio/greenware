@@ -8,6 +8,7 @@ import (
 	"m31labs.dev/greenware/det"
 	"m31labs.dev/greenware/diag"
 	"m31labs.dev/greenware/gltf"
+	"m31labs.dev/greenware/internal/pbrcolor"
 	"m31labs.dev/greenware/kernel/mesh"
 	"m31labs.dev/greenware/resolve"
 	"m31labs.dev/greenware/units"
@@ -51,26 +52,6 @@ type matOut struct {
 	filter, wrap string
 	// selena is the Selena material node when the material is one.
 	selena *resolve.Node
-}
-
-// srgbToLinear converts one sRGB byte to the linear factor glTF stores
-// (language.md section 2.15): c/12.92 up to 0.04045, else ((c+0.055)/1.055)^2.4.
-// The power uses only +, *, / and a fixed number of Newton steps, so every
-// machine gets the same bits.
-func srgbToLinear(b uint8) float64 {
-	c := float64(b) / 255
-	if c <= 0.04045 {
-		return c / 12.92
-	}
-	x := (c + 0.055) / 1.055
-	// x^2.4 = x^2 * x^(2/5); x^(2/5) is the fifth root of x^2.
-	a := float64(x * x)
-	r := 1.0
-	for i := 0; i < 80; i++ {
-		r4 := det.Pow(r, 4)
-		r = (float64(4*r) + a/r4) / 5
-	}
-	return float64(a * r)
 }
 
 func (e *elab) material(name string) (*matOut, bool) {
@@ -184,7 +165,7 @@ func (e *elab) material(name string) (*matOut, bool) {
 	out.m = gltf.Material{
 		Name: name,
 		BaseColor: [4]float32{
-			det.Round32(srgbToLinear(c.R)), det.Round32(srgbToLinear(c.G)), det.Round32(srgbToLinear(c.B)),
+			det.Round32(pbrcolor.Linear(c.R)), det.Round32(pbrcolor.Linear(c.G)), det.Round32(pbrcolor.Linear(c.B)),
 			det.Round32(float64(float64(c.A) / 255 * alpha)),
 		},
 		Metallic:    det.Round32(metal),

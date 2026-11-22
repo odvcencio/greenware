@@ -325,6 +325,10 @@ A rejected edit keeps the last successful model visible and shows the diagnostic
 
 Set `schema` to `greenware.outline/1` and `view` to the requested view name in `ref/main.png.view.json`. The sidecar also contains `width` and `height` to match the PNG, and `model_to_eye` and `eye_to_clip` as 16-number column-major matrices. Use the same mask and camera for every level unless the acceptance path explicitly selects another pair. The geometric silhouette uses the active scene and rigid transforms. It supports opaque surfaces and blended surfaces with positive base alpha. A missing mask or camera reports unavailable. Invalid reference files and unsupported mesh or material modes refuse the check. The report includes the SHA-256 of both reference files.
 
+## Material acceptance
+
+Use `material(node).base`, `.alpha`, `.metallic` and `.roughness` to check portable PBR factors on the decoded GLB. See [material checks](go-authoring.md#check-decoded-material-factors) for an example and how mixed or hidden materials are handled.
+
 ## Other commands
 
 `greenware build <file> [--output NAME] [--out-dir DIR | -o DIR] [--max-work N] [--accept FILE] [--project DIR] [--runtime-points N] [--geometry-only] [--json]` writes the GLB files and a build record. `greenware fmt <file> [--check] [--write] [--json]` formats a file. `greenware accept <source.gw> <accept.gw> --glb-dir DIR [--json] [--project DIR]` runs an acceptance file on built files; it exits 3 when no check failed but some could not be measured. The acceptance file may import a data package (`import "football/world@1" as world`) and read `world.goal_post.inside_width` in an expect; the lock is found from the project root (`--project`, else the nearest `greenware.mod`), a stale pin or a bad field is a diagnostic in the acceptance file and exits 2 with nothing evaluated, and the report lists the data under `inputs` (see data-package.md). Their exit status is 0 success, 1 an error diagnostic (or an unformatted file under `fmt --check`), 2 a usage or read error.
